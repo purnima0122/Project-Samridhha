@@ -130,6 +130,16 @@ export default function TopRightMenu({ theme = "dark", details }: TopRightMenuPr
             style={styles.menuItem}
             onPress={() => {
               setOpen(false);
+              router.push("/(tabs)/admin");
+            }}
+          >
+            <Feather name="shield" size={16} color="#0B3B78" />
+            <Text style={styles.menuItemText}>Admin Console</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => {
+              setOpen(false);
               signOut();
               router.push("/(tabs)/login");
             }}
