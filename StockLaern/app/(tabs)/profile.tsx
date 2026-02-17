@@ -41,7 +41,7 @@ export default function ProfileScreen() {
           </View>
           <View style={styles.infoRow}>
             <Feather name="grid" size={16} color="#0B3B78" />
-            <Text style={styles.infoText}>Personalized dashboard active</Text>
+            <Text style={styles.infoText}>Personalized home active</Text>
           </View>
 
           <View style={styles.dividerRow}>
@@ -50,10 +50,10 @@ export default function ProfileScreen() {
             <View style={styles.dividerLine} />
           </View>
 
-          <TouchableOpacity style={styles.mainButton} onPress={() => router.push("/(tabs)/dashboard")}>
-            <Text style={styles.mainButtonText}>Go to Dashboard</Text>
+          <TouchableOpacity style={styles.mainButton} onPress={() => router.push("/")}>
+            <Text style={styles.mainButtonText}>Go to Home</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.secondaryButton} onPress={() => router.push("/(tabs)/alert-settings")}>
+          <TouchableOpacity style={styles.secondaryButton} onPress={() => router.push("/alert-settings")}>
             <Text style={styles.secondaryButtonText}>Manage Alerts</Text>
           </TouchableOpacity>
         </View>
@@ -76,12 +76,12 @@ export default function ProfileScreen() {
       </View>
 
       <View style={styles.formCard}>
-        <Link href="/(tabs)/login" asChild>
+        <Link href="/login" asChild>
           <TouchableOpacity style={styles.mainButton}>
             <Text style={styles.mainButtonText}>Login</Text>
           </TouchableOpacity>
         </Link>
-        <Link href="/(tabs)/signup" asChild>
+        <Link href="/signup" asChild>
           <TouchableOpacity style={styles.secondaryButton}>
             <Text style={styles.secondaryButtonText}>Create Account</Text>
           </TouchableOpacity>
@@ -93,7 +93,7 @@ export default function ProfileScreen() {
           <View style={styles.dividerLine} />
         </View>
 
-        <Link href="/(tabs)/signup" asChild>
+        <Link href="/signup" asChild>
           <TouchableOpacity style={styles.googleBtn}>
             <GoogleLogo />
             <Text style={styles.googleBtnText}>Continue with Google</Text>
@@ -314,3 +314,4 @@ const styles = StyleSheet.create({
     color: "#B91C1C",
   },
 });
+

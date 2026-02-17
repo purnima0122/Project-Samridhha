@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   ScrollView,
@@ -49,6 +49,7 @@ export default function AdminScreen() {
   const { accessToken } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [accessState, setAccessState] = useState<"idle" | "allowed" | "forbidden" | "error">("idle");
 
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
@@ -84,7 +85,7 @@ export default function AdminScreen() {
     [lessons, selectedLessonId],
   );
 
-  const loadAll = async () => {
+  const loadAll = useCallback(async () => {
     if (!accessToken) return;
     try {
       setLoading(true);
@@ -97,16 +98,28 @@ export default function AdminScreen() {
       setLessons(lessonData || []);
       setAlerts(alertData || []);
       setWatchlist(watchData || []);
+      setAccessState("allowed");
     } catch (err: any) {
-      setError(err?.message || "Unable to load admin data.");
+      if (err?.status === 403) {
+        setAccessState("forbidden");
+        setError("You are logged in, but this account does not have admin access.");
+      } else {
+        setAccessState("error");
+        setError(err?.message || "Unable to load admin data.");
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, [accessToken]);
 
   useEffect(() => {
+    if (!accessToken) {
+      setAccessState("idle");
+      setError(null);
+      return;
+    }
     loadAll();
-  }, [accessToken]);
+  }, [accessToken, loadAll]);
 
   useEffect(() => {
     if (!selectedLesson) return;
@@ -134,18 +147,38 @@ export default function AdminScreen() {
 
   const handleLessonSave = async () => {
     if (!accessToken) return;
+    const trimmedTitle = lessonTitle.trim();
+    const trimmedModule = lessonModule.trim();
+    const trimmedContent = lessonContent.trim();
+    const parsedOrder = Number(lessonOrder);
+    const parsedDuration = Number(lessonDuration);
+
+    if (!trimmedTitle || !trimmedModule || !trimmedContent) {
+      setError("Lesson title, module, and content are required.");
+      return;
+    }
+    if (Number.isNaN(parsedOrder) || parsedOrder < 0) {
+      setError("Lesson order must be a valid non-negative number.");
+      return;
+    }
+    if (Number.isNaN(parsedDuration) || parsedDuration < 0) {
+      setError("Lesson duration must be a valid non-negative number.");
+      return;
+    }
+
     const payload = {
-      title: lessonTitle,
-      module: lessonModule,
-      content: lessonContent,
-      order: Number(lessonOrder),
-      duration: Number(lessonDuration),
+      title: trimmedTitle,
+      module: trimmedModule,
+      content: trimmedContent,
+      order: parsedOrder,
+      duration: parsedDuration,
       videoUrl: lessonVideoUrl,
       color: lessonColor,
       icon: lessonIcon,
     };
 
     try {
+      setError(null);
       if (selectedLessonId) {
         await apiFetch(`/lessons/${selectedLessonId}`, {
           method: "PATCH",
@@ -176,17 +209,31 @@ export default function AdminScreen() {
 
   const handleQuizAdd = async () => {
     if (!accessToken || !selectedLessonId) return;
+    if (!quizPrompt.trim()) {
+      setError("Quiz prompt is required.");
+      return;
+    }
     const options = quizOptions
       .split(",")
       .map((item) => item.trim())
       .filter(Boolean);
+    const correctIndex = Number(quizCorrectIndex);
+    if (options.length < 2) {
+      setError("Please provide at least two quiz options.");
+      return;
+    }
+    if (Number.isNaN(correctIndex) || correctIndex < 0 || correctIndex >= options.length) {
+      setError("Correct option index must match one of the options.");
+      return;
+    }
     try {
+      setError(null);
       await apiFetch(`/lessons/${selectedLessonId}/quiz`, {
         method: "POST",
         body: JSON.stringify({
           prompt: quizPrompt,
           options,
-          correctOptionIndex: Number(quizCorrectIndex),
+          correctOptionIndex: correctIndex,
           explanation: quizExplanation || undefined,
         }),
       }, accessToken);
@@ -202,7 +249,12 @@ export default function AdminScreen() {
 
   const handleAlertCreate = async () => {
     if (!accessToken) return;
+    if (!alertSymbol.trim() || !alertPrice.trim() || !alertUnits.trim()) {
+      setError("Alert symbol, price, and units are required.");
+      return;
+    }
     try {
+      setError(null);
       await apiFetch("/alerts", {
         method: "POST",
         body: JSON.stringify({
@@ -234,7 +286,12 @@ export default function AdminScreen() {
 
   const handleWatchCreate = async () => {
     if (!accessToken) return;
+    if (!watchSymbol.trim()) {
+      setError("Watchlist symbol is required.");
+      return;
+    }
     try {
+      setError(null);
       await apiFetch("/watchlist", {
         method: "POST",
         body: JSON.stringify({
@@ -270,8 +327,22 @@ export default function AdminScreen() {
       <View style={styles.centered}>
         <Text style={styles.centeredTitle}>Admin Access</Text>
         <Text style={styles.centeredText}>Please log in as an admin to continue.</Text>
-        <TouchableOpacity style={styles.primaryButton} onPress={() => router.push("/(tabs)/profile")}>
+        <TouchableOpacity style={styles.primaryButton} onPress={() => router.push("/profile")}>
           <Text style={styles.primaryButtonText}>Go to Login</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (accessState === "forbidden") {
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.centeredTitle}>Admin Access Required</Text>
+        <Text style={styles.centeredText}>
+          You are logged in, but this account is not marked as admin in the backend.
+        </Text>
+        <TouchableOpacity style={styles.primaryButton} onPress={() => router.push("/")}>
+          <Text style={styles.primaryButtonText}>Back to Home</Text>
         </TouchableOpacity>
       </View>
     );
@@ -284,6 +355,10 @@ export default function AdminScreen() {
           <Feather name="arrow-left" size={22} color="#1E293B" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Admin Console</Text>
+        <TouchableOpacity onPress={loadAll} style={styles.refreshBtn}>
+          <Feather name="refresh-cw" size={16} color="#0369A1" />
+          <Text style={styles.refreshBtnText}>Refresh</Text>
+        </TouchableOpacity>
       </View>
 
       {loading && (
@@ -484,6 +559,21 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "700",
     color: "#1E293B",
+    flex: 1,
+  },
+  refreshBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#E0F2FE",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  refreshBtnText: {
+    color: "#0369A1",
+    fontSize: 12,
+    fontWeight: "700",
   },
   section: {
     paddingHorizontal: 20,
@@ -665,3 +755,4 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
 });
+

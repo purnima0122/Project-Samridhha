@@ -17,6 +17,10 @@ import { useAuth } from "../context/AuthContext";
 
 WebBrowser.maybeCompleteAuthSession();
 
+function getAuthRedirectUrl() {
+  return Linking.createURL("auth");
+}
+
 export default function LoginScreen() {
   const router = useRouter();
   const { signIn, updateUser } = useAuth();
@@ -43,10 +47,10 @@ export default function LoginScreen() {
       !profile.address ||
       !profile.wardNo;
     if (needsProfile) {
-      router.push("/(tabs)/complete-profile");
+      router.push("/complete-profile");
       return;
     }
-    router.replace("/(tabs)/dashboard");
+    router.replace("/");
   };
 
   const handleLogin = async () => {
@@ -84,7 +88,7 @@ export default function LoginScreen() {
   };
 
   const handleGoogle = async () => {
-    const redirectUrl = Linking.createURL("auth");
+    const redirectUrl = getAuthRedirectUrl();
     const authUrl = `${API_BASE_URL}/auth/google?redirect=${encodeURIComponent(redirectUrl)}`;
     try {
       const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
@@ -106,6 +110,8 @@ export default function LoginScreen() {
         } else {
           setStatus({ type: "error", message: "Google login failed." });
         }
+      } else if (result.type !== "cancel") {
+        setStatus({ type: "error", message: "Google login was not completed." });
       }
     } catch (error: any) {
       setStatus({ type: "error", message: error?.message || "Google login failed." });
@@ -115,7 +121,7 @@ export default function LoginScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.push("/(tabs)/index")} style={styles.logoBtn}>
+        <TouchableOpacity onPress={() => router.push("/")} style={styles.logoBtn}>
           <View style={styles.logoIcon}>
             <Feather name="trending-up" size={18} color="#fff" />
           </View>
@@ -171,7 +177,7 @@ export default function LoginScreen() {
 
         <View style={styles.footerRow}>
           <Text style={styles.footerText}>Don't have an account?</Text>
-          <Link href="/(tabs)/signup" style={styles.footerLink}>Register</Link>
+          <Link href="/signup" style={styles.footerLink}>Register</Link>
         </View>
       </View>
     </ScrollView>
@@ -262,3 +268,4 @@ const styles = StyleSheet.create({
   statusSuccess: { backgroundColor: "#14532D" },
   statusText: { color: "#fff", fontSize: 12, fontWeight: "600" },
 });
+

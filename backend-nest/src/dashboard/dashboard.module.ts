@@ -22,6 +22,7 @@ import { WatchlistService } from './watchlist.service';
 import { StockAlertsController } from './stock-alerts.controller';
 import { WatchlistController } from './watchlist.controller';
 import { AdminGuard } from 'src/guards/admin.guard';
+import { StockDataModule } from '../stock-data/stock-data.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { AdminGuard } from 'src/guards/admin.guard';
       { name: StockAlert.name, schema: StockAlertSchema },
       { name: WatchlistItem.name, schema: WatchlistItemSchema },
     ]),
+    StockDataModule,
   ],
   controllers: [
     DashboardController,
@@ -46,4 +48,4 @@ import { AdminGuard } from 'src/guards/admin.guard';
     AdminGuard,
   ],
 })
-export class DashboardModule {}
+export class DashboardModule { }

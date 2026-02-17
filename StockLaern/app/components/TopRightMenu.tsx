@@ -39,7 +39,7 @@ export default function TopRightMenu({ theme = "dark", details }: TopRightMenuPr
       <View style={styles.actionsRow}>
         <TouchableOpacity
           style={[styles.iconButton, isDark ? styles.iconButtonDark : styles.iconButtonLight]}
-          onPress={() => router.push("/(tabs)/alert-settings")}
+          onPress={() => router.push("/alert-settings")}
         >
           <Feather name="bell" size={16} color={isDark ? "#fff" : "#0B3B78"} />
         </TouchableOpacity>
@@ -59,18 +59,6 @@ export default function TopRightMenu({ theme = "dark", details }: TopRightMenuPr
           <Feather name={open ? "chevron-up" : "chevron-down"} size={16} color={isDark ? "#fff" : "#0B3B78"} />
         </TouchableOpacity>
       </View>
-        <TouchableOpacity
-          style={[
-            styles.dashboardButton,
-            isDark ? styles.dashboardButtonDark : styles.dashboardButtonLight,
-          ]}
-          onPress={() => router.push("/(tabs)/dashboard")}
-        >
-          <Feather name="home" size={16} color={isDark ? "#fff" : "#0B3B78"} />
-          <Text style={[styles.dashboardButtonText, isDark ? styles.dashboardTextDark : styles.dashboardTextLight]}>
-            Return to Dashboard
-          </Text>
-        </TouchableOpacity>
 
       {open && (
         <View style={styles.menu}>
@@ -100,7 +88,7 @@ export default function TopRightMenu({ theme = "dark", details }: TopRightMenuPr
             style={styles.menuItem}
             onPress={() => {
               setOpen(false);
-              router.push("/(tabs)/profile");
+              router.push("/profile");
             }}
           >
             <Feather name="user" size={16} color="#0B3B78" />
@@ -110,7 +98,7 @@ export default function TopRightMenu({ theme = "dark", details }: TopRightMenuPr
             style={styles.menuItem}
             onPress={() => {
               setOpen(false);
-              router.push("/(tabs)/alert-settings");
+              router.push("/alert-settings");
             }}
           >
             <Feather name="bell" size={16} color="#0B3B78" />
@@ -120,18 +108,28 @@ export default function TopRightMenu({ theme = "dark", details }: TopRightMenuPr
             style={styles.menuItem}
             onPress={() => {
               setOpen(false);
-              router.push("/(tabs)/dashboard");
+              router.push("/");
             }}
           >
             <Feather name="home" size={16} color="#0B3B78" />
-            <Text style={styles.menuItemText}>Return to Dashboard</Text>
+            <Text style={styles.menuItemText}>Home</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => {
+              setOpen(false);
+              router.push("/admin");
+            }}
+          >
+            <Feather name="shield" size={16} color="#0B3B78" />
+            <Text style={styles.menuItemText}>Admin Console</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.menuItem}
             onPress={() => {
               setOpen(false);
               signOut();
-              router.push("/(tabs)/login");
+              router.push("/login");
             }}
           >
             <Feather name="log-out" size={16} color="#EF4444" />
@@ -147,7 +145,7 @@ const styles = StyleSheet.create({
   wrapper: {
     alignSelf: "flex-end",
     position: "relative",
-    zIndex: 20,
+    zIndex: 200,
   },
   actionsRow: {
     flexDirection: "row",
@@ -186,21 +184,6 @@ const styles = StyleSheet.create({
   triggerName: { fontSize: 12, fontWeight: "700" },
   triggerNameDark: { color: "#fff" },
   triggerNameLight: { color: "#0F172A" },
-  dashboardButton: {
-    marginTop: 12,
-    alignSelf: "flex-end",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-  },
-  dashboardButtonDark: { backgroundColor: "rgba(255,255,255,0.2)" },
-  dashboardButtonLight: { backgroundColor: "#E2E8F0" },
-  dashboardButtonText: { fontSize: 12, fontWeight: "700" },
-  dashboardTextDark: { color: "#fff" },
-  dashboardTextLight: { color: "#0B3B78" },
   menu: {
     position: "absolute",
     right: 0,
@@ -216,7 +199,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 12,
     elevation: 10,
-    zIndex: 30,
+    zIndex: 300,
   },
   menuName: { fontSize: 14, fontWeight: "700", color: "#0F172A" },
   menuEmail: { fontSize: 12, color: "#64748B", marginTop: 4 },
@@ -241,3 +224,4 @@ const styles = StyleSheet.create({
   menuItemText: { fontSize: 13, fontWeight: "600", color: "#0F172A" },
   logoutText: { color: "#EF4444" },
 });
+

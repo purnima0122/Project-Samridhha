@@ -17,6 +17,10 @@ import { useAuth } from "../context/AuthContext";
 
 WebBrowser.maybeCompleteAuthSession();
 
+function getAuthRedirectUrl() {
+  return Linking.createURL("auth");
+}
+
 export default function SignupScreen() {
   const router = useRouter();
   const { signIn, updateUser } = useAuth();
@@ -49,10 +53,10 @@ export default function SignupScreen() {
       !profile.address ||
       !profile.wardNo;
     if (needsProfile) {
-      router.push("/(tabs)/complete-profile");
+      router.push("/complete-profile");
       return;
     }
-    router.replace("/(tabs)/dashboard");
+    router.replace("/");
   };
 
   const handleSignup = async () => {
@@ -108,7 +112,7 @@ export default function SignupScreen() {
   };
 
   const handleGoogle = async () => {
-    const redirectUrl = Linking.createURL("auth");
+    const redirectUrl = getAuthRedirectUrl();
     const authUrl = `${API_BASE_URL}/auth/google?redirect=${encodeURIComponent(redirectUrl)}`;
     try {
       const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
@@ -130,6 +134,8 @@ export default function SignupScreen() {
         } else {
           setStatus({ type: "error", message: "Google signup failed." });
         }
+      } else if (result.type !== "cancel") {
+        setStatus({ type: "error", message: "Google signup was not completed." });
       }
     } catch (error: any) {
       setStatus({ type: "error", message: error?.message || "Google signup failed." });
@@ -212,7 +218,7 @@ export default function SignupScreen() {
 
         <View style={styles.footerRow}>
           <Text style={styles.footerText}>Already have an account?</Text>
-          <Link href="/(tabs)/login" style={styles.footerLink}>Login</Link>
+          <Link href="/login" style={styles.footerLink}>Login</Link>
         </View>
       </View>
     </ScrollView>
@@ -294,3 +300,4 @@ const styles = StyleSheet.create({
   statusSuccess: { backgroundColor: "#14532D" },
   statusText: { color: "#fff", fontSize: 12, fontWeight: "600" },
 });
+
