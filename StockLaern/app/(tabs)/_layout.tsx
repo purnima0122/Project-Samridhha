@@ -1,9 +1,7 @@
-
 import Feather from '@expo/vector-icons/Feather';
 import type { ComponentProps } from "react";
 import { Tabs } from "expo-router";
 import { View } from "react-native";
-import { AuthProvider } from "../context/AuthContext";
 import { DataServerProvider } from "../context/DataServerContext";
 
 type TabIconProps = {
@@ -34,7 +32,7 @@ function TabLayoutInner() {
   return (
     <Tabs
       screenOptions={{
-        headerShown: false,   // top header hide garna lai use huncha
+        headerShown: false,
         tabBarActiveTintColor: "#0B3B78",
         tabBarInactiveTintColor: "#94A3B8",
         tabBarLabelStyle: { fontSize: 11, marginTop: 2 },
@@ -76,65 +74,22 @@ function TabLayoutInner() {
           ),
         }}
       />
-      <Tabs.Screen
-        name="dashboard"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="news"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="alert-settings"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="admin"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="complete-profile"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="login"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="signup"
-        options={{
-          href: null,
-        }}
-      />
+      <Tabs.Screen name="dashboard" options={{ href: null }} />
+      <Tabs.Screen name="news" options={{ href: null }} />
+      <Tabs.Screen name="alert-settings" options={{ href: null }} />
+      <Tabs.Screen name="profile" options={{ href: null }} />
+      <Tabs.Screen name="admin" options={{ href: null }} />
+      <Tabs.Screen name="complete-profile" options={{ href: null }} />
+      <Tabs.Screen name="login" options={{ href: null }} />
+      <Tabs.Screen name="signup" options={{ href: null }} />
     </Tabs>
   );
 }
 
 export default function TabLayout() {
   return (
-    <AuthProvider>
-      <DataServerProvider>
-        <TabLayoutInner />
-      </DataServerProvider>
-    </AuthProvider>
+    <DataServerProvider>
+      <TabLayoutInner />
+    </DataServerProvider>
   );
 }
-

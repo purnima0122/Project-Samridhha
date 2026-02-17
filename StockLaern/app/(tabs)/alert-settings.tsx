@@ -112,7 +112,7 @@ export default function AlertSettingsScreen() {
           <Text style={styles.gateText}>
             Create an account to configure alert types, notifications, and watchlist triggers.
           </Text>
-          <TouchableOpacity style={styles.primaryButton} onPress={() => router.push("/(tabs)/login")}>
+          <TouchableOpacity style={styles.primaryButton} onPress={() => router.push("/login")}>
             <Text style={styles.primaryButtonText}>Go to Login</Text>
           </TouchableOpacity>
         </View>
@@ -344,3 +344,4 @@ const styles = StyleSheet.create({
   notificationTitle: { fontSize: 14, fontWeight: "600", color: "#0F172A" },
   notificationTime: { fontSize: 11, color: "#94A3B8", marginTop: 4 },
 });
+

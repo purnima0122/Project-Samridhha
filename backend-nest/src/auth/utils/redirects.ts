@@ -10,10 +10,17 @@ export function getAllowedRedirects(): string[] {
 export function isAllowedRedirect(candidate?: string | null): string | null {
   if (!candidate) return null;
   const allowed = getAllowedRedirects();
-  if (allowed.length === 0) return null;
-  return allowed.find((allowedUrl) => candidate.startsWith(allowedUrl))
-    ? candidate
-    : null;
+  if (allowed.find((allowedUrl) => candidate.startsWith(allowedUrl))) {
+    return candidate;
+  }
+
+  // Support Expo Go deep links during local development.
+  const isDev = process.env.NODE_ENV !== 'production';
+  if (isDev && (candidate.startsWith('exp://') || candidate.startsWith('exps://'))) {
+    return candidate;
+  }
+
+  return null;
 }
 
 export function encodeRedirectState(redirect: string): string {
