@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 
 type AuthState = {
@@ -33,12 +34,9 @@ const initialState: AuthState = {
 
 const AUTH_STORAGE_KEY = "stocklearn_auth";
 
-function loadStoredAuth(): AuthState | null {
-  if (typeof window === "undefined" || !window.localStorage) {
-    return null;
-  }
+async function loadStoredAuth(): Promise<AuthState | null> {
   try {
-    const raw = window.localStorage.getItem(AUTH_STORAGE_KEY);
+    const raw = await AsyncStorage.getItem(AUTH_STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as AuthState;
     return parsed;
@@ -47,23 +45,17 @@ function loadStoredAuth(): AuthState | null {
   }
 }
 
-function storeAuth(auth: AuthState) {
-  if (typeof window === "undefined" || !window.localStorage) {
-    return;
-  }
+async function storeAuth(auth: AuthState) {
   try {
-    window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(auth));
+    await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(auth));
   } catch {
     // ignore storage errors
   }
 }
 
-function clearAuth() {
-  if (typeof window === "undefined" || !window.localStorage) {
-    return;
-  }
+async function clearAuth() {
   try {
-    window.localStorage.removeItem(AUTH_STORAGE_KEY);
+    await AsyncStorage.removeItem(AUTH_STORAGE_KEY);
   } catch {
     // ignore storage errors
   }
@@ -73,16 +65,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [auth, setAuth] = useState<AuthState>(initialState);
 
   useEffect(() => {
-    const stored = loadStoredAuth();
-    if (stored?.accessToken) {
-      setAuth({
-        accessToken: stored.accessToken ?? null,
-        refreshToken: stored.refreshToken ?? null,
-        userId: stored.userId ?? null,
-        userName: stored.userName ?? null,
-        email: stored.email ?? null,
-      });
-    }
+    loadStoredAuth().then((stored) => {
+      if (stored?.accessToken) {
+        setAuth({
+          accessToken: stored.accessToken ?? null,
+          refreshToken: stored.refreshToken ?? null,
+          userId: stored.userId ?? null,
+          userName: stored.userName ?? null,
+          email: stored.email ?? null,
+        });
+      }
+    });
   }, []);
 
   const value = useMemo<AuthContextValue>(
