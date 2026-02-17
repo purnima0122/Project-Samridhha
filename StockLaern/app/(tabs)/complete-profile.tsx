@@ -26,14 +26,16 @@ export default function CompleteProfileScreen() {
   const handleSubmit = async () => {
     if (!accessToken) {
       setError("Please log in again.");
+      router.replace("/login");
       return;
     }
 
     const cleanName = name.trim();
     const cleanNumber = number.replace(/\s+/g, "");
+    const cleanAddress = address.trim();
     const cleanWard = wardNo.trim();
 
-    if (!cleanName || !cleanNumber || !address || !cleanWard) {
+    if (!cleanName || !cleanNumber || !cleanAddress || !cleanWard) {
       setError("Please fill all the fields.");
       return;
     }
@@ -49,13 +51,16 @@ export default function CompleteProfileScreen() {
         body: JSON.stringify({
           name: cleanName,
           number: cleanNumber,
-          address,
+          address: cleanAddress,
           wardNo: cleanWard,
         }),
       }, accessToken);
 
       updateUser({ userName: updated.name, email: updated.email });
-      router.push("/");
+      const profile = await apiFetch<{
+        isProfileComplete: boolean;
+      }>("/users/me", {}, accessToken);
+      router.replace(profile.isProfileComplete ? "/" : "/complete-profile");
     } catch (err: any) {
       setError(err?.message || "Unable to update profile.");
     } finally {

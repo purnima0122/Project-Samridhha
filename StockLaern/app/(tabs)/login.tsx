@@ -47,7 +47,7 @@ export default function LoginScreen() {
       !profile.address ||
       !profile.wardNo;
     if (needsProfile) {
-      router.push("/complete-profile");
+      router.replace("/complete-profile");
       return;
     }
     router.replace("/");
