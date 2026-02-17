@@ -1,52 +1,92 @@
 import { Activity, Search, TrendingDown, TrendingUp } from "lucide-react-native";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import HeaderBar from "../components/HeaderBar";
 import TopRightMenu from "../components/TopRightMenu";
+import { useDataServer } from "../context/DataServerContext";
 
 type Page = "home" | "market";
 
 interface BrowseMarketProps {
-  onNavigate: (page: Page) => void;
+  onNavigate?: (page: Page) => void;
 }
 
-const mockCompanies = [
-  { symbol: "NABIL", name: "Nabil Bank Ltd", price: 1245.0, change: 2.4, volume: 12450, sector: "Commercial Banks", marketCap: "52.4B" },
-  { symbol: "NIBL", name: "Nepal Investment Bank", price: 892.5, change: -1.2, volume: 8932, sector: "Commercial Banks", marketCap: "38.2B" },
-  { symbol: "NICA", name: "NIC Asia Bank", price: 1034.0, change: 3.1, volume: 15234, sector: "Commercial Banks", marketCap: "45.8B" },
-  { symbol: "EBL", name: "Everest Bank Ltd", price: 756.0, change: 1.8, volume: 6789, sector: "Commercial Banks", marketCap: "28.9B" },
-  { symbol: "BOKL", name: "Bank of Kathmandu", price: 534.5, change: -0.5, volume: 4523, sector: "Commercial Banks", marketCap: "22.1B" },
-  { symbol: "ADBL", name: "Agricultural Development Bank", price: 423.0, change: 0.8, volume: 3456, sector: "Development Banks", marketCap: "18.5B" },
-  { symbol: "NBL", name: "Nepal Bank Limited", price: 512.0, change: 2.1, volume: 5678, sector: "Commercial Banks", marketCap: "24.3B" },
-  { symbol: "SBI", name: "Nepal SBI Bank", price: 487.5, change: -1.8, volume: 3892, sector: "Commercial Banks", marketCap: "19.7B" },
-];
-
 export default function MarketScreen({ onNavigate }: BrowseMarketProps) {
+  const { stocks, ticks, loadingStocks, isConnected, searchStocks, subscribe, marketStatus } = useDataServer();
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<any[] | null>(null);
+  const [searching, setSearching] = useState(false);
   const [selectedTab, setSelectedTab] = useState<"all" | "gainers" | "losers">("all");
 
-  const filteredCompanies = mockCompanies.filter((company) => {
-    const matchesSearch =
-      company.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      company.symbol.toLowerCase().includes(searchQuery.toLowerCase());
+  // Subscribe to all tracked stock ticks on mount
+  useEffect(() => {
+    if (stocks.length > 0) {
+      const symbols = stocks.map((s: any) => s.symbol).filter(Boolean);
+      if (symbols.length > 0) {
+        subscribe(symbols);
+      }
+    }
+  }, [stocks]);
 
-    if (selectedTab === "gainers") return matchesSearch && company.change > 0;
-    if (selectedTab === "losers") return matchesSearch && company.change < 0;
-    return matchesSearch;
+  // Search handler with debounce
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        setSearching(true);
+        const results = await searchStocks(searchQuery);
+        setSearchResults(results);
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Merge stock data with live ticks
+  const mergeWithTicks = (stock: any) => {
+    const tick = ticks[stock.symbol?.toUpperCase()];
+    if (tick) {
+      return {
+        ...stock,
+        price: tick.current_price ?? stock.current_price ?? stock.ltp ?? 0,
+        change: tick.change_pct ?? stock.change_pct ?? 0,
+        volume: tick.volume ?? stock.volume ?? 0,
+      };
+    }
+    return {
+      ...stock,
+      price: stock.current_price ?? stock.ltp ?? 0,
+      change: stock.change_pct ?? 0,
+      volume: stock.volume ?? 0,
+    };
+  };
+
+  const displayStocks = (searchResults ?? stocks).map(mergeWithTicks);
+
+  const filteredCompanies = displayStocks.filter((company: any) => {
+    if (selectedTab === "gainers") return company.change > 0;
+    if (selectedTab === "losers") return company.change < 0;
+    return true;
   });
 
-  const marketStats = {
-    totalTurnover: "2.45B",
-    totalVolume: "4.2M",
-    totalTrades: "12,456",
-  };
+  const gainersCount = displayStocks.filter((c: any) => c.change > 0).length;
+  const losersCount = displayStocks.filter((c: any) => c.change < 0).length;
 
   return (
     <ScrollView style={styles.container}>
@@ -56,23 +96,31 @@ export default function MarketScreen({ onNavigate }: BrowseMarketProps) {
           <HeaderBar tint="dark" rightSlot={<TopRightMenu theme="dark" />} />
         </View>
         <Text style={styles.headerTitle}>Browse Market</Text>
-        <Text style={styles.headerSubtitle}>NEPSE Commercial Banks Data</Text>
+        <Text style={styles.headerSubtitle}>
+          {marketStatus?.is_open ? "🟢 Market Open" : "🔴 Market Closed"} · NEPSE Live Data
+        </Text>
       </View>
 
       <View style={styles.content}>
         {/* Market Overview */}
         <View style={styles.statsRow}>
           <View style={styles.statBox}>
-            <Text style={styles.statLabel}>Turnover</Text>
-            <Text style={styles.statValue}>NPR {marketStats.totalTurnover}</Text>
+            <Text style={styles.statLabel}>Stocks</Text>
+            <Text style={styles.statValue}>{stocks.length}</Text>
           </View>
           <View style={styles.statBox}>
-            <Text style={styles.statLabel}>Volume</Text>
-            <Text style={styles.statValue}>{marketStats.totalVolume}</Text>
+            <Text style={styles.statLabel}>Gainers</Text>
+            <Text style={[styles.statValue, { color: "#22c55e" }]}>{gainersCount}</Text>
           </View>
           <View style={styles.statBox}>
-            <Text style={styles.statLabel}>Trades</Text>
-            <Text style={styles.statValue}>{marketStats.totalTrades}</Text>
+            <Text style={styles.statLabel}>Losers</Text>
+            <Text style={[styles.statValue, { color: "#ef4444" }]}>{losersCount}</Text>
+          </View>
+          <View style={styles.statBox}>
+            <Text style={styles.statLabel}>Live</Text>
+            <Text style={[styles.statValue, { color: isConnected ? "#22c55e" : "#94A3B8" }]}>
+              {isConnected ? "●" : "○"}
+            </Text>
           </View>
         </View>
 
@@ -81,10 +129,11 @@ export default function MarketScreen({ onNavigate }: BrowseMarketProps) {
           <Search width={20} height={20} color="#888" style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search companies..."
+            placeholder="Search stocks by name or symbol..."
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
+          {searching && <ActivityIndicator size="small" color="#0B3B78" />}
         </View>
 
         {/* Tabs */}
@@ -109,28 +158,35 @@ export default function MarketScreen({ onNavigate }: BrowseMarketProps) {
           </TouchableOpacity>
         </View>
 
-        {/* Companies List */}
-        {filteredCompanies.length > 0 ? (
-          filteredCompanies.map((company) => (
+        {/* Loading State */}
+        {loadingStocks && stocks.length === 0 ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#0B3B78" />
+            <Text style={styles.loadingText}>Loading live market data...</Text>
+          </View>
+        ) : filteredCompanies.length > 0 ? (
+          filteredCompanies.map((company: any) => (
             <View key={company.symbol} style={styles.companyCard}>
               <View style={styles.companyHeader}>
                 <View>
                   <Text style={styles.companySymbol}>{company.symbol}</Text>
-                  <Text style={styles.companyName}>{company.name}</Text>
+                  <Text style={styles.companyName}>{company.name || company.company_name || ""}</Text>
                 </View>
                 <View style={styles.companyPriceContainer}>
-                  <Text style={styles.companyPrice}>NPR {company.price.toFixed(2)}</Text>
+                  <Text style={styles.companyPrice}>NPR {Number(company.price).toFixed(2)}</Text>
                   <View style={styles.changeRow}>
                     {company.change > 0 ? (
                       <>
                         <TrendingUp width={16} height={16} color="green" />
-                        <Text style={styles.changePositive}>+{company.change}%</Text>
+                        <Text style={styles.changePositive}>+{Number(company.change).toFixed(2)}%</Text>
                       </>
-                    ) : (
+                    ) : company.change < 0 ? (
                       <>
                         <TrendingDown width={16} height={16} color="red" />
-                        <Text style={styles.changeNegative}>{company.change}%</Text>
+                        <Text style={styles.changeNegative}>{Number(company.change).toFixed(2)}%</Text>
                       </>
+                    ) : (
+                      <Text style={styles.changeNeutral}>0.00%</Text>
                     )}
                   </View>
                 </View>
@@ -139,15 +195,19 @@ export default function MarketScreen({ onNavigate }: BrowseMarketProps) {
               <View style={styles.companyFooter}>
                 <View style={styles.volumeContainer}>
                   <Activity width={14} height={14} />
-                  <Text style={styles.volumeText}>Vol: {company.volume.toLocaleString()}</Text>
+                  <Text style={styles.volumeText}>Vol: {Number(company.volume).toLocaleString()}</Text>
                 </View>
-                <Text style={styles.marketCapText}>Mkt Cap: {company.marketCap}</Text>
+                {company.sector && (
+                  <Text style={styles.sectorText}>{company.sector}</Text>
+                )}
               </View>
             </View>
           ))
         ) : (
           <View style={styles.noCompanies}>
-            <Text style={styles.noCompaniesText}>No companies found</Text>
+            <Text style={styles.noCompaniesText}>
+              {searchQuery ? "No stocks found matching your search" : "No stocks available"}
+            </Text>
           </View>
         )}
       </View>
@@ -185,19 +245,22 @@ const styles = StyleSheet.create({
   tabButtonActiveRed: { backgroundColor: "#ef4444" },
   tabText: { color: "#4b5563", fontSize: 14 },
   tabTextActive: { color: "#fff", fontWeight: "bold" },
+  loadingContainer: { padding: 60, alignItems: "center" },
+  loadingText: { color: "#6b7280", fontSize: 14, marginTop: 12 },
   companyCard: { backgroundColor: "#fff", borderRadius: 12, padding: 12, marginBottom: 12, shadowColor: "#000", shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2, borderWidth: 1, borderColor: "#E2E8F0" },
   companyHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
   companySymbol: { fontSize: 16, fontWeight: "bold", color: "#111" },
-  companyName: { fontSize: 12, color: "#6b7280" },
+  companyName: { fontSize: 12, color: "#6b7280", maxWidth: 180 },
   companyPriceContainer: { alignItems: "flex-end" },
   companyPrice: { fontSize: 14, fontWeight: "bold", color: "#111" },
   changeRow: { flexDirection: "row", alignItems: "center", marginTop: 2 },
   changePositive: { color: "green", fontSize: 12, marginLeft: 4 },
   changeNegative: { color: "red", fontSize: 12, marginLeft: 4 },
+  changeNeutral: { color: "#6b7280", fontSize: 12 },
   companyFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   volumeContainer: { flexDirection: "row", alignItems: "center" },
   volumeText: { fontSize: 12, color: "#6b7280", marginLeft: 4 },
-  marketCapText: { fontSize: 12, color: "#6b7280" },
+  sectorText: { fontSize: 11, color: "#94A3B8", fontStyle: "italic" },
   noCompanies: { padding: 40, alignItems: "center" },
   noCompaniesText: { color: "#6b7280", fontSize: 14 },
 });

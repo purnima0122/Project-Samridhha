@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { User } from '../auth/schemas/user.schema';
@@ -15,9 +15,12 @@ import {
   WatchlistItem,
   WatchlistItemDocument,
 } from './schemas/watchlist-item.schema';
+import { StockDataService } from '../stock-data/stock-data.service';
 
 @Injectable()
 export class DashboardService {
+  private readonly logger = new Logger(DashboardService.name);
+
   constructor(
     @InjectModel(User.name)
     private readonly userModel: Model<User>,
@@ -29,7 +32,8 @@ export class DashboardService {
     private readonly stockAlertModel: Model<StockAlertDocument>,
     @InjectModel(WatchlistItem.name)
     private readonly watchlistModel: Model<WatchlistItemDocument>,
-  ) {}
+    private readonly stockDataService: StockDataService,
+  ) { }
 
   async getSummary() {
     const [
@@ -74,11 +78,37 @@ export class DashboardService {
         .exec(),
     ]);
 
+    // Enrich watchlist items with live prices from Data-Server
+    let enrichedWatchlist: any[] = watchlistItems.map((item) => item.toObject());
+    try {
+      const symbols = watchlistItems
+        .map((item) => item.symbol)
+        .filter(Boolean);
+      if (symbols.length > 0) {
+        const livePrices =
+          await this.stockDataService.getLivePrices(symbols);
+        enrichedWatchlist = enrichedWatchlist.map((item) => {
+          const live = livePrices[item.symbol?.toUpperCase()];
+          if (live) {
+            return {
+              ...item,
+              price: `NPR ${live.price.toFixed(2)}`,
+              change: `${live.change_pct >= 0 ? '+' : ''}${live.change_pct.toFixed(2)}%`,
+              isPositive: live.change_pct >= 0,
+            };
+          }
+          return item;
+        });
+      }
+    } catch (error) {
+      this.logger.warn('Could not fetch live prices from Data-Server', error);
+    }
+
     return {
       userName: user?.name || user?.email || 'User',
       spikeAlertsEnabled: user?.spikeAlertsEnabled ?? true,
       stockAlerts,
-      watchlistItems,
+      watchlistItems: enrichedWatchlist,
     };
   }
 

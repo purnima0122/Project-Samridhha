@@ -9,43 +9,44 @@ import { UsersModule } from './users/users.module';
 import { LessonModule } from './lesson/lesson.module';
 import { ProgressModule } from './progress/progress.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { StockDataModule } from './stock-data/stock-data.module';
 import config from './config/config';
 import googleOauthConfig from './config/google-oauth.config';
 
 @Module({
-  imports:
-  [ ConfigModule.forRoot({
-    isGlobal:true,
-    cache:true,
-    load:[config,googleOauthConfig],
-  }),
-       
-    JwtModule.registerAsync({
-    imports: [ConfigModule],
-    useFactory: async(config)=>({
-      secret: config.get('jwt.secret'),
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      cache: true,
+      load: [config, googleOauthConfig],
     }),
-    global:true,
-    inject: [ConfigService]
-  }),
+
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: async (config) => ({
+        secret: config.get('jwt.secret'),
+      }),
+      global: true,
+      inject: [ConfigService],
+    }),
 
     MongooseModule.forRootAsync({
-    imports: [ConfigModule],
-    useFactory: async(config)=>({
-      uri: config.get('database.connectionString'),
+      imports: [ConfigModule],
+      useFactory: async (config) => ({
+        uri: config.get('database.connectionString'),
+      }),
+      inject: [ConfigService],
     }),
-    inject: [ConfigService]
-  }),
 
     AuthModule,
-
     UsersModule,
-
     LessonModule,
     ProgressModule,
-    DashboardModule],
+    DashboardModule,
+    StockDataModule,
+  ],
 
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule { }

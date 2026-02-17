@@ -19,14 +19,14 @@ import { UpdateLessonDto } from './dtos/update-lesson.dto';
 
 @Controller('lessons')
 export class LessonController {
-  constructor(private readonly lessonService: LessonService) {}
+  constructor(private readonly lessonService: LessonService) { }
 
   @Get()
   async getAll(
     @Query('module') module: string,
     @Req() req,
   ) {
-    console.log('Logged-in user:', req.userId);//this should work 
+
 
     if (module) {
       return this.lessonService.findByModule(module);
