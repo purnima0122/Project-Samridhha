@@ -4,6 +4,7 @@ import type { ComponentProps } from "react";
 import { Tabs } from "expo-router";
 import { View } from "react-native";
 import { AuthProvider } from "../context/AuthContext";
+import { DataServerProvider } from "../context/DataServerContext";
 
 type TabIconProps = {
   name: ComponentProps<typeof Feather>["name"];
@@ -130,7 +131,10 @@ function TabLayoutInner() {
 export default function TabLayout() {
   return (
     <AuthProvider>
-      <TabLayoutInner />
+      <DataServerProvider>
+        <TabLayoutInner />
+      </DataServerProvider>
     </AuthProvider>
   );
 }
+
