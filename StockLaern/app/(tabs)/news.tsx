@@ -35,7 +35,7 @@ export default function NewsScreen() {
         <Text style={styles.gateText}>
           News & research is available to logged-in users only.
         </Text>
-        <TouchableOpacity style={styles.gateButton} onPress={() => router.push("/(tabs)/login")}>
+        <TouchableOpacity style={styles.gateButton} onPress={() => router.push("/login")}>
           <Text style={styles.gateButtonText}>Go to Login</Text>
         </TouchableOpacity>
       </View>
@@ -124,3 +124,4 @@ const styles = StyleSheet.create({
   },
   gateButtonText: { color: "#fff", fontWeight: "700" },
 });
+

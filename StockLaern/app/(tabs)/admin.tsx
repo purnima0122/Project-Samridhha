@@ -327,7 +327,7 @@ export default function AdminScreen() {
       <View style={styles.centered}>
         <Text style={styles.centeredTitle}>Admin Access</Text>
         <Text style={styles.centeredText}>Please log in as an admin to continue.</Text>
-        <TouchableOpacity style={styles.primaryButton} onPress={() => router.push("/(tabs)/profile")}>
+        <TouchableOpacity style={styles.primaryButton} onPress={() => router.push("/profile")}>
           <Text style={styles.primaryButtonText}>Go to Login</Text>
         </TouchableOpacity>
       </View>
@@ -341,8 +341,8 @@ export default function AdminScreen() {
         <Text style={styles.centeredText}>
           You are logged in, but this account is not marked as admin in the backend.
         </Text>
-        <TouchableOpacity style={styles.primaryButton} onPress={() => router.push("/(tabs)/dashboard")}>
-          <Text style={styles.primaryButtonText}>Back to Dashboard</Text>
+        <TouchableOpacity style={styles.primaryButton} onPress={() => router.push("/")}>
+          <Text style={styles.primaryButtonText}>Back to Home</Text>
         </TouchableOpacity>
       </View>
     );
@@ -755,3 +755,4 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
 });
+

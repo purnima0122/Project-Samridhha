@@ -3,7 +3,6 @@ import Feather from '@expo/vector-icons/Feather';
 import type { ComponentProps } from "react";
 import { Tabs } from "expo-router";
 import { View } from "react-native";
-import { AuthProvider } from "../context/AuthContext";
 
 type TabIconProps = {
   name: ComponentProps<typeof Feather>["name"];
@@ -128,9 +127,5 @@ function TabLayoutInner() {
 }
 
 export default function TabLayout() {
-  return (
-    <AuthProvider>
-      <TabLayoutInner />
-    </AuthProvider>
-  );
+  return <TabLayoutInner />;
 }

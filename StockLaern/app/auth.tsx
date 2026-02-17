@@ -1,10 +1,102 @@
-import { View, Text, StyleSheet } from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { useAuth } from "./context/AuthContext";
+import { apiFetch } from "./lib/api";
+
+function firstValue(value?: string | string[]): string | null {
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value ?? null;
+}
 
 export default function AuthRedirectScreen() {
+  const router = useRouter();
+  const params = useLocalSearchParams<{
+    accessToken?: string | string[];
+    refreshToken?: string | string[];
+    userId?: string | string[];
+    email?: string | string[];
+    name?: string | string[];
+  }>();
+  const { signIn, updateUser } = useAuth();
+  const [error, setError] = useState<string | null>(null);
+
+  const authPayload = useMemo(
+    () => ({
+      accessToken: firstValue(params.accessToken),
+      refreshToken: firstValue(params.refreshToken),
+      userId: firstValue(params.userId),
+      email: firstValue(params.email),
+      userName: firstValue(params.name),
+    }),
+    [params],
+  );
+
+  useEffect(() => {
+    const completeSignIn = async () => {
+      if (!authPayload.accessToken || !authPayload.refreshToken || !authPayload.userId) {
+        setError("Missing login details from Google redirect. Please try again.");
+        return;
+      }
+
+      try {
+        signIn({
+          accessToken: authPayload.accessToken,
+          refreshToken: authPayload.refreshToken,
+          userId: authPayload.userId,
+          email: authPayload.email,
+          userName: authPayload.userName,
+        });
+
+        const profile = await apiFetch<{
+          isProfileComplete: boolean;
+          name?: string;
+          email?: string;
+          number?: string;
+          address?: string;
+          wardNo?: string;
+        }>("/users/me", {}, authPayload.accessToken);
+
+        updateUser({
+          userName: profile.name ?? authPayload.userName,
+          email: profile.email ?? authPayload.email,
+        });
+
+        const needsProfile =
+          !profile.isProfileComplete ||
+          !profile.name ||
+          !profile.number ||
+          !profile.address ||
+          !profile.wardNo;
+
+        if (needsProfile) {
+          router.replace("/complete-profile");
+          return;
+        }
+
+        router.replace("/");
+      } catch (e: any) {
+        setError(e?.message || "Unable to complete sign-in. Please try again.");
+      }
+    };
+
+    completeSignIn();
+  }, [authPayload, router, signIn, updateUser]);
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Completing sign-in…</Text>
-      <Text style={styles.subtitle}>You can close this tab and return to the app.</Text>
+      {error ? (
+        <>
+          <Text style={styles.title}>Sign-in Failed</Text>
+          <Text style={styles.subtitle}>{error}</Text>
+        </>
+      ) : (
+        <>
+          <ActivityIndicator color="#0B3B78" />
+          <Text style={styles.title}>Completing sign-in...</Text>
+          <Text style={styles.subtitle}>Please wait while we finish your login.</Text>
+        </>
+      )}
     </View>
   );
 }
@@ -16,7 +108,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 24,
+    gap: 10,
   },
-  title: { fontSize: 18, fontWeight: "700", color: "#0F172A" },
-  subtitle: { fontSize: 13, color: "#64748B", marginTop: 8, textAlign: "center" },
+  title: { fontSize: 18, fontWeight: "700", color: "#0F172A", textAlign: "center" },
+  subtitle: { fontSize: 13, color: "#64748B", textAlign: "center" },
 });

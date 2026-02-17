@@ -55,7 +55,7 @@ export default function CompleteProfileScreen() {
       }, accessToken);
 
       updateUser({ userName: updated.name, email: updated.email });
-      router.push("/(tabs)/dashboard");
+      router.push("/");
     } catch (err: any) {
       setError(err?.message || "Unable to update profile.");
     } finally {
@@ -161,3 +161,4 @@ const styles = StyleSheet.create({
   },
   errorText: { color: "#B91C1C", fontSize: 12, fontWeight: "600" },
 });
+
