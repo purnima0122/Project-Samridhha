@@ -3,16 +3,19 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
+  Alert,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import HeaderBar from "../components/HeaderBar";
 import TopRightMenu from "../components/TopRightMenu";
 import { useAuth } from "../context/AuthContext";
+import { useDataServer } from "../context/DataServerContext";
 
 const alertTypes = [
   {
@@ -23,6 +26,7 @@ const alertTypes = [
     bg: "#DBEAFE",
     metaLeft: "Threshold 150%",
     metaRight: "Timeframe 1 hour",
+    alertConfig: { price_threshold_pct: 5.0, volume_threshold_multiplier: 1.5 },
   },
   {
     title: "Price Jump Alert",
@@ -32,6 +36,7 @@ const alertTypes = [
     bg: "#DCFCE7",
     metaLeft: "Threshold 3%",
     metaRight: "Timeframe realtime",
+    alertConfig: { price_threshold_pct: 3.0, volume_threshold_multiplier: 5.0 },
   },
   {
     title: "Price Drop Alert",
@@ -41,6 +46,7 @@ const alertTypes = [
     bg: "#FEE2E2",
     metaLeft: "Threshold 3%",
     metaRight: "Timeframe realtime",
+    alertConfig: { price_threshold_pct: 3.0, volume_threshold_multiplier: 5.0 },
   },
   {
     title: "Trend Change Alert",
@@ -50,21 +56,39 @@ const alertTypes = [
     bg: "#EDE9FE",
     metaLeft: "Sensitivity medium",
     metaRight: "Timeframe 24 hours",
+    alertConfig: { price_threshold_pct: 5.0, volume_threshold_multiplier: 2.0 },
   },
-];
-
-const notifications = [
-  { title: "NABIL volume spike", time: "2m ago", color: "#2563EB" },
-  { title: "NICA price jump +3.2%", time: "12m ago", color: "#16A34A" },
-  { title: "EBL price drop -2.8%", time: "38m ago", color: "#DC2626" },
 ];
 
 export default function AlertSettingsScreen() {
   const router = useRouter();
   const { accessToken } = useAuth();
+  const { alerts, isConnected, setAlertThreshold, stocks } = useDataServer();
   const [pushEnabled, setPushEnabled] = useState(true);
   const [emailEnabled, setEmailEnabled] = useState(true);
   const [inAppEnabled, setInAppEnabled] = useState(true);
+  const [symbolInput, setSymbolInput] = useState("");
+
+  const handleCreateAlert = (alertConfig: { price_threshold_pct: number; volume_threshold_multiplier: number }) => {
+    const symbol = symbolInput.trim().toUpperCase();
+    if (!symbol) {
+      Alert.alert("Enter Symbol", "Please enter a stock symbol (e.g. NABIL) in the field above.");
+      return;
+    }
+    setAlertThreshold({
+      user_id: accessToken || "anonymous",
+      symbol,
+      price_threshold_pct: alertConfig.price_threshold_pct,
+      volume_threshold_multiplier: alertConfig.volume_threshold_multiplier,
+    });
+    Alert.alert("Alert Created", `Threshold set for ${symbol}. You'll receive real-time alerts via WebSocket.`);
+    setSymbolInput("");
+  };
+
+  const formatAlertTime = (index: number) => {
+    const times = ["just now", "1m ago", "2m ago", "5m ago", "10m ago"];
+    return times[index] || `${index}m ago`;
+  };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
@@ -78,6 +102,7 @@ export default function AlertSettingsScreen() {
         <Text style={styles.heroTitle}>Smart Alert Types</Text>
         <Text style={styles.heroSubtitle}>
           Set intelligent alerts for volume, price, and trend shifts.
+          {isConnected ? " 🟢 Connected" : " 🔴 Disconnected"}
         </Text>
       </LinearGradient>
 
@@ -97,6 +122,15 @@ export default function AlertSettingsScreen() {
         <>
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Alert Types</Text>
+            <View style={styles.symbolInputRow}>
+              <TextInput
+                style={styles.symbolInput}
+                placeholder="Enter stock symbol (e.g. NABIL)"
+                value={symbolInput}
+                onChangeText={setSymbolInput}
+                autoCapitalize="characters"
+              />
+            </View>
             {alertTypes.map((item) => (
               <View key={item.title} style={styles.alertCard}>
                 <View style={styles.alertCardHeader}>
@@ -112,7 +146,10 @@ export default function AlertSettingsScreen() {
                   <Text style={styles.alertMetaText}>{item.metaLeft}</Text>
                   <Text style={styles.alertMetaText}>{item.metaRight}</Text>
                 </View>
-                <TouchableOpacity style={styles.alertButton}>
+                <TouchableOpacity
+                  style={styles.alertButton}
+                  onPress={() => handleCreateAlert(item.alertConfig)}
+                >
                   <Feather name="plus" size={16} color="#fff" />
                   <Text style={styles.alertButtonText}>Create Alert</Text>
                 </TouchableOpacity>
@@ -148,18 +185,36 @@ export default function AlertSettingsScreen() {
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Recent Notifications</Text>
+            <Text style={styles.sectionTitle}>
+              Recent Notifications {alerts.length > 0 ? `(${alerts.length})` : ""}
+            </Text>
             <View style={styles.notificationCard}>
-              {notifications.map((item) => (
-                <View key={item.title} style={styles.notificationRow}>
-                  <View style={[styles.notificationDot, { backgroundColor: item.color }]} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.notificationTitle}>{item.title}</Text>
-                    <Text style={styles.notificationTime}>{item.time}</Text>
+              {alerts.length > 0 ? (
+                alerts.slice(0, 10).map((item, index) => (
+                  <View key={index} style={styles.notificationRow}>
+                    <View style={[styles.notificationDot, {
+                      backgroundColor:
+                        item.alert?.alert_type === "price" ? "#16A34A"
+                          : item.alert?.alert_type === "volume" ? "#2563EB"
+                            : "#7C3AED"
+                    }]} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.notificationTitle}>
+                        {item.alert?.symbol} {item.alert?.alert_type} — {item.alert?.message || "threshold crossed"}
+                      </Text>
+                      <Text style={styles.notificationTime}>{formatAlertTime(index)}</Text>
+                    </View>
+                    <Feather name="chevron-right" size={18} color="#94A3B8" />
                   </View>
-                  <Feather name="chevron-right" size={18} color="#94A3B8" />
+                ))
+              ) : (
+                <View style={{ padding: 20, alignItems: "center" }}>
+                  <Feather name="bell-off" size={24} color="#94A3B8" />
+                  <Text style={[styles.notificationTime, { marginTop: 8 }]}>
+                    No alerts triggered yet. Create thresholds above to start receiving real-time alerts.
+                  </Text>
                 </View>
-              ))}
+              )}
             </View>
           </View>
         </>
@@ -203,6 +258,17 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: { color: "#fff", fontWeight: "700" },
   section: { paddingHorizontal: 20, marginTop: 20 },
+  symbolInputRow: { marginBottom: 12 },
+  symbolInput: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: "#0F172A",
+  },
   sectionTitle: { fontSize: 18, fontWeight: "700", color: "#0F172A", marginBottom: 12 },
   alertCard: {
     backgroundColor: "#fff",

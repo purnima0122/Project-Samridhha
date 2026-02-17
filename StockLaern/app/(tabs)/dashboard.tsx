@@ -14,11 +14,13 @@ import {
 import HeaderBar from "../components/HeaderBar";
 import TopRightMenu from "../components/TopRightMenu";
 import { useAuth } from "../context/AuthContext";
+import { useDataServer } from "../context/DataServerContext";
 import { apiFetch } from "../lib/api";
 
 export default function DashboardScreen() {
   const router = useRouter();
   const { accessToken, userName, email, updateUser } = useAuth();
+  const { ticks, isConnected, marketStatus, subscribe } = useDataServer();
   const [spikeAlertsEnabled, setSpikeAlertsEnabled] = useState(true);
   const [loadingDashboard, setLoadingDashboard] = useState(false);
   const [stockAlerts, setStockAlerts] = useState<any[]>([]);
@@ -65,6 +67,18 @@ export default function DashboardScreen() {
     }
   };
 
+  // Subscribe to watchlist stock ticks
+  useEffect(() => {
+    if (watchlistItems.length > 0) {
+      const symbols = watchlistItems
+        .map((item: any) => item.symbol)
+        .filter(Boolean);
+      if (symbols.length > 0) {
+        subscribe(symbols);
+      }
+    }
+  }, [watchlistItems]);
+
   const updateAlertSetting = async (value: boolean) => {
     setSpikeAlertsEnabled(value);
     if (!accessToken) return;
@@ -76,6 +90,23 @@ export default function DashboardScreen() {
     } catch (error) {
       console.warn("Unable to update settings", error);
     }
+  };
+
+  // Enrich watchlist items with live tick data
+  const getWatchlistPrice = (item: any) => {
+    const tick = ticks[item.symbol?.toUpperCase()];
+    if (tick) {
+      return {
+        price: `NPR ${Number(tick.current_price).toFixed(2)}`,
+        change: `${tick.change_pct >= 0 ? "+" : ""}${Number(tick.change_pct).toFixed(2)}%`,
+        isPositive: tick.change_pct >= 0,
+      };
+    }
+    return {
+      price: item.price || "--",
+      change: item.change || "--",
+      isPositive: item.isPositive ?? true,
+    };
   };
 
   useEffect(() => {
@@ -101,14 +132,18 @@ export default function DashboardScreen() {
           <Text style={styles.headerTitle}>
             Welcome, {dashboardName || userName || email?.split("@")[0] || "User"}!
           </Text>
-          <Text style={styles.headerSubtitle}>Your personalized NEPSE overview</Text>
+          <Text style={styles.headerSubtitle}>
+            Your personalized NEPSE overview{" "}
+            {marketStatus?.is_open ? "🟢 Open" : "🔴 Closed"}
+            {isConnected ? " · Live" : ""}
+          </Text>
         </View>
         <View style={styles.toolsTriggerRow}>
           <View style={styles.toolsDropdownWrap}>
             <TouchableOpacity style={styles.toolsTrigger} onPress={() => setShowTools((prev) => !prev)}>
-            <Feather name="menu" size={18} color="#fff" />
-            <Text style={styles.toolsTriggerText}>Personalized Tools</Text>
-          </TouchableOpacity>
+              <Feather name="menu" size={18} color="#fff" />
+              <Text style={styles.toolsTriggerText}>Personalized Tools</Text>
+            </TouchableOpacity>
             {showTools && (
               <View style={styles.toolsDropdown}>
                 <Text style={styles.toolsDropdownTitle}>Added Features for You</Text>
@@ -228,114 +263,114 @@ export default function DashboardScreen() {
           </View>
 
           {/* Spike Alerts Section */}
-      <View style={styles.alertCard}>
-        <View style={styles.alertHeader}>
-          <Text style={styles.alertCardTitle}>Spike Alerts</Text>
-          <Switch
-            value={spikeAlertsEnabled}
-            onValueChange={updateAlertSetting}
-            trackColor={{ false: "#E5E7EB", true: "#22c55e" }}
-            thumbColor="#fff"
-          />
-        </View>
-
-        {/* Table Header */}
-        <View style={styles.tableHeader}>
-          <Text style={styles.tableHeaderText}>SYMBOL</Text>
-          <Text style={styles.tableHeaderText}>TYPE</Text>
-          <Text style={styles.tableHeaderText}>PRICE</Text>
-          <Text style={styles.tableHeaderText}>UNITS</Text>
-          <Text style={styles.tableHeaderText}>STATUS</Text>
-        </View>
-
-        
-        {/* Alert Entries */}
-        {loadingDashboard && stockAlerts.length === 0 ? (
-          <View style={styles.emptyAlerts}>
-            <ActivityIndicator color="#70A288" />
-            <Text style={styles.emptyAlertsText}>Loading alerts...</Text>
-          </View>
-        ) : stockAlerts.length > 0 ? (
-          stockAlerts.map((alert, index) => (
-            <View key={index} style={styles.alertRow}>
-              <Text style={styles.alertRowText}>{alert.symbol}</Text>
-              <Text style={styles.alertRowText}>{alert.type}</Text>
-              <Text style={styles.alertRowText}>{alert.price}</Text>
-              <Text style={styles.alertRowText}>{alert.units}</Text>
-              <View style={styles.statusIcon}>
-                <Feather name="bell" size={16} color="#22c55e" />
-              </View>
+          <View style={styles.alertCard}>
+            <View style={styles.alertHeader}>
+              <Text style={styles.alertCardTitle}>Spike Alerts</Text>
+              <Switch
+                value={spikeAlertsEnabled}
+                onValueChange={updateAlertSetting}
+                trackColor={{ false: "#E5E7EB", true: "#22c55e" }}
+                thumbColor="#fff"
+              />
             </View>
-          ))
-        ) : (
-          <View style={styles.emptyAlerts}>
-            <Text style={styles.emptyAlertsText}>No alerts configured</Text>
+
+            {/* Table Header */}
+            <View style={styles.tableHeader}>
+              <Text style={styles.tableHeaderText}>SYMBOL</Text>
+              <Text style={styles.tableHeaderText}>TYPE</Text>
+              <Text style={styles.tableHeaderText}>PRICE</Text>
+              <Text style={styles.tableHeaderText}>UNITS</Text>
+              <Text style={styles.tableHeaderText}>STATUS</Text>
+            </View>
+
+
+            {/* Alert Entries */}
+            {loadingDashboard && stockAlerts.length === 0 ? (
+              <View style={styles.emptyAlerts}>
+                <ActivityIndicator color="#70A288" />
+                <Text style={styles.emptyAlertsText}>Loading alerts...</Text>
+              </View>
+            ) : stockAlerts.length > 0 ? (
+              stockAlerts.map((alert, index) => (
+                <View key={index} style={styles.alertRow}>
+                  <Text style={styles.alertRowText}>{alert.symbol}</Text>
+                  <Text style={styles.alertRowText}>{alert.type}</Text>
+                  <Text style={styles.alertRowText}>{alert.price}</Text>
+                  <Text style={styles.alertRowText}>{alert.units}</Text>
+                  <View style={styles.statusIcon}>
+                    <Feather name="bell" size={16} color="#22c55e" />
+                  </View>
+                </View>
+              ))
+            ) : (
+              <View style={styles.emptyAlerts}>
+                <Text style={styles.emptyAlertsText}>No alerts configured</Text>
+              </View>
+            )}
+
+
+            {/* Add Alert Button */}
+            <TouchableOpacity
+              style={styles.addAlertButton}
+              onPress={() => router.push("/(tabs)/alert-settings")}
+            >
+              <Feather name="plus" size={18} color="#fff" style={{ marginRight: 8 }} />
+              <Text style={styles.addAlertButtonText}>ADD STOCK ALERT</Text>
+            </TouchableOpacity>
           </View>
-        )}
 
-        
-        {/* Add Alert Button */}
-        <TouchableOpacity
-          style={styles.addAlertButton}
-          onPress={() => router.push("/(tabs)/alert-settings")}
-        >
-          <Feather name="plus" size={18} color="#fff" style={{ marginRight: 8 }} />
-          <Text style={styles.addAlertButtonText}>ADD STOCK ALERT</Text>
-        </TouchableOpacity>
-      </View>
+          {/* My Watchlist Section */}
 
-      {/* My Watchlist Section */}
-      
-      <View style={styles.watchlistSection}>
-        <View style={styles.watchlistHeader}>
-          <Text style={styles.watchlistTitle}>My Watchlist</Text>
-          <TouchableOpacity>
-            <Text style={styles.editText}>Edit</Text>
-          </TouchableOpacity>
-        </View>
+          <View style={styles.watchlistSection}>
+            <View style={styles.watchlistHeader}>
+              <Text style={styles.watchlistTitle}>My Watchlist</Text>
+              <TouchableOpacity>
+                <Text style={styles.editText}>Edit</Text>
+              </TouchableOpacity>
+            </View>
 
-        {loadingDashboard && watchlistItems.length === 0 ? (
-          <View style={styles.emptyAlerts}>
-            <ActivityIndicator color="#70A288" />
-            <Text style={styles.emptyAlertsText}>Loading watchlist...</Text>
-          </View>
-        ) : watchlistItems.length > 0 ? (
-          watchlistItems.map((item, index) => (
-            <View key={index} style={styles.watchlistCard}>
-              <View style={styles.watchlistCardContent}>
-                <View style={styles.watchlistLeft}>
-                  <Text style={styles.stockSymbol}>{item.symbol}</Text>
-                  {item.alertType && (
-                    <View style={styles.alertBadge}>
-                      <Text style={styles.alertBadgeText}>{item.alertType}</Text>
+            {loadingDashboard && watchlistItems.length === 0 ? (
+              <View style={styles.emptyAlerts}>
+                <ActivityIndicator color="#70A288" />
+                <Text style={styles.emptyAlertsText}>Loading watchlist...</Text>
+              </View>
+            ) : watchlistItems.length > 0 ? (
+              watchlistItems.map((item, index) => (
+                <View key={index} style={styles.watchlistCard}>
+                  <View style={styles.watchlistCardContent}>
+                    <View style={styles.watchlistLeft}>
+                      <Text style={styles.stockSymbol}>{item.symbol}</Text>
+                      {item.alertType && (
+                        <View style={styles.alertBadge}>
+                          <Text style={styles.alertBadgeText}>{item.alertType}</Text>
+                        </View>
+                      )}
                     </View>
-                  )}
+                    <View style={styles.watchlistRight}>
+                      <Text style={styles.stockPrice}>{getWatchlistPrice(item).price}</Text>
+                      <Text style={[styles.stockChange, { color: getWatchlistPrice(item).isPositive ? "#10B981" : "#EF4444" }]}>
+                        {getWatchlistPrice(item).change}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.watchlistActions}>
+                    <TouchableOpacity style={styles.viewDetailsBtn}>
+                      <Feather name="eye" size={16} color="#64748B" />
+                      <Text style={styles.viewDetailsText}>View Details</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.setAlertBtn}>
+                      <Feather name="settings" size={16} color="#3B82F6" />
+                      <Text style={styles.setAlertText}>Set Alert</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-                <View style={styles.watchlistRight}>
-                  <Text style={styles.stockPrice}>{item.price || "--"}</Text>
-                  <Text style={[styles.stockChange, { color: item.isPositive ? "#10B981" : "#EF4444" }]}>
-                    {item.change || "--"}
-                  </Text>
-                </View>
+              ))
+            ) : (
+              <View style={styles.emptyAlerts}>
+                <Text style={styles.emptyAlertsText}>No watchlist items yet</Text>
               </View>
-              <View style={styles.watchlistActions}>
-                <TouchableOpacity style={styles.viewDetailsBtn}>
-                  <Feather name="eye" size={16} color="#64748B" />
-                  <Text style={styles.viewDetailsText}>View Details</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.setAlertBtn}>
-                  <Feather name="settings" size={16} color="#3B82F6" />
-                  <Text style={styles.setAlertText}>Set Alert</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))
-        ) : (
-          <View style={styles.emptyAlerts}>
-            <Text style={styles.emptyAlertsText}>No watchlist items yet</Text>
+            )}
           </View>
-        )}
-      </View>
         </>
       )}
     </ScrollView>

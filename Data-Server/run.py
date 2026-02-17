@@ -15,6 +15,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from flask import Flask
+from flask_cors import CORS
 from flask_socketio import SocketIO
 from flasgger import Swagger
 
@@ -49,6 +50,7 @@ def create_app() -> tuple:
     # ─── Flask App ────────────────────────────────────────────────────────────
     app = Flask(__name__)
     app.config["SECRET_KEY"] = "kjfngaskjdnfklajsbdlihh;acvkjn98e"
+    CORS(app)  # Enable CORS for all routes
 
     # ─── Swagger API Docs ─────────────────────────────────────────────────────
     app.config["SWAGGER"] = {
