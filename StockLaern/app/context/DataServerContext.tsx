@@ -245,6 +245,27 @@ function buildAlertContext(alertData: AlertData): {
     };
 }
 
+const ALERT_DEDUPE_WINDOW_MS = 5000;
+
+function buildAlertSignature(data: AlertData): string {
+    const symbol = normalizeSymbol(data.alert?.symbol);
+    const alertType = String(data.alert?.alert_type ?? "").toLowerCase();
+    const direction = String(data.alert?.direction ?? "").toLowerCase();
+    const magnitude = Number(data.alert?.magnitude ?? 0);
+    const roundedMagnitude = Number.isFinite(magnitude)
+        ? Math.round(magnitude * 100) / 100
+        : 0;
+    const message = String(data.alert?.message ?? "").trim().toLowerCase();
+
+    return [
+        symbol,
+        alertType,
+        direction,
+        String(roundedMagnitude),
+        message,
+    ].join("|");
+}
+
 export function DataServerProvider({ children }: { children: React.ReactNode }) {
     const [isConnected, setIsConnected] = useState(false);
     const [ticks, setTicks] = useState<Record<string, StockTick>>({});
@@ -261,6 +282,7 @@ export function DataServerProvider({ children }: { children: React.ReactNode }) 
     const mountedRef = useRef(true);
     const notificationSettingsRef = useRef(notificationSettings);
     const notificationCounterRef = useRef(0);
+    const recentAlertSignaturesRef = useRef<Map<string, number>>(new Map());
 
     useEffect(() => {
         notificationSettingsRef.current = notificationSettings;
@@ -321,6 +343,22 @@ export function DataServerProvider({ children }: { children: React.ReactNode }) 
 
     const addAlertEvent = useCallback(
         (data: AlertData) => {
+            const signature = buildAlertSignature(data);
+            const now = Date.now();
+            const recentSignatures = recentAlertSignaturesRef.current;
+            const lastSeenAt = recentSignatures.get(signature);
+
+            if (lastSeenAt && now - lastSeenAt < ALERT_DEDUPE_WINDOW_MS) {
+                return;
+            }
+
+            recentSignatures.set(signature, now);
+            for (const [key, seenAt] of recentSignatures.entries()) {
+                if (now - seenAt > ALERT_DEDUPE_WINDOW_MS) {
+                    recentSignatures.delete(key);
+                }
+            }
+
             setAlerts((prev) => [data, ...prev].slice(0, 50));
             const context = buildAlertContext(data);
             appendNotification(context);
@@ -462,9 +500,7 @@ export function DataServerProvider({ children }: { children: React.ReactNode }) 
 
         socket.on("alert:triggered", (data: AlertData) => {
             if (!mountedRef.current) return;
-            setAlerts((prev) => [data, ...prev].slice(0, 50));
-            const context = buildAlertContext(data);
-            appendNotification(context);
+            addAlertEvent(data);
         });
 
         socket.on("threshold:set", (data: ThresholdConfig) => {
@@ -491,7 +527,7 @@ export function DataServerProvider({ children }: { children: React.ReactNode }) 
             mountedRef.current = false;
             disconnectSocket();
         };
-    }, [appendNotification, refreshStocks]);
+    }, [addAlertEvent, appendNotification, refreshStocks]);
 
     const contextValue: DataServerContextType = {
         isConnected,

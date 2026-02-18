@@ -4,6 +4,7 @@ export default () => ({
   },
   database: {
     connectionString: process.env.MONGO_URI,
+    name: process.env.MONGO_DB_NAME,
   },
   dataServer: {
     url: process.env.DATA_SERVER_URL || 'https://samridhha-data.manasi.com.np',

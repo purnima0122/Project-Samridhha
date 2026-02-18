@@ -23,7 +23,7 @@ type NotificationFilter =
   | "coaching"
   | "system";
 
-const FILTERS: Array<{ key: NotificationFilter; label: string }> = [
+const FILTERS: { key: NotificationFilter; label: string }[] = [
   { key: "all", label: "All" },
   { key: "unread", label: "Unread" },
   { key: "volume", label: "Volume" },
@@ -92,7 +92,7 @@ export default function NotificationsScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
       <LinearGradient
-        colors={["#312E81", "#4338CA"]}
+        colors={["#0A2D5C", "#0B3B78"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.hero}
@@ -260,22 +260,27 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   hero: {
-    paddingTop: 90,
+    paddingTop: 64,
     paddingHorizontal: 20,
-    paddingBottom: 24,
+    paddingBottom: 28,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
+    overflow: "visible",
+    position: "relative",
+    zIndex: 20,
   },
   heroTitle: {
-    marginTop: 12,
+    marginTop: 0,
     color: "#FFFFFF",
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: "800",
+    lineHeight: 32,
   },
   heroSubtitle: {
-    marginTop: 6,
-    color: "#DFE8FF",
-    fontSize: 13,
+    marginTop: 10,
+    color: "#CBD5E1",
+    fontSize: 14,
+    lineHeight: 20,
   },
   section: {
     paddingHorizontal: 18,
