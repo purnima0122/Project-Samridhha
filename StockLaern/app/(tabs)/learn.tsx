@@ -13,6 +13,7 @@ import {
   X,
   XCircle
 } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -554,13 +555,18 @@ export default function LearnScreen() {
   return (
     <View style={styles.container}>
       {/* Dark Blue Header */}
-      <View style={styles.blueHeader}>
+      <LinearGradient
+        colors={["#0A2D5C", "#0B3B78"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.blueHeader}
+      >
         <View style={styles.blueHeaderTop}>
           <HeaderBar tint="dark" rightSlot={<TopRightMenu theme="dark" />} />
         </View>
         <Text style={styles.headerTitle}>Beginner's Guide</Text>
         <Text style={styles.headerSubtitle}>Learn stock market basics with videos & quizzes</Text>
-      </View>
+      </LinearGradient>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {!isAuthenticated && (
@@ -731,22 +737,19 @@ export default function LearnScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC', overflow: "visible" },
   blueHeader: {
-    backgroundColor: '#031D44',
-    paddingTop: 60,
+    paddingTop: 64,
     paddingHorizontal: 20,
-    paddingBottom: 24,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-    overflow: "visible",
+    paddingBottom: 28,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
     position: "relative",
-    zIndex: 2,
-    elevation: 4,
+    zIndex: 20,
   },
-  blueHeaderTop: { marginBottom: 10 },
-  scrollView: { flex: 1, paddingHorizontal: 16, zIndex: 0 },
+  blueHeaderTop: { marginBottom: 16 },
+  scrollView: { flex: 1, paddingHorizontal: 20, zIndex: 0 },
   header: { marginBottom: 20 },
-  headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#fff' },
-  headerSubtitle: { fontSize: 14, color: '#CBD5E1', marginTop: 4 },
+  headerTitle: { color: '#fff', fontSize: 26, fontWeight: '800', lineHeight: 32 },
+  headerSubtitle: { color: '#CBD5E1', fontSize: 14, lineHeight: 20, marginTop: 10 },
 
   progressCard: {
     backgroundColor: '#FAFAF5',

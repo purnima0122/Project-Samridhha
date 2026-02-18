@@ -7,7 +7,7 @@ import * as bcrypt from 'bcrypt';
 import { loginDto } from './dtos/login.dto';
 import { JwtService } from '@nestjs/jwt';
 import { RefreshToken } from './schemas/refresh.token.schema';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { nanoid } from 'nanoid';
 import { ResetToken } from './schemas/reset.token.schema';
 import { MailService } from 'src/services/mail.service';
@@ -24,11 +24,17 @@ export class AuthService {
 ){}
 
   async signup(signupData: signupDto) {
+  const rawName = signupData.name ?? '';
   const rawEmail = signupData.email ?? '';
   const rawNumber = signupData.number ?? '';
+  const rawAddress = signupData.address ?? '';
+  const rawWardNo = signupData.wardNo ?? '';
+  const name = rawName.trim();
   const email = rawEmail.trim().toLowerCase();
   const number = rawNumber.replace(/\s+/g, '');
-  const { password, name, address, wardNo } = signupData;
+  const address = rawAddress.trim();
+  const wardNo = rawWardNo.trim();
+  const { password } = signupData;
 
   if (!email || !number || !password || !name || !address || !wardNo) {
     throw new BadRequestException('Please fill all the fields');
@@ -73,7 +79,12 @@ export class AuthService {
 }
 
   async login(credentials:loginDto){
-    const {email,password}=credentials;
+    const email = credentials.email?.trim().toLowerCase();
+    const {password}=credentials;
+
+    if (!email || !password) {
+      throw new UnauthorizedException('Wrong Credentials');
+    }
 
     //find if user exists by email
     
@@ -81,6 +92,10 @@ export class AuthService {
      if(!user){
       throw new UnauthorizedException('Wrong Credentials');
      }
+
+    if (!user.password) {
+      throw new UnauthorizedException('Wrong Credentials');
+    }
 
     //compare entered password with existing password 
     const passwordMatch =await bcrypt.compare(password, user.password)
@@ -217,7 +232,7 @@ export class AuthService {
   async generateUserTokens(userId){
     const accessToken =this.jwtService.sign({userId},{expiresIn: '72 hr'});
 
-    const RefreshToken=uuidv4();
+    const RefreshToken=randomUUID();
 
     await this.storeRefreshToken(RefreshToken,userId)
     return {

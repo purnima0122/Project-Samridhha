@@ -14,8 +14,11 @@ import { useAuth } from "../context/AuthContext";
 export default function ProfileScreen() {
   const router = useRouter();
   const { isAuthenticated, userName, email } = useAuth();
+  const inUserMode = isAuthenticated;
+  const activeEmail = email;
+  const activeUserName = userName || email?.split("@")[0] || "StockLearn User";
 
-  if (isAuthenticated) {
+  if (inUserMode) {
     return (
       <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
         <View style={styles.headerGradient}>
@@ -24,8 +27,8 @@ export default function ProfileScreen() {
             <View style={styles.iconContainer}>
               <Feather name="user" size={22} color="#fff" />
             </View>
-            <Text style={styles.headerTitle}>{userName || "StockLearn User"}</Text>
-            <Text style={styles.headerSubtitle}>{email || "your@email.com"}</Text>
+            <Text style={styles.headerTitle}>{activeUserName}</Text>
+            <Text style={styles.headerSubtitle}>{activeEmail || "your@email.com"}</Text>
           </View>
         </View>
 
@@ -33,7 +36,7 @@ export default function ProfileScreen() {
           <Text style={styles.sectionTitle}>Account Overview</Text>
           <View style={styles.infoRow}>
             <Feather name="mail" size={16} color="#0B3B78" />
-            <Text style={styles.infoText}>{email || "email not set"}</Text>
+            <Text style={styles.infoText}>{activeEmail || "email not set"}</Text>
           </View>
           <View style={styles.infoRow}>
             <Feather name="bell" size={16} color="#0B3B78" />
@@ -50,7 +53,7 @@ export default function ProfileScreen() {
             <View style={styles.dividerLine} />
           </View>
 
-          <TouchableOpacity style={styles.mainButton} onPress={() => router.push("/")}>
+          <TouchableOpacity style={styles.mainButton} onPress={() => router.push("/dashboard")}>
             <Text style={styles.mainButtonText}>Go to Home</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.secondaryButton} onPress={() => router.push("/alert-settings")}>

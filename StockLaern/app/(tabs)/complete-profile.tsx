@@ -25,8 +25,7 @@ export default function CompleteProfileScreen() {
 
   const handleSubmit = async () => {
     if (!accessToken) {
-      setError("Please log in again.");
-      router.replace("/login");
+      setError("Session expired. Please log in again.");
       return;
     }
 
@@ -60,7 +59,11 @@ export default function CompleteProfileScreen() {
       const profile = await apiFetch<{
         isProfileComplete: boolean;
       }>("/users/me", {}, accessToken);
-      router.replace(profile.isProfileComplete ? "/" : "/complete-profile");
+      if (profile.isProfileComplete) {
+        router.replace("/dashboard");
+        return;
+      }
+      router.replace("/complete-profile");
     } catch (err: any) {
       setError(err?.message || "Unable to update profile.");
     } finally {

@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "./context/AuthContext";
 import { apiFetch } from "./lib/api";
@@ -18,8 +18,9 @@ export default function AuthRedirectScreen() {
     email?: string | string[];
     name?: string | string[];
   }>();
-  const { signIn, updateUser } = useAuth();
+  const { accessToken, refreshToken, userId, signIn, updateUser } = useAuth();
   const [error, setError] = useState<string | null>(null);
+  const processedRef = useRef(false);
 
   const authPayload = useMemo(
     () => ({
@@ -33,21 +34,40 @@ export default function AuthRedirectScreen() {
   );
 
   useEffect(() => {
-    const completeSignIn = async () => {
-      if (!authPayload.accessToken || !authPayload.refreshToken || !authPayload.userId) {
-        setError("Missing login details from Google redirect. Please try again.");
+    if (processedRef.current) {
+      return;
+    }
+
+    if (!authPayload.accessToken || !authPayload.refreshToken || !authPayload.userId) {
+      if (accessToken && refreshToken && userId) {
+        processedRef.current = true;
+        router.replace("/dashboard");
         return;
       }
+      setError("Missing login details from Google redirect. Please try again.");
+      return;
+    }
 
+    if (
+      accessToken === authPayload.accessToken &&
+      refreshToken === authPayload.refreshToken &&
+      userId === authPayload.userId
+    ) {
+      processedRef.current = true;
+      router.replace("/dashboard");
+      return;
+    }
+
+    processedRef.current = true;
+    signIn({
+      accessToken: authPayload.accessToken,
+      refreshToken: authPayload.refreshToken,
+      userId: authPayload.userId,
+      email: authPayload.email,
+      userName: authPayload.userName,
+    });
+    const resolveNextRoute = async () => {
       try {
-        signIn({
-          accessToken: authPayload.accessToken,
-          refreshToken: authPayload.refreshToken,
-          userId: authPayload.userId,
-          email: authPayload.email,
-          userName: authPayload.userName,
-        });
-
         const profile = await apiFetch<{
           isProfileComplete: boolean;
           name?: string;
@@ -56,32 +76,25 @@ export default function AuthRedirectScreen() {
           address?: string;
           wardNo?: string;
         }>("/users/me", {}, authPayload.accessToken);
-
         updateUser({
-          userName: profile.name ?? authPayload.userName,
-          email: profile.email ?? authPayload.email,
+          userName: profile.name ?? authPayload.userName ?? null,
+          email: profile.email ?? authPayload.email ?? null,
         });
-
         const needsProfile =
           !profile.isProfileComplete ||
           !profile.name ||
           !profile.number ||
           !profile.address ||
           !profile.wardNo;
-
-        if (needsProfile) {
-          router.replace("/complete-profile");
-          return;
-        }
-
-        router.replace("/");
-      } catch (e: any) {
-        setError(e?.message || "Unable to complete sign-in. Please try again.");
+        router.replace(needsProfile ? "/complete-profile" : "/dashboard");
+      } catch {
+        // Fail closed for onboarding when profile lookup fails during callback.
+        router.replace("/complete-profile");
       }
     };
 
-    completeSignIn();
-  }, [authPayload, router, signIn, updateUser]);
+    void resolveNextRoute();
+  }, [accessToken, authPayload, refreshToken, router, signIn, updateUser, userId]);
 
   return (
     <View style={styles.container}>

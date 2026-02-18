@@ -23,35 +23,12 @@ function getAuthRedirectUrl() {
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { signIn, updateUser } = useAuth();
+  const { signIn } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
-
-  const finalizeLogin = async (token: string) => {
-    const profile = await apiFetch<{
-      isProfileComplete: boolean;
-      name?: string;
-      email?: string;
-      number?: string;
-      address?: string;
-      wardNo?: string;
-    }>("/users/me", {}, token);
-    updateUser({ userName: profile.name ?? null, email: profile.email ?? null });
-    const needsProfile =
-      !profile.isProfileComplete ||
-      !profile.name ||
-      !profile.number ||
-      !profile.address ||
-      !profile.wardNo;
-    if (needsProfile) {
-      router.replace("/complete-profile");
-      return;
-    }
-    router.replace("/");
-  };
 
   const handleLogin = async () => {
     const cleanEmail = email.trim().toLowerCase();
@@ -70,16 +47,14 @@ export default function LoginScreen() {
         method: "POST",
         body: JSON.stringify({ email: cleanEmail, password }),
       });
-
       signIn({
         accessToken: data.accessToken,
         refreshToken: data.RefreshToken,
         userId: data.userId,
         email: cleanEmail,
       });
-
       setStatus({ type: "success", message: "Login successful." });
-      await finalizeLogin(data.accessToken);
+      router.replace("/dashboard");
     } catch (error: any) {
       setStatus({ type: "error", message: error?.message || "Login failed." });
     } finally {
@@ -99,14 +74,16 @@ export default function LoginScreen() {
         const userId = typeof parsed.queryParams?.userId === "string" ? parsed.queryParams.userId : null;
 
         if (accessToken && refreshToken && userId) {
-          signIn({
-            accessToken,
-            refreshToken,
-            userId,
-            email: parsed.queryParams?.email as string | undefined,
-            userName: parsed.queryParams?.name as string | undefined,
+          router.replace({
+            pathname: "/auth",
+            params: {
+              accessToken,
+              refreshToken,
+              userId,
+              email: typeof parsed.queryParams?.email === "string" ? parsed.queryParams.email : undefined,
+              name: typeof parsed.queryParams?.name === "string" ? parsed.queryParams.name : undefined,
+            },
           });
-          await finalizeLogin(accessToken);
         } else {
           setStatus({ type: "error", message: "Google login failed." });
         }

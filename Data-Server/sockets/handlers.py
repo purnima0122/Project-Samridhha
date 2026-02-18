@@ -115,9 +115,15 @@ def broadcast_ticks(socketio: SocketIO, ticks: dict):
 
 def broadcast_alert(socketio: SocketIO, user_id: str, alert):
     """Broadcast a triggered alert."""
+    alert_payload = alert.to_dict() if hasattr(alert, "to_dict") else dict(alert)
+    if "message" not in alert_payload:
+        symbol = alert_payload.get("symbol", "Stock")
+        alert_type = alert_payload.get("alert_type", "alert")
+        alert_payload["message"] = f"{symbol} {alert_type} threshold crossed."
+
     alert_data = {
         "user_id": user_id,
-        "alert": alert.to_dict() if hasattr(alert, "to_dict") else alert,
+        "alert": alert_payload,
     }
     socketio.emit("alert:triggered", alert_data)
     logger.info(f"Alert broadcast: {alert_data['alert']['symbol']} - {alert_data['alert']['alert_type']}")

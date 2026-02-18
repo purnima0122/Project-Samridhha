@@ -1,4 +1,5 @@
 import { Activity, Search, TrendingDown, TrendingUp } from "lucide-react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -89,17 +90,21 @@ export default function MarketScreen({ onNavigate }: BrowseMarketProps) {
   const losersCount = displayStocks.filter((c: any) => c.change < 0).length;
 
   return (
-    <ScrollView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerTopRow}>
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
+      <LinearGradient
+        colors={["#0A2D5C", "#0B3B78"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.hero}
+      >
+        <View style={styles.heroTopRow}>
           <HeaderBar tint="dark" rightSlot={<TopRightMenu theme="dark" />} />
         </View>
-        <Text style={styles.headerTitle}>Browse Market</Text>
-        <Text style={styles.headerSubtitle}>
+        <Text style={styles.heroTitle}>Browse Market</Text>
+        <Text style={styles.heroSubtitle}>
           {marketStatus?.is_open ? "🟢 Market Open" : "🔴 Market Closed"} · NEPSE Live Data
         </Text>
-      </View>
+      </LinearGradient>
 
       <View style={styles.content}>
         {/* Market Overview */}
@@ -216,21 +221,20 @@ export default function MarketScreen({ onNavigate }: BrowseMarketProps) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F8FAFC", overflow: "visible" },
-  header: {
-    backgroundColor: "#031D44",
-    padding: 20,
-    borderBottomLeftRadius: 25,
-    borderBottomRightRadius: 25,
-    overflow: "visible",
+  container: { flex: 1, backgroundColor: "#F8FAFC" },
+  hero: {
+    paddingTop: 64,
+    paddingHorizontal: 20,
+    paddingBottom: 28,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
     position: "relative",
-    zIndex: 2,
-    elevation: 4,
+    zIndex: 20,
   },
-  headerTopRow: { marginBottom: 10 },
-  headerTitle: { fontSize: 22, fontWeight: "bold", color: "#fff", marginBottom: 4 },
-  headerSubtitle: { color: "#d1fae5", fontSize: 14 },
-  content: { padding: 16, zIndex: 0 },
+  heroTopRow: { marginBottom: 16 },
+  heroTitle: { color: "#fff", fontSize: 26, fontWeight: "800", lineHeight: 32 },
+  heroSubtitle: { color: "#CBD5E1", fontSize: 14, lineHeight: 20, marginTop: 10 },
+  content: { paddingHorizontal: 20, paddingTop: 20, zIndex: 0 },
   statsRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 16 },
   statBox: { flex: 1, backgroundColor: "#fff", borderRadius: 12, padding: 12, marginHorizontal: 4, alignItems: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2, borderWidth: 1, borderColor: "#E2E8F0" },
   statLabel: { fontSize: 12, color: "#6b7280", marginBottom: 4 },

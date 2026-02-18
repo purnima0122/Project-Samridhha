@@ -11,6 +11,16 @@ import logging
 import sys
 import os
 
+# Enable eventlet monkey patching before importing Flask/Socket.IO internals.
+EVENTLET_ENABLED = False
+try:
+    import eventlet  # type: ignore
+
+    eventlet.monkey_patch()
+    EVENTLET_ENABLED = True
+except Exception:
+    EVENTLET_ENABLED = False
+
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -20,6 +30,7 @@ from flask_socketio import SocketIO
 from flasgger import Swagger
 
 from config import Config
+from detection.alert_advisor import AlertAdvisor
 from detection.alert_manager import AlertManager
 from detection.spike_detector import SpikeDetector
 from engine.market_clock import MarketClock
@@ -70,10 +81,11 @@ def create_app() -> tuple:
     socketio = SocketIO(
         app,
         cors_allowed_origins=Config.CORS_ORIGIN,
-        async_mode="threading",
+        async_mode="eventlet" if EVENTLET_ENABLED else "threading",
         logger=False,
         engineio_logger=False,
     )
+    logger.info(f"Socket.IO async mode: {socketio.async_mode}")
 
     # ─── Core Components ─────────────────────────────────────────────────────
     logger.info("Initializing Project Samridhha Data Server...")
@@ -91,11 +103,12 @@ def create_app() -> tuple:
         f"Currently: {'OPEN' if market_status['is_open'] else 'CLOSED'}"
     )
 
-    # 3. Spike Detector + Alert Manager
+    # 3. Spike detector, advisory layer, and alert manager.
     detector = SpikeDetector(
         default_price_threshold_pct=Config.DEFAULT_PRICE_THRESHOLD_PCT,
         default_volume_threshold_multiplier=Config.DEFAULT_VOLUME_THRESHOLD_MULTIPLIER,
     )
+    alert_advisor = AlertAdvisor(detector=detector)
     alert_manager = AlertManager(detector=detector)
     logger.info(
         f"Spike detector: price≥{Config.DEFAULT_PRICE_THRESHOLD_PCT}%, "
@@ -134,7 +147,7 @@ def create_app() -> tuple:
     # ─── Register Routes & Socket Handlers ───────────────────────────────────
     app.register_blueprint(health_bp)
     app.register_blueprint(market_bp)
-    init_market_routes(provider, clock, alert_manager)
+    init_market_routes(provider, clock, alert_manager, alert_advisor=alert_advisor)
     init_socket_handlers(socketio, provider, alert_manager)
 
     # ─── Start Engine ────────────────────────────────────────────────────────
@@ -158,13 +171,17 @@ def main():
     logger.info("=" * 60)
 
     try:
+        run_kwargs = {}
+        if socketio.async_mode == "threading":
+            run_kwargs["allow_unsafe_werkzeug"] = True
+
         socketio.run(
             app,
             host=Config.HOST,
             port=Config.PORT,
             debug=Config.DEBUG,
             use_reloader=False,  # Don't reload — engine thread stays alive
-            allow_unsafe_werkzeug=True,
+            **run_kwargs,
         )
     except KeyboardInterrupt:
         logger.info("Shutting down...")

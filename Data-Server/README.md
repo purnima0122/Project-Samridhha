@@ -7,6 +7,7 @@
 - **Real NEPSE data**: Dynamically loads from 616+ real stock CSV files.
 - **Real-time market simulation**: Generates realistic price/volume ticks seeded from actual historical prices and volatility
 - **Deterministic spike detection**: Rule-based alerts when user-defined thresholds are crossed (100% accuracy, no ML uncertainty)
+- **AI/ML advisory scoring**: Action guidance (`buy`/`sell`/`watch`/`hold`) with confidence and reasons
 - **NEPSE market clock**: Synchronized with official trading hours (Sun–Thu, 11:00 AM – 3:00 PM NPT)
 - **NEPSE ±10% circuit breaker**: Simulation respects real NEPSE price limits
 - **WebSocket broadcasting**: Real-time tick updates and alert notifications via Socket.IO
@@ -75,6 +76,9 @@ python run.py
 
 The server starts at **http://localhost:4000**
 
+Socket.IO uses `eventlet` automatically when available. If `eventlet` is
+missing, the server falls back to threading mode.
+
 ## API Endpoints
 
 | Method | Endpoint | Description |
@@ -87,7 +91,7 @@ The server starts at **http://localhost:4000**
 | GET | `/api/stocks/search?q=NAB` | Search stocks by symbol or name |
 | GET | `/api/stocks/search?sector=Hydropower` | Filter stocks by sector |
 | GET | `/api/market/status` | Get NEPSE market open/close status |
-| POST | `/api/alerts/check` | Check if a stock crosses a threshold |
+| POST | `/api/alerts/check` | Check threshold crossings and get AI/ML recommendation |
 
 ## WebSocket Events
 
