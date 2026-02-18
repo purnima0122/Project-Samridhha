@@ -11,6 +11,12 @@ type TabIconProps = {
   focused: boolean;
 };
 
+type TabBarIconRenderProps = {
+  color: string;
+  size: number;
+  focused: boolean;
+};
+
 function TabIcon({ name, color, size, focused }: TabIconProps) {
   return (
     <View
@@ -39,10 +45,10 @@ function TabLayoutInner() {
       }}
     >
       <Tabs.Screen
-        name="index"
+        name="dashboard"
         options={{
           title: "Home",
-          tabBarIcon: ({ color, size, focused }) => (
+          tabBarIcon: ({ color, size, focused }: TabBarIconRenderProps) => (
             <TabIcon name="home" color={color} size={size} focused={focused} />
           ),
         }}
@@ -51,7 +57,7 @@ function TabLayoutInner() {
         name="market"
         options={{
           title: "Market",
-          tabBarIcon: ({ color, size, focused }) => (
+          tabBarIcon: ({ color, size, focused }: TabBarIconRenderProps) => (
             <TabIcon name="bar-chart-2" color={color} size={size} focused={focused} />
           ),
         }}
@@ -60,7 +66,7 @@ function TabLayoutInner() {
         name="insights"
         options={{
           title: "Insights",
-          tabBarIcon: ({ color, size, focused }) => (
+          tabBarIcon: ({ color, size, focused }: TabBarIconRenderProps) => (
             <TabIcon name="trending-up" color={color} size={size} focused={focused} />
           ),
         }}
@@ -69,14 +75,15 @@ function TabLayoutInner() {
         name="learn"
         options={{
           title: "Learn",
-          tabBarIcon: ({ color, size, focused }) => (
+          tabBarIcon: ({ color, size, focused }: TabBarIconRenderProps) => (
             <TabIcon name="book-open" color={color} size={size} focused={focused} />
           ),
         }}
       />
-      <Tabs.Screen name="dashboard" options={{ href: null }} />
+      <Tabs.Screen name="index" options={{ href: null }} />
       <Tabs.Screen name="news" options={{ href: null }} />
       <Tabs.Screen name="alert-settings" options={{ href: null }} />
+      <Tabs.Screen name="notifications" options={{ href: null }} />
       <Tabs.Screen name="profile" options={{ href: null }} />
       <Tabs.Screen name="admin" options={{ href: null }} />
       <Tabs.Screen name="complete-profile" options={{ href: null }} />

@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useAuth } from "../context/AuthContext";
+import { useDataServer } from "../context/DataServerContext";
 
 type ProfileDetails = {
   name?: string;
@@ -20,6 +21,7 @@ type TopRightMenuProps = {
 export default function TopRightMenu({ theme = "dark", details }: TopRightMenuProps) {
   const router = useRouter();
   const { isAuthenticated, userName, email, signOut } = useAuth();
+  const { unreadNotificationCount } = useDataServer();
   const [open, setOpen] = useState(false);
 
   const display = useMemo(() => {
@@ -39,9 +41,14 @@ export default function TopRightMenu({ theme = "dark", details }: TopRightMenuPr
       <View style={styles.actionsRow}>
         <TouchableOpacity
           style={[styles.iconButton, isDark ? styles.iconButtonDark : styles.iconButtonLight]}
-          onPress={() => router.push("/alert-settings")}
+          onPress={() => router.push("/notifications")}
         >
           <Feather name="bell" size={16} color={isDark ? "#fff" : "#0B3B78"} />
+          {unreadNotificationCount > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{unreadNotificationCount > 9 ? "9+" : unreadNotificationCount}</Text>
+            </View>
+          )}
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.trigger, isDark ? styles.triggerDark : styles.triggerLight]}
@@ -98,11 +105,21 @@ export default function TopRightMenu({ theme = "dark", details }: TopRightMenuPr
             style={styles.menuItem}
             onPress={() => {
               setOpen(false);
-              router.push("/alert-settings");
+              router.push("/notifications");
             }}
           >
             <Feather name="bell" size={16} color="#0B3B78" />
             <Text style={styles.menuItemText}>Notifications</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => {
+              setOpen(false);
+              router.push("/alert-settings");
+            }}
+          >
+            <Feather name="alert-triangle" size={16} color="#0B3B78" />
+            <Text style={styles.menuItemText}>Alerts</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.menuItem}
@@ -129,7 +146,7 @@ export default function TopRightMenu({ theme = "dark", details }: TopRightMenuPr
             onPress={() => {
               setOpen(false);
               signOut();
-              router.push("/login");
+              router.replace("/profile");
             }}
           >
             <Feather name="log-out" size={16} color="#EF4444" />
@@ -158,6 +175,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
+    position: "relative",
   },
   iconButtonDark: { backgroundColor: "rgba(255,255,255,0.2)" },
   iconButtonLight: { backgroundColor: "#E2E8F0" },
@@ -223,5 +241,24 @@ const styles = StyleSheet.create({
   },
   menuItemText: { fontSize: 13, fontWeight: "600", color: "#0F172A" },
   logoutText: { color: "#EF4444" },
+  badge: {
+    position: "absolute",
+    right: -5,
+    top: -4,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 999,
+    backgroundColor: "#EC4899",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+    borderWidth: 1,
+    borderColor: "#fff",
+  },
+  badgeText: {
+    color: "#fff",
+    fontSize: 9,
+    fontWeight: "800",
+  },
 });
 

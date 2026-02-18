@@ -11,14 +11,16 @@ market_bp = Blueprint("market", __name__)
 _provider = None
 _clock = None
 _alert_manager = None
+_alert_advisor = None
 
 
-def init_market_routes(provider, clock, alert_manager):
+def init_market_routes(provider, clock, alert_manager, alert_advisor=None):
     """Initialize route dependencies (called from server.py)."""
-    global _provider, _clock, _alert_manager
+    global _provider, _clock, _alert_manager, _alert_advisor
     _provider = provider
     _clock = clock
     _alert_manager = alert_manager
+    _alert_advisor = alert_advisor
 
 
 @market_bp.route("/api/stocks", methods=["GET"])
@@ -420,6 +422,25 @@ def check_alert_threshold():
                     type: string
                   timestamp:
                     type: string
+            recommendation:
+              type: object
+              properties:
+                action:
+                  type: string
+                  example: watch
+                confidence:
+                  type: number
+                  example: 0.82
+                risk_level:
+                  type: string
+                  example: medium
+                score:
+                  type: number
+                  example: 0.64
+                reasons:
+                  type: array
+                  items:
+                    type: string
       400:
         description: Missing required field (symbol)
       404:
@@ -434,18 +455,30 @@ def check_alert_threshold():
     if not tick:
         return jsonify({"error": f"No data available for '{symbol}'"}), 404
 
-    from detection.spike_detector import SpikeDetector
+    detector = _alert_manager.detector if _alert_manager else None
+    if detector is None:
+        from detection.spike_detector import SpikeDetector
 
-    detector = SpikeDetector()
+        detector = SpikeDetector()
+
     alerts = detector.analyze_tick(
         tick,
         price_threshold_pct=data.get("price_threshold_pct"),
         volume_threshold_multiplier=data.get("volume_threshold_multiplier"),
     )
 
+    recommendation = None
+    if _alert_advisor:
+        recommendation = _alert_advisor.recommend(
+            tick,
+            price_threshold_pct=data.get("price_threshold_pct"),
+            volume_threshold_multiplier=data.get("volume_threshold_multiplier"),
+        ).to_dict()
+
     return jsonify({
         "symbol": symbol,
         "current_tick": tick,
         "alerts": [a.to_dict() for a in alerts],
         "alert_count": len(alerts),
+        "recommendation": recommendation,
     })

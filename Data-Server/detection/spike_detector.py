@@ -25,6 +25,19 @@ class SpikeAlert:
     reference_value: float
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
 
+    def message(self) -> str:
+        if self.alert_type == "price":
+            return (
+                f"{self.symbol} price moved {self.direction} {abs(self.magnitude):.2f}% "
+                f"(threshold {self.threshold:.2f}%)."
+            )
+        if self.alert_type == "volume":
+            return (
+                f"{self.symbol} volume is {self.magnitude:.2f}x average "
+                f"(threshold {self.threshold:.2f}x)."
+            )
+        return f"{self.symbol} threshold crossed."
+
     def to_dict(self) -> dict:
         return {
             "symbol": self.symbol,
@@ -35,6 +48,7 @@ class SpikeAlert:
             "threshold": round(self.threshold, 2),
             "reference_value": round(self.reference_value, 2),
             "timestamp": self.timestamp,
+            "message": self.message(),
         }
 
 

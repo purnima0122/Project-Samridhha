@@ -23,7 +23,7 @@ function getAuthRedirectUrl() {
 
 export default function SignupScreen() {
   const router = useRouter();
-  const { signIn, updateUser } = useAuth();
+  const { signIn } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [number, setNumber] = useState("");
@@ -36,36 +36,14 @@ export default function SignupScreen() {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
-  const finalizeLogin = async (token: string) => {
-    const profile = await apiFetch<{
-      isProfileComplete: boolean;
-      name?: string;
-      email?: string;
-      number?: string;
-      address?: string;
-      wardNo?: string;
-    }>("/users/me", {}, token);
-    updateUser({ userName: profile.name ?? null, email: profile.email ?? null });
-    const needsProfile =
-      !profile.isProfileComplete ||
-      !profile.name ||
-      !profile.number ||
-      !profile.address ||
-      !profile.wardNo;
-    if (needsProfile) {
-      router.push("/complete-profile");
-      return;
-    }
-    router.replace("/");
-  };
-
   const handleSignup = async () => {
     const cleanName = name.trim();
     const cleanEmail = email.trim().toLowerCase();
     const cleanNumber = number.replace(/\s+/g, "");
+    const cleanAddress = address.trim();
     const cleanWard = wardNo.trim();
 
-    if (!cleanName || !cleanEmail || !cleanNumber || !address || !cleanWard || !password) {
+    if (!cleanName || !cleanEmail || !cleanNumber || !cleanAddress || !cleanWard || !password) {
       setStatus({ type: "error", message: "Please fill all the fields." });
       return;
     }
@@ -82,7 +60,7 @@ export default function SignupScreen() {
           name: cleanName,
           email: cleanEmail,
           number: cleanNumber,
-          address,
+          address: cleanAddress,
           wardNo: cleanWard,
           password,
         }),
@@ -103,7 +81,7 @@ export default function SignupScreen() {
         userName: cleanName,
       });
       setStatus({ type: "success", message: "Signup successful. Redirecting..." });
-      await finalizeLogin(loginData.accessToken);
+      router.replace("/dashboard");
     } catch (error: any) {
       setStatus({ type: "error", message: error?.message || "Signup failed." });
     } finally {
@@ -123,14 +101,16 @@ export default function SignupScreen() {
         const userId = typeof parsed.queryParams?.userId === "string" ? parsed.queryParams.userId : null;
 
         if (accessToken && refreshToken && userId) {
-          signIn({
-            accessToken,
-            refreshToken,
-            userId,
-            email: parsed.queryParams?.email as string | undefined,
-            userName: parsed.queryParams?.name as string | undefined,
+          router.replace({
+            pathname: "/auth",
+            params: {
+              accessToken,
+              refreshToken,
+              userId,
+              email: typeof parsed.queryParams?.email === "string" ? parsed.queryParams.email : undefined,
+              name: typeof parsed.queryParams?.name === "string" ? parsed.queryParams.name : undefined,
+            },
           });
-          await finalizeLogin(accessToken);
         } else {
           setStatus({ type: "error", message: "Google signup failed." });
         }

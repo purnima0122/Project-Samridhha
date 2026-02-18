@@ -7,8 +7,9 @@
     "icon": "./assets/images/icon.png",
     "scheme": "stocklearn",
     "userInterfaceStyle": "light",
-    "newArchEnabled": false,
-    "ios": {},
+    "ios": {
+      
+    },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
@@ -26,8 +27,7 @@
           "origin": false,
           "asyncRoutes": true
         }
-      ],
-      "expo-secure-store"
+      ]
     ],
     "experiments": {
       "typedRoutes": true

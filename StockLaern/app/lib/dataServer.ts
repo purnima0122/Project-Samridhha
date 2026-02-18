@@ -96,10 +96,49 @@ export type MarketStatusData = {
     [key: string]: any;
 };
 
+export type AlertRecommendation = {
+    symbol: string;
+    action: "buy" | "sell" | "watch" | "hold" | string;
+    confidence: number;
+    risk_level: "low" | "medium" | "high" | string;
+    score: number;
+    reasons: string[];
+    features: Record<string, number>;
+};
+
+export type AlertCheckResponse = {
+    symbol: string;
+    current_tick: TickData;
+    alerts: Array<{
+        symbol: string;
+        alert_type: string;
+        direction: string;
+        magnitude: number;
+        message: string;
+        [key: string]: any;
+    }>;
+    alert_count: number;
+    recommendation?: AlertRecommendation | null;
+};
+
 // ─── REST Helpers ────────────────────────────────────────────────────────────
 
 async function dataServerFetch<T>(path: string): Promise<T> {
     const response = await fetch(`${DATA_SERVER_URL}${path}`);
+    if (!response.ok) {
+        throw new Error(`Data-Server error: ${response.status}`);
+    }
+    return response.json() as Promise<T>;
+}
+
+async function dataServerPost<T>(path: string, body: unknown): Promise<T> {
+    const response = await fetch(`${DATA_SERVER_URL}${path}`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+    });
     if (!response.ok) {
         throw new Error(`Data-Server error: ${response.status}`);
     }
@@ -137,4 +176,12 @@ export async function searchStocks(query: string): Promise<any[]> {
 
 export async function fetchMarketStatus(): Promise<MarketStatusData> {
     return dataServerFetch<MarketStatusData>("/api/market/status");
+}
+
+export async function checkAlertThreshold(data: {
+    symbol: string;
+    price_threshold_pct?: number;
+    volume_threshold_multiplier?: number;
+}): Promise<AlertCheckResponse> {
+    return dataServerPost<AlertCheckResponse>("/api/alerts/check", data);
 }
