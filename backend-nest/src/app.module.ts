@@ -34,6 +34,7 @@ import googleOauthConfig from './config/google-oauth.config';
       imports: [ConfigModule],
       useFactory: async (config) => ({
         uri: config.get('database.connectionString'),
+        dbName: config.get('database.name') || undefined,
       }),
       inject: [ConfigService],
     }),
