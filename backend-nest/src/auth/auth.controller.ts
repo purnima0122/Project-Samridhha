@@ -12,6 +12,7 @@ import { AuthGuard as PassportAuthGuard } from '@nestjs/passport';
 import type { Response } from 'express';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
 import { decodeRedirectState, isAllowedRedirect } from './utils/redirects';
+import { BootstrapAdminDto } from './dtos/bootstrap-admin.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -29,6 +30,11 @@ export class AuthController {
   async login(@Body() credentials: loginDto)
   {
     return this.authService.login(credentials)
+  }
+
+  @Post('bootstrap-superuser')
+  async bootstrapSuperuser(@Body() body: BootstrapAdminDto) {
+    return this.authService.bootstrapSuperuser(body);
   }
 
   //refresh
@@ -76,6 +82,7 @@ export class AuthController {
       redirectUrl.searchParams.set('accessToken', tokens.accessToken);
       redirectUrl.searchParams.set('refreshToken', tokens.RefreshToken);
       redirectUrl.searchParams.set('userId', String(tokens.userId));
+      redirectUrl.searchParams.set('isAdmin', String(Boolean(tokens.isAdmin)));
       if (req.user?.email) {
         redirectUrl.searchParams.set('email', req.user.email);
       }

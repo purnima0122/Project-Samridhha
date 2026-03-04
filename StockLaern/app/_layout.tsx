@@ -44,6 +44,7 @@ function AppGate() {
     userId,
     email,
     userName,
+    isAdmin,
     isAuthenticated,
     isHydrated,
     signIn,
@@ -84,6 +85,7 @@ function AppGate() {
           number?: string;
           address?: string;
           wardNo?: string;
+          isAdmin?: boolean;
         }>("/users/me", {}, accessToken);
 
         if (!active) return;
@@ -113,6 +115,7 @@ function AppGate() {
                 userId,
                 email: email ?? undefined,
                 userName: userName ?? undefined,
+                isAdmin,
               });
               return;
             } catch {
@@ -136,7 +139,7 @@ function AppGate() {
     return () => {
       active = false;
     };
-  }, [accessToken, email, isHydrated, refreshToken, signIn, signOut, userId, userName]);
+  }, [accessToken, email, isAdmin, isHydrated, refreshToken, signIn, signOut, userId, userName]);
 
   useEffect(() => {
     if (!isHydrated) {

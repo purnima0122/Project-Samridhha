@@ -1,9 +1,11 @@
 import { Feather } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -11,7 +13,6 @@ import {
 } from "react-native";
 import { useAuth } from "../context/AuthContext";
 import { apiFetch } from "../lib/api";
-import { useRouter } from "expo-router";
 
 type Lesson = {
   _id: string;
@@ -44,18 +45,22 @@ type WatchlistItem = {
   isPositive?: boolean;
 };
 
+type AdminPanel = "learning" | "alerts" | "watchlist";
+
 export default function AdminScreen() {
   const router = useRouter();
-  const { accessToken } = useAuth();
+  const { accessToken, isAdmin } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [accessState, setAccessState] = useState<"idle" | "allowed" | "forbidden" | "error">("idle");
+  const [activePanel, setActivePanel] = useState<AdminPanel>("learning");
 
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
 
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
+  const [lessonSearch, setLessonSearch] = useState("");
   const [lessonTitle, setLessonTitle] = useState("");
   const [lessonModule, setLessonModule] = useState("beginner");
   const [lessonContent, setLessonContent] = useState("");
@@ -64,6 +69,7 @@ export default function AdminScreen() {
   const [lessonVideoUrl, setLessonVideoUrl] = useState("");
   const [lessonColor, setLessonColor] = useState("#10B981");
   const [lessonIcon, setLessonIcon] = useState("BookOpen");
+  const [lessonPublished, setLessonPublished] = useState(true);
 
   const [quizPrompt, setQuizPrompt] = useState("");
   const [quizOptions, setQuizOptions] = useState("");
@@ -85,13 +91,26 @@ export default function AdminScreen() {
     [lessons, selectedLessonId],
   );
 
+  const filteredLessons = useMemo(() => {
+    const query = lessonSearch.trim().toLowerCase();
+    if (!query) {
+      return lessons;
+    }
+    return lessons.filter((lesson) => {
+      return (
+        lesson.title.toLowerCase().includes(query) ||
+        lesson.module.toLowerCase().includes(query)
+      );
+    });
+  }, [lessonSearch, lessons]);
+
   const loadAll = useCallback(async () => {
     if (!accessToken) return;
     try {
       setLoading(true);
       setError(null);
       const [lessonData, alertData, watchData] = await Promise.all([
-        apiFetch<Lesson[]>("/lessons", {}, accessToken),
+        apiFetch<Lesson[]>("/lessons/admin/all", {}, accessToken),
         apiFetch<AlertItem[]>("/alerts", {}, accessToken),
         apiFetch<WatchlistItem[]>("/watchlist", {}, accessToken),
       ]);
@@ -131,6 +150,7 @@ export default function AdminScreen() {
     setLessonVideoUrl(selectedLesson.videoUrl || "");
     setLessonColor(selectedLesson.color || "#10B981");
     setLessonIcon(selectedLesson.icon || "BookOpen");
+    setLessonPublished(Boolean(selectedLesson.isPublished));
   }, [selectedLesson]);
 
   const resetLessonForm = () => {
@@ -143,6 +163,7 @@ export default function AdminScreen() {
     setLessonVideoUrl("");
     setLessonColor("#10B981");
     setLessonIcon("BookOpen");
+    setLessonPublished(true);
   };
 
   const handleLessonSave = async () => {
@@ -172,23 +193,32 @@ export default function AdminScreen() {
       content: trimmedContent,
       order: parsedOrder,
       duration: parsedDuration,
-      videoUrl: lessonVideoUrl,
-      color: lessonColor,
-      icon: lessonIcon,
+      videoUrl: lessonVideoUrl.trim(),
+      color: lessonColor.trim() || "#10B981",
+      icon: lessonIcon.trim() || "BookOpen",
+      isPublished: lessonPublished,
     };
 
     try {
       setError(null);
       if (selectedLessonId) {
-        await apiFetch(`/lessons/${selectedLessonId}`, {
-          method: "PATCH",
-          body: JSON.stringify(payload),
-        }, accessToken);
+        await apiFetch(
+          `/lessons/${selectedLessonId}`,
+          {
+            method: "PATCH",
+            body: JSON.stringify(payload),
+          },
+          accessToken,
+        );
       } else {
-        await apiFetch("/lessons", {
-          method: "POST",
-          body: JSON.stringify(payload),
-        }, accessToken);
+        await apiFetch(
+          "/lessons",
+          {
+            method: "POST",
+            body: JSON.stringify(payload),
+          },
+          accessToken,
+        );
       }
       resetLessonForm();
       await loadAll();
@@ -201,6 +231,9 @@ export default function AdminScreen() {
     if (!accessToken) return;
     try {
       await apiFetch(`/lessons/${id}`, { method: "DELETE" }, accessToken);
+      if (selectedLessonId === id) {
+        resetLessonForm();
+      }
       await loadAll();
     } catch (err: any) {
       setError(err?.message || "Unable to delete lesson.");
@@ -228,15 +261,19 @@ export default function AdminScreen() {
     }
     try {
       setError(null);
-      await apiFetch(`/lessons/${selectedLessonId}/quiz`, {
-        method: "POST",
-        body: JSON.stringify({
-          prompt: quizPrompt,
-          options,
-          correctOptionIndex: correctIndex,
-          explanation: quizExplanation || undefined,
-        }),
-      }, accessToken);
+      await apiFetch(
+        `/lessons/${selectedLessonId}/quiz`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            prompt: quizPrompt,
+            options,
+            correctOptionIndex: correctIndex,
+            explanation: quizExplanation || undefined,
+          }),
+        },
+        accessToken,
+      );
       setQuizPrompt("");
       setQuizOptions("");
       setQuizCorrectIndex("0");
@@ -255,16 +292,20 @@ export default function AdminScreen() {
     }
     try {
       setError(null);
-      await apiFetch("/alerts", {
-        method: "POST",
-        body: JSON.stringify({
-          symbol: alertSymbol,
-          type: alertType,
-          price: alertPrice,
-          units: alertUnits,
-          status: "active",
-        }),
-      }, accessToken);
+      await apiFetch(
+        "/alerts",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            symbol: alertSymbol,
+            type: alertType,
+            price: alertPrice,
+            units: alertUnits,
+            status: "active",
+          }),
+        },
+        accessToken,
+      );
       setAlertSymbol("");
       setAlertPrice("");
       setAlertUnits("");
@@ -292,16 +333,20 @@ export default function AdminScreen() {
     }
     try {
       setError(null);
-      await apiFetch("/watchlist", {
-        method: "POST",
-        body: JSON.stringify({
-          symbol: watchSymbol,
-          price: watchPrice || undefined,
-          change: watchChange || undefined,
-          alertType: watchAlertType || undefined,
-          isPositive: watchChange?.includes("-") ? false : true,
-        }),
-      }, accessToken);
+      await apiFetch(
+        "/watchlist",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            symbol: watchSymbol,
+            price: watchPrice || undefined,
+            change: watchChange || undefined,
+            alertType: watchAlertType || undefined,
+            isPositive: watchChange?.includes("-") ? false : true,
+          }),
+        },
+        accessToken,
+      );
       setWatchSymbol("");
       setWatchPrice("");
       setWatchChange("");
@@ -334,12 +379,12 @@ export default function AdminScreen() {
     );
   }
 
-  if (accessState === "forbidden") {
+  if (accessState === "forbidden" || !isAdmin) {
     return (
       <View style={styles.centered}>
         <Text style={styles.centeredTitle}>Admin Access Required</Text>
         <Text style={styles.centeredText}>
-          You are logged in, but this account is not marked as admin in the backend.
+          This account is not marked as admin in the backend.
         </Text>
         <TouchableOpacity style={styles.primaryButton} onPress={() => router.push("/")}>
           <Text style={styles.primaryButtonText}>Back to Home</Text>
@@ -349,21 +394,59 @@ export default function AdminScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
-      <View style={styles.header}>
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 50 }}>
+      <View style={styles.hero}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={22} color="#1E293B" />
+          <Feather name="arrow-left" size={20} color="#0F172A" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Admin Console</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.heroTitle}>Admin Portal</Text>
+          <Text style={styles.heroSubtitle}>Manage learning content, alerts, and watchlist entries</Text>
+        </View>
         <TouchableOpacity onPress={loadAll} style={styles.refreshBtn}>
-          <Feather name="refresh-cw" size={16} color="#0369A1" />
-          <Text style={styles.refreshBtnText}>Refresh</Text>
+          <Feather name="refresh-cw" size={16} color="#0F172A" />
         </TouchableOpacity>
+      </View>
+
+      <View style={styles.statsRow}>
+        <View style={styles.statCard}>
+          <Text style={styles.statValue}>{lessons.length}</Text>
+          <Text style={styles.statLabel}>Lessons</Text>
+        </View>
+        <View style={styles.statCard}>
+          <Text style={styles.statValue}>{alerts.length}</Text>
+          <Text style={styles.statLabel}>Alerts</Text>
+        </View>
+        <View style={styles.statCard}>
+          <Text style={styles.statValue}>{watchlist.length}</Text>
+          <Text style={styles.statLabel}>Watchlist</Text>
+        </View>
+      </View>
+
+      <View style={styles.panelTabs}>
+        <PanelTab
+          label="Learning"
+          icon="book-open"
+          active={activePanel === "learning"}
+          onPress={() => setActivePanel("learning")}
+        />
+        <PanelTab
+          label="Alerts"
+          icon="alert-triangle"
+          active={activePanel === "alerts"}
+          onPress={() => setActivePanel("alerts")}
+        />
+        <PanelTab
+          label="Watchlist"
+          icon="list"
+          active={activePanel === "watchlist"}
+          onPress={() => setActivePanel("watchlist")}
+        />
       </View>
 
       {loading && (
         <View style={styles.loadingRow}>
-          <ActivityIndicator color="#70A288" />
+          <ActivityIndicator color="#0369A1" />
           <Text style={styles.loadingText}>Loading admin data...</Text>
         </View>
       )}
@@ -375,227 +458,317 @@ export default function AdminScreen() {
         </View>
       )}
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Lessons</Text>
-        <View style={styles.card}>
-          <Text style={styles.label}>Lesson Title</Text>
-          <TextInput value={lessonTitle} onChangeText={setLessonTitle} style={styles.input} placeholder="Lesson title" />
-          <Text style={styles.label}>Module</Text>
-          <TextInput value={lessonModule} onChangeText={setLessonModule} style={styles.input} placeholder="beginner" />
-          <Text style={styles.label}>Content</Text>
-          <TextInput value={lessonContent} onChangeText={setLessonContent} style={[styles.input, styles.multiline]} multiline />
-          <View style={styles.row}>
-            <View style={styles.rowItem}>
-              <Text style={styles.label}>Order</Text>
-              <TextInput value={lessonOrder} onChangeText={setLessonOrder} style={styles.input} keyboardType="numeric" />
+      {activePanel === "learning" && (
+        <View style={styles.section}>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>{selectedLessonId ? "Edit Lesson" : "Create Lesson"}</Text>
+            <Text style={styles.label}>Lesson Title</Text>
+            <TextInput value={lessonTitle} onChangeText={setLessonTitle} style={styles.input} placeholder="Lesson title" />
+            <Text style={styles.label}>Module</Text>
+            <TextInput value={lessonModule} onChangeText={setLessonModule} style={styles.input} placeholder="beginner" />
+            <Text style={styles.label}>Content</Text>
+            <TextInput value={lessonContent} onChangeText={setLessonContent} style={[styles.input, styles.multiline]} multiline />
+            <View style={styles.row}>
+              <View style={styles.rowItem}>
+                <Text style={styles.label}>Order</Text>
+                <TextInput value={lessonOrder} onChangeText={setLessonOrder} style={styles.input} keyboardType="numeric" />
+              </View>
+              <View style={styles.rowItem}>
+                <Text style={styles.label}>Duration (min)</Text>
+                <TextInput value={lessonDuration} onChangeText={setLessonDuration} style={styles.input} keyboardType="numeric" />
+              </View>
             </View>
-            <View style={styles.rowItem}>
-              <Text style={styles.label}>Duration (min)</Text>
-              <TextInput value={lessonDuration} onChangeText={setLessonDuration} style={styles.input} keyboardType="numeric" />
+            <Text style={styles.label}>Video URL</Text>
+            <TextInput value={lessonVideoUrl} onChangeText={setLessonVideoUrl} style={styles.input} placeholder="https://..." />
+            <View style={styles.row}>
+              <View style={styles.rowItem}>
+                <Text style={styles.label}>Color</Text>
+                <TextInput value={lessonColor} onChangeText={setLessonColor} style={styles.input} placeholder="#10B981" />
+              </View>
+              <View style={styles.rowItem}>
+                <Text style={styles.label}>Icon</Text>
+                <TextInput value={lessonIcon} onChangeText={setLessonIcon} style={styles.input} placeholder="BookOpen" />
+              </View>
+            </View>
+            <View style={styles.toggleRow}>
+              <Text style={styles.label}>Published</Text>
+              <Switch value={lessonPublished} onValueChange={setLessonPublished} trackColor={{ true: "#86EFAC", false: "#CBD5E1" }} />
+            </View>
+            <View style={styles.row}>
+              <TouchableOpacity style={styles.primaryButton} onPress={handleLessonSave}>
+                <Text style={styles.primaryButtonText}>{selectedLessonId ? "Update Lesson" : "Create Lesson"}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.secondaryButton} onPress={resetLessonForm}>
+                <Text style={styles.secondaryButtonText}>Clear</Text>
+              </TouchableOpacity>
             </View>
           </View>
-          <Text style={styles.label}>Video URL</Text>
-          <TextInput value={lessonVideoUrl} onChangeText={setLessonVideoUrl} style={styles.input} placeholder="https://..." />
-          <View style={styles.row}>
-            <View style={styles.rowItem}>
-              <Text style={styles.label}>Color</Text>
-              <TextInput value={lessonColor} onChangeText={setLessonColor} style={styles.input} placeholder="#10B981" />
-            </View>
-            <View style={styles.rowItem}>
-              <Text style={styles.label}>Icon</Text>
-              <TextInput value={lessonIcon} onChangeText={setLessonIcon} style={styles.input} placeholder="BookOpen" />
-            </View>
-          </View>
-          <View style={styles.row}>
-            <TouchableOpacity style={styles.primaryButton} onPress={handleLessonSave}>
-              <Text style={styles.primaryButtonText}>{selectedLessonId ? "Update Lesson" : "Create Lesson"}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.secondaryButton} onPress={resetLessonForm}>
-              <Text style={styles.secondaryButtonText}>Clear</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
 
-        <View style={styles.card}>
-          <Text style={styles.subTitle}>Add Quiz Question</Text>
-          <Text style={styles.label}>Select Lesson</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-            {lessons.map((lesson) => (
-              <TouchableOpacity
-                key={lesson._id}
-                style={[
-                  styles.chip,
-                  selectedLessonId === lesson._id && styles.chipActive,
-                ]}
-                onPress={() => setSelectedLessonId(lesson._id)}
-              >
-                <Text
-                  style={[
-                    styles.chipText,
-                    selectedLessonId === lesson._id && styles.chipTextActive,
-                  ]}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Add Quiz Question</Text>
+            <Text style={styles.label}>Select Lesson</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+              {lessons.map((lesson) => (
+                <TouchableOpacity
+                  key={lesson._id}
+                  style={[styles.chip, selectedLessonId === lesson._id && styles.chipActive]}
+                  onPress={() => setSelectedLessonId(lesson._id)}
                 >
-                  {lesson.title}
-                </Text>
-              </TouchableOpacity>
+                  <Text style={[styles.chipText, selectedLessonId === lesson._id && styles.chipTextActive]}>{lesson.title}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <Text style={styles.label}>Prompt</Text>
+            <TextInput value={quizPrompt} onChangeText={setQuizPrompt} style={styles.input} />
+            <Text style={styles.label}>Options (comma separated)</Text>
+            <TextInput value={quizOptions} onChangeText={setQuizOptions} style={styles.input} />
+            <Text style={styles.label}>Correct Option Index</Text>
+            <TextInput value={quizCorrectIndex} onChangeText={setQuizCorrectIndex} style={styles.input} keyboardType="numeric" />
+            <Text style={styles.label}>Explanation</Text>
+            <TextInput value={quizExplanation} onChangeText={setQuizExplanation} style={styles.input} />
+            <TouchableOpacity style={styles.primaryButton} onPress={handleQuizAdd}>
+              <Text style={styles.primaryButtonText}>Add Quiz Question</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Existing Lessons</Text>
+            <TextInput
+              value={lessonSearch}
+              onChangeText={setLessonSearch}
+              style={styles.input}
+              placeholder="Search by title or module"
+            />
+            {filteredLessons.map((lesson) => (
+              <View key={lesson._id} style={styles.listRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.listTitle}>{lesson.title}</Text>
+                  <Text style={styles.listMeta}>
+                    Module: {lesson.module} | Order: {lesson.order} | {lesson.isPublished ? "Published" : "Draft"}
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => setSelectedLessonId(lesson._id)} style={styles.listButton}>
+                  <Text style={styles.listButtonText}>Edit</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => handleLessonDelete(lesson._id)} style={styles.dangerButton}>
+                  <Text style={styles.dangerButtonText}>Delete</Text>
+                </TouchableOpacity>
+              </View>
             ))}
-          </ScrollView>
-          <Text style={styles.label}>Prompt</Text>
-          <TextInput value={quizPrompt} onChangeText={setQuizPrompt} style={styles.input} />
-          <Text style={styles.label}>Options (comma separated)</Text>
-          <TextInput value={quizOptions} onChangeText={setQuizOptions} style={styles.input} />
-          <Text style={styles.label}>Correct Option Index</Text>
-          <TextInput value={quizCorrectIndex} onChangeText={setQuizCorrectIndex} style={styles.input} keyboardType="numeric" />
-          <Text style={styles.label}>Explanation</Text>
-          <TextInput value={quizExplanation} onChangeText={setQuizExplanation} style={styles.input} />
-          <TouchableOpacity style={styles.primaryButton} onPress={handleQuizAdd}>
-            <Text style={styles.primaryButtonText}>Add Quiz Question</Text>
-          </TouchableOpacity>
+          </View>
         </View>
+      )}
 
-        <View style={styles.card}>
-          <Text style={styles.subTitle}>Existing Lessons</Text>
-          {lessons.map((lesson) => (
-            <View key={lesson._id} style={styles.listRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.listTitle}>{lesson.title}</Text>
-                <Text style={styles.listMeta}>Module: {lesson.module} | Order: {lesson.order}</Text>
-              </View>
-              <TouchableOpacity onPress={() => setSelectedLessonId(lesson._id)} style={styles.listButton}>
-                <Text style={styles.listButtonText}>Edit</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => handleLessonDelete(lesson._id)} style={styles.dangerButton}>
-                <Text style={styles.dangerButtonText}>Delete</Text>
-              </TouchableOpacity>
-            </View>
-          ))}
-        </View>
-      </View>
+      {activePanel === "alerts" && (
+        <View style={styles.section}>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Create Alert</Text>
+            <Text style={styles.label}>Symbol</Text>
+            <TextInput value={alertSymbol} onChangeText={setAlertSymbol} style={styles.input} />
+            <Text style={styles.label}>Type</Text>
+            <TextInput value={alertType} onChangeText={setAlertType} style={styles.input} />
+            <Text style={styles.label}>Price</Text>
+            <TextInput value={alertPrice} onChangeText={setAlertPrice} style={styles.input} />
+            <Text style={styles.label}>Units</Text>
+            <TextInput value={alertUnits} onChangeText={setAlertUnits} style={styles.input} />
+            <TouchableOpacity style={styles.primaryButton} onPress={handleAlertCreate}>
+              <Text style={styles.primaryButtonText}>Create Alert</Text>
+            </TouchableOpacity>
+          </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Stock Alerts</Text>
-        <View style={styles.card}>
-          <Text style={styles.label}>Symbol</Text>
-          <TextInput value={alertSymbol} onChangeText={setAlertSymbol} style={styles.input} />
-          <Text style={styles.label}>Type</Text>
-          <TextInput value={alertType} onChangeText={setAlertType} style={styles.input} />
-          <Text style={styles.label}>Price</Text>
-          <TextInput value={alertPrice} onChangeText={setAlertPrice} style={styles.input} />
-          <Text style={styles.label}>Units</Text>
-          <TextInput value={alertUnits} onChangeText={setAlertUnits} style={styles.input} />
-          <TouchableOpacity style={styles.primaryButton} onPress={handleAlertCreate}>
-            <Text style={styles.primaryButtonText}>Create Alert</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.card}>
-          {alerts.map((alert) => (
-            <View key={alert._id} style={styles.listRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.listTitle}>{alert.symbol}</Text>
-                <Text style={styles.listMeta}>
-                  {alert.type} {alert.price} | {alert.units}
-                </Text>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Existing Alerts</Text>
+            {alerts.map((alert) => (
+              <View key={alert._id} style={styles.listRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.listTitle}>{alert.symbol}</Text>
+                  <Text style={styles.listMeta}>
+                    {alert.type} {alert.price} | {alert.units}
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => handleAlertDelete(alert._id)} style={styles.dangerButton}>
+                  <Text style={styles.dangerButtonText}>Delete</Text>
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity onPress={() => handleAlertDelete(alert._id)} style={styles.dangerButton}>
-                <Text style={styles.dangerButtonText}>Delete</Text>
-              </TouchableOpacity>
-            </View>
-          ))}
+            ))}
+          </View>
         </View>
-      </View>
+      )}
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Watchlist</Text>
-        <View style={styles.card}>
-          <Text style={styles.label}>Symbol</Text>
-          <TextInput value={watchSymbol} onChangeText={setWatchSymbol} style={styles.input} />
-          <Text style={styles.label}>Price</Text>
-          <TextInput value={watchPrice} onChangeText={setWatchPrice} style={styles.input} />
-          <Text style={styles.label}>Change</Text>
-          <TextInput value={watchChange} onChangeText={setWatchChange} style={styles.input} />
-          <Text style={styles.label}>Alert Type</Text>
-          <TextInput value={watchAlertType} onChangeText={setWatchAlertType} style={styles.input} />
-          <TouchableOpacity style={styles.primaryButton} onPress={handleWatchCreate}>
-            <Text style={styles.primaryButtonText}>Add to Watchlist</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.card}>
-          {watchlist.map((item) => (
-            <View key={item._id} style={styles.listRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.listTitle}>{item.symbol}</Text>
-                <Text style={styles.listMeta}>
-                  {item.price || "--"} | {item.change || "--"}
-                </Text>
+      {activePanel === "watchlist" && (
+        <View style={styles.section}>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Create Watchlist Entry</Text>
+            <Text style={styles.label}>Symbol</Text>
+            <TextInput value={watchSymbol} onChangeText={setWatchSymbol} style={styles.input} />
+            <Text style={styles.label}>Price</Text>
+            <TextInput value={watchPrice} onChangeText={setWatchPrice} style={styles.input} />
+            <Text style={styles.label}>Change</Text>
+            <TextInput value={watchChange} onChangeText={setWatchChange} style={styles.input} />
+            <Text style={styles.label}>Alert Type</Text>
+            <TextInput value={watchAlertType} onChangeText={setWatchAlertType} style={styles.input} />
+            <TouchableOpacity style={styles.primaryButton} onPress={handleWatchCreate}>
+              <Text style={styles.primaryButtonText}>Add to Watchlist</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Existing Watchlist</Text>
+            {watchlist.map((item) => (
+              <View key={item._id} style={styles.listRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.listTitle}>{item.symbol}</Text>
+                  <Text style={styles.listMeta}>
+                    {item.price || "--"} | {item.change || "--"}
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => handleWatchDelete(item._id)} style={styles.dangerButton}>
+                  <Text style={styles.dangerButtonText}>Delete</Text>
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity onPress={() => handleWatchDelete(item._id)} style={styles.dangerButton}>
-                <Text style={styles.dangerButtonText}>Delete</Text>
-              </TouchableOpacity>
-            </View>
-          ))}
+            ))}
+          </View>
         </View>
-      </View>
+      )}
     </ScrollView>
+  );
+}
+
+function PanelTab({
+  label,
+  icon,
+  active,
+  onPress,
+}: {
+  label: string;
+  icon: keyof typeof Feather.glyphMap;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      style={[styles.panelTab, active && styles.panelTabActive]}
+    >
+      <Feather name={icon} size={14} color={active ? "#fff" : "#0F172A"} />
+      <Text style={[styles.panelTabText, active && styles.panelTabTextActive]}>{label}</Text>
+    </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "#F1F5F9",
   },
-  header: {
-    paddingTop: 60,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
+  hero: {
+    marginTop: 56,
+    marginHorizontal: 16,
+    marginBottom: 14,
+    backgroundColor: "#E2E8F0",
+    borderRadius: 18,
+    padding: 14,
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 10,
   },
   backBtn: {
-    padding: 6,
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
   },
-  headerTitle: {
+  heroTitle: {
     fontSize: 20,
-    fontWeight: "700",
-    color: "#1E293B",
-    flex: 1,
+    fontWeight: "800",
+    color: "#0F172A",
+  },
+  heroSubtitle: {
+    fontSize: 12,
+    color: "#475569",
+    marginTop: 2,
   },
   refreshBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
+  },
+  statsRow: {
+    flexDirection: "row",
+    gap: 10,
+    paddingHorizontal: 16,
+    marginBottom: 12,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: "#0F172A",
+    borderRadius: 14,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#fff",
+  },
+  statLabel: {
+    fontSize: 11,
+    color: "#CBD5E1",
+    marginTop: 2,
+  },
+  panelTabs: {
+    flexDirection: "row",
+    gap: 10,
+    paddingHorizontal: 16,
+    marginBottom: 14,
+  },
+  panelTab: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#E0F2FE",
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    flex: 1,
+    justifyContent: "center",
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: "#E2E8F0",
   },
-  refreshBtnText: {
-    color: "#0369A1",
+  panelTabActive: {
+    backgroundColor: "#0F172A",
+  },
+  panelTabText: {
     fontSize: 12,
     fontWeight: "700",
+    color: "#0F172A",
+  },
+  panelTabTextActive: {
+    color: "#fff",
   },
   section: {
-    paddingHorizontal: 20,
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1E293B",
-    marginBottom: 12,
+    paddingHorizontal: 16,
+    marginBottom: 20,
   },
   card: {
     backgroundColor: "#fff",
     borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
+    padding: 14,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: "#E2E8F0",
   },
+  cardTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#0F172A",
+    marginBottom: 10,
+  },
   label: {
     fontSize: 12,
-    fontWeight: "600",
+    fontWeight: "700",
     color: "#475569",
     marginBottom: 6,
   },
@@ -606,22 +779,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     marginBottom: 12,
-    color: "#1E293B",
+    color: "#0F172A",
+    backgroundColor: "#fff",
   },
   multiline: {
-    minHeight: 100,
+    minHeight: 90,
     textAlignVertical: "top",
   },
   row: {
     flexDirection: "row",
-    gap: 12,
+    gap: 10,
     marginBottom: 12,
   },
   rowItem: {
     flex: 1,
   },
+  toggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+    paddingHorizontal: 2,
+  },
   primaryButton: {
-    backgroundColor: "#04395E",
+    backgroundColor: "#0F172A",
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 10,
@@ -641,26 +822,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   secondaryButtonText: {
-    color: "#475569",
+    color: "#334155",
     fontWeight: "700",
     fontSize: 13,
-  },
-  subTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#1E293B",
-    marginBottom: 10,
   },
   listRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   listTitle: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#1E293B",
+    color: "#0F172A",
   },
   listMeta: {
     fontSize: 12,
@@ -687,6 +862,24 @@ const styles = StyleSheet.create({
     color: "#B91C1C",
     fontSize: 12,
     fontWeight: "700",
+  },
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: "#E2E8F0",
+    marginRight: 8,
+  },
+  chipActive: {
+    backgroundColor: "#0F172A",
+  },
+  chipText: {
+    color: "#475569",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  chipTextActive: {
+    color: "#fff",
   },
   centered: {
     flex: 1,
@@ -721,7 +914,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FEF2F2",
     borderRadius: 12,
     padding: 12,
-    marginHorizontal: 20,
+    marginHorizontal: 16,
     marginBottom: 16,
     borderWidth: 1,
     borderColor: "#FECACA",
@@ -736,23 +929,4 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#991B1B",
   },
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: "#E2E8F0",
-    marginRight: 8,
-  },
-  chipActive: {
-    backgroundColor: "#04395E",
-  },
-  chipText: {
-    color: "#475569",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  chipTextActive: {
-    color: "#fff",
-  },
 });
-

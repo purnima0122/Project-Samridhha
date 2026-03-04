@@ -20,7 +20,7 @@ type TopRightMenuProps = {
 
 export default function TopRightMenu({ theme = "dark", details }: TopRightMenuProps) {
   const router = useRouter();
-  const { isAuthenticated, userName, email, signOut } = useAuth();
+  const { isAuthenticated, userName, email, isAdmin, signOut } = useAuth();
   const { unreadNotificationCount } = useDataServer();
   const [open, setOpen] = useState(false);
 
@@ -131,16 +131,18 @@ export default function TopRightMenu({ theme = "dark", details }: TopRightMenuPr
             <Feather name="home" size={16} color="#0B3B78" />
             <Text style={styles.menuItemText}>Home</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.menuItem}
-            onPress={() => {
-              setOpen(false);
-              router.push("/admin");
-            }}
-          >
-            <Feather name="shield" size={16} color="#0B3B78" />
-            <Text style={styles.menuItemText}>Admin Console</Text>
-          </TouchableOpacity>
+          {isAdmin && (
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                setOpen(false);
+                router.push("/admin");
+              }}
+            >
+              <Feather name="shield" size={16} color="#0B3B78" />
+              <Text style={styles.menuItemText}>Admin Console</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
             style={styles.menuItem}
             onPress={() => {

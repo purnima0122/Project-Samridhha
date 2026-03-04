@@ -30,6 +30,14 @@ export class LessonService {
     return this.lessonModel.findById(id).exec();
   }
 
+  async findAllForAdmin() {
+    return this.lessonModel.find().sort({ order: 1 }).exec();
+  }
+
+  async findByModuleForAdmin(module: string) {
+    return this.lessonModel.find({ module }).sort({ order: 1 }).exec();
+  }
+
   async create(data: CreateLessonDto) {
     return this.lessonModel.create(data);
   }

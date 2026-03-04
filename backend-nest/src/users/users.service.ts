@@ -13,7 +13,7 @@ export class UsersService {
   async getMe(userId: string) {
     const user = await this.userModel
       .findById(new Types.ObjectId(userId))
-      .select('name email number address wardNo isProfileComplete isGoogleUser')
+      .select('name email number address wardNo isProfileComplete isGoogleUser isAdmin')
       .exec();
 
     if (!user) {
@@ -28,14 +28,17 @@ export class UsersService {
     payload: {
       name?: string;
       number?: string;
+      phone?: string;
+      phoneNumber?: string;
       address?: string;
       wardNo?: string;
+      wardNumber?: string;
     },
   ) {
     const name = payload.name?.trim();
-    const number = payload.number?.replace(/\s+/g, '');
+    const number = (payload.number ?? payload.phone ?? payload.phoneNumber)?.replace(/\s+/g, '');
     const address = payload.address;
-    const wardNo = payload.wardNo?.trim();
+    const wardNo = (payload.wardNo ?? payload.wardNumber)?.trim();
 
     if (!name || !number || !address || !wardNo) {
       throw new BadRequestException('Please fill all the fields');

@@ -69,6 +69,7 @@ export default function SignupScreen() {
         accessToken: string;
         RefreshToken: string;
         userId: string;
+        isAdmin?: boolean;
       }>("/auth/login", {
         method: "POST",
         body: JSON.stringify({ email: cleanEmail, password }),
@@ -79,6 +80,7 @@ export default function SignupScreen() {
         userId: loginData.userId,
         email: cleanEmail,
         userName: cleanName,
+        isAdmin: Boolean(loginData.isAdmin),
       });
       setStatus({ type: "success", message: "Signup successful. Redirecting..." });
       router.replace("/dashboard");
@@ -109,6 +111,7 @@ export default function SignupScreen() {
               userId,
               email: typeof parsed.queryParams?.email === "string" ? parsed.queryParams.email : undefined,
               name: typeof parsed.queryParams?.name === "string" ? parsed.queryParams.name : undefined,
+              isAdmin: typeof parsed.queryParams?.isAdmin === "string" ? parsed.queryParams.isAdmin : undefined,
             },
           });
         } else {
