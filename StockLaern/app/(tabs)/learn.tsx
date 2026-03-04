@@ -30,6 +30,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import GuestAuthActions from "../components/GuestAuthActions";
 import HeaderBar from "../components/HeaderBar";
 import TopRightMenu from "../components/TopRightMenu";
 import { useAuth } from '../context/AuthContext';
@@ -272,9 +273,150 @@ function isMiniAssessmentQuestion(question: QuizQuestion): boolean {
 }
 
 const FLASHCARD_GAP = 12;
+const FLASHCARD_FLIP_DURATION = 420;
+
+const FLASHCARD_THEMES = [
+  {
+    front: ['#1D4ED8', '#0B2A7C'],
+    back: ['#1E3A8A', '#172554'],
+    accent: '#93C5FD',
+  },
+  {
+    front: ['#0F766E', '#134E4A'],
+    back: ['#115E59', '#042F2E'],
+    accent: '#5EEAD4',
+  },
+  {
+    front: ['#7C3AED', '#4C1D95'],
+    back: ['#6D28D9', '#3B0764'],
+    accent: '#C4B5FD',
+  },
+  {
+    front: ['#B45309', '#7C2D12'],
+    back: ['#92400E', '#431407'],
+    accent: '#FDBA74',
+  },
+] as const;
+
+function Flashcard({
+  text,
+  index,
+  cardWidth,
+  scrollX,
+}: {
+  text: string;
+  index: number;
+  cardWidth: number;
+  scrollX: Animated.Value;
+}) {
+  const theme = FLASHCARD_THEMES[index % FLASHCARD_THEMES.length];
+  const [isFlipped, setIsFlipped] = useState(false);
+  const flipAnim = useRef(new Animated.Value(0)).current;
+
+  const inputRange = [
+    (index - 1) * (cardWidth + FLASHCARD_GAP),
+    index * (cardWidth + FLASHCARD_GAP),
+    (index + 1) * (cardWidth + FLASHCARD_GAP),
+  ];
+  const opacity = scrollX.interpolate({
+    inputRange,
+    outputRange: [0.65, 1, 0.65],
+    extrapolate: 'clamp',
+  });
+  const scale = scrollX.interpolate({
+    inputRange,
+    outputRange: [0.95, 1, 0.95],
+    extrapolate: 'clamp',
+  });
+  const translateY = scrollX.interpolate({
+    inputRange,
+    outputRange: [8, 0, 8],
+    extrapolate: 'clamp',
+  });
+
+  const frontRotate = flipAnim.interpolate({
+    inputRange: [0, 180],
+    outputRange: ['0deg', '180deg'],
+  });
+  const backRotate = flipAnim.interpolate({
+    inputRange: [0, 180],
+    outputRange: ['180deg', '360deg'],
+  });
+  const frontOpacity = flipAnim.interpolate({
+    inputRange: [0, 88, 92, 180],
+    outputRange: [1, 1, 0, 0],
+  });
+  const backOpacity = flipAnim.interpolate({
+    inputRange: [0, 88, 92, 180],
+    outputRange: [0, 0, 1, 1],
+  });
+
+  const toggleFlip = () => {
+    Animated.timing(flipAnim, {
+      toValue: isFlipped ? 0 : 180,
+      duration: FLASHCARD_FLIP_DURATION,
+      useNativeDriver: true,
+    }).start();
+    setIsFlipped((prev) => !prev);
+  };
+
+  return (
+    <Animated.View
+      style={[
+        styles.flashcardItemShell,
+        {
+          width: cardWidth,
+          opacity,
+          transform: [{ scale }, { translateY }],
+        },
+      ]}
+    >
+      <TouchableOpacity style={styles.flashcardTouch} activeOpacity={1} onPress={toggleFlip}>
+        <View style={styles.flashcardPerspective}>
+          <Animated.View
+            style={[
+              styles.flashcardFaceWrap,
+              {
+                opacity: frontOpacity,
+                transform: [{ perspective: 1200 }, { rotateY: frontRotate }],
+              },
+            ]}
+          >
+            <LinearGradient colors={theme.front} style={styles.flashcardFace}>
+              <View style={[styles.flashcardAccentBar, { backgroundColor: theme.accent }]} />
+              <Text style={styles.flashcardLabel}>Concept Card</Text>
+              <Text style={styles.flashcardText}>{text}</Text>
+              <Text style={styles.flashcardHint}>Tap to flip</Text>
+              <View style={styles.flashcardShine} />
+            </LinearGradient>
+          </Animated.View>
+
+          <Animated.View
+            style={[
+              styles.flashcardFaceWrap,
+              {
+                opacity: backOpacity,
+                transform: [{ perspective: 1200 }, { rotateY: backRotate }],
+              },
+            ]}
+          >
+            <LinearGradient colors={theme.back} style={styles.flashcardFace}>
+              <View style={[styles.flashcardAccentBar, { backgroundColor: theme.accent }]} />
+              <Text style={styles.flashcardBackTitle}>Quick Recall</Text>
+              <Text style={styles.flashcardBackText}>
+                Explain this point in your own words before moving to the next card.
+              </Text>
+              <Text style={styles.flashcardHint}>Tap to return</Text>
+            </LinearGradient>
+          </Animated.View>
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
 
 function FlashcardCarousel({ cards }: { cards: string[] }) {
-  const cardWidth = Math.max(260, Dimensions.get('window').width - 64);
+  const cardWidth = Math.max(300, Dimensions.get('window').width - 40);
   const scrollX = useRef(new Animated.Value(0)).current;
 
   if (cards.length === 0) {
@@ -284,8 +426,8 @@ function FlashcardCarousel({ cards }: { cards: string[] }) {
   return (
     <View style={styles.flashcardsSection}>
       <View style={styles.sectionHeadingRow}>
-        <Text style={styles.blockTitle}>Concept Flashcards</Text>
-        <Text style={styles.swipeHint}>Swipe</Text>
+        <Text style={styles.flashcardsTitle}>Concept Flashcards</Text>
+        <Text style={styles.swipeHint}>Swipe and tap</Text>
       </View>
       <Animated.FlatList
         data={cards}
@@ -303,36 +445,7 @@ function FlashcardCarousel({ cards }: { cards: string[] }) {
         )}
         scrollEventThrottle={16}
         renderItem={({ item, index }) => {
-          const inputRange = [
-            (index - 1) * (cardWidth + FLASHCARD_GAP),
-            index * (cardWidth + FLASHCARD_GAP),
-            (index + 1) * (cardWidth + FLASHCARD_GAP),
-          ];
-          const opacity = scrollX.interpolate({
-            inputRange,
-            outputRange: [0.6, 1, 0.6],
-            extrapolate: 'clamp',
-          });
-          const scale = scrollX.interpolate({
-            inputRange,
-            outputRange: [0.96, 1, 0.96],
-            extrapolate: 'clamp',
-          });
-
-          return (
-            <Animated.View
-              style={[
-                styles.flashcardItem,
-                {
-                  width: cardWidth,
-                  opacity,
-                  transform: [{ scale }],
-                },
-              ]}
-            >
-              <Text style={styles.flashcardText}>{item}</Text>
-            </Animated.View>
-          );
+          return <Flashcard text={item} index={index} cardWidth={cardWidth} scrollX={scrollX} />;
         }}
       />
       <View style={styles.flashDotRow}>
@@ -913,7 +1026,10 @@ export default function LearnScreen() {
         style={styles.blueHeader}
       >
         <View style={styles.blueHeaderTop}>
-          <HeaderBar tint="dark" rightSlot={<TopRightMenu theme="dark" />} />
+          <HeaderBar
+            tint="dark"
+            rightSlot={isAuthenticated ? <TopRightMenu theme="dark" /> : <GuestAuthActions />}
+          />
         </View>
         <Text style={styles.headerTitle}>Beginners Guide</Text>
         <Text style={styles.headerSubtitle}>Learn stock market basics with videos & quizzes</Text>
@@ -1631,33 +1747,93 @@ const styles = StyleSheet.create({
   },
   swipeHint: {
     fontSize: 12,
-    color: '#415A80',
+    color: '#C4B5FD',
     fontWeight: '700',
   },
   flashcardList: {
     paddingRight: 12,
+    paddingBottom: 4,
   },
-  flashcardItem: {
-    backgroundColor: '#E9F2FF',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#B5C8E6',
-    padding: 16,
+  flashcardItemShell: {
     marginRight: FLASHCARD_GAP,
-    minHeight: 132,
-    justifyContent: 'center',
+    minHeight: 228,
+  },
+  flashcardTouch: {
+    flex: 1,
+  },
+  flashcardPerspective: {
+    flex: 1,
+    position: 'relative',
+  },
+  flashcardFaceWrap: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 22,
+    overflow: 'hidden',
+    backfaceVisibility: 'hidden',
+    shadowColor: '#020617',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 14,
+    elevation: 8,
+  },
+  flashcardFace: {
+    flex: 1,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    justifyContent: 'space-between',
+  },
+  flashcardAccentBar: {
+    width: 60,
+    height: 5,
+    borderRadius: 999,
+    marginBottom: 10,
   },
   flashcardLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '800',
-    color: '#5E22AD',
+    color: '#E2E8F0',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
     marginBottom: 8,
   },
   flashcardText: {
-    fontSize: 15,
-    color: '#123B77',
-    lineHeight: 22,
+    fontSize: 17,
+    color: '#F8FAFC',
+    lineHeight: 26,
     fontWeight: '600',
+    flex: 1,
+  },
+  flashcardBackTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#F8FAFC',
+    marginBottom: 10,
+    letterSpacing: 0.2,
+  },
+  flashcardBackText: {
+    fontSize: 16,
+    lineHeight: 24,
+    color: '#DBEAFE',
+    fontWeight: '600',
+    flex: 1,
+  },
+  flashcardHint: {
+    marginTop: 10,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#BFDBFE',
+  },
+  flashcardShine: {
+    position: 'absolute',
+    top: 0,
+    right: -20,
+    width: 120,
+    height: 80,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderBottomLeftRadius: 90,
   },
   flashDotRow: {
     flexDirection: 'row',
@@ -1670,7 +1846,13 @@ const styles = StyleSheet.create({
     width: 7,
     height: 7,
     borderRadius: 4,
-    backgroundColor: '#7B2BD9',
+    backgroundColor: '#8A2BE2',
+  },
+  flashcardsTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#F8FAFC',
+    marginBottom: 8,
   },
   blockTitle: {
     fontSize: 14,

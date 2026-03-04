@@ -21,6 +21,15 @@ import { UpdateLessonDto } from './dtos/update-lesson.dto';
 export class LessonController {
   constructor(private readonly lessonService: LessonService) { }
 
+  @Get('admin/all')
+  @UseGuards(AuthGuard, AdminGuard)
+  async getAllForAdmin(@Query('module') module: string) {
+    if (module) {
+      return this.lessonService.findByModuleForAdmin(module);
+    }
+    return this.lessonService.findAllForAdmin();
+  }
+
   @Get()
   async getAll(
     @Query('module') module: string,

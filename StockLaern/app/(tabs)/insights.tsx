@@ -106,7 +106,9 @@ export default function InsightsScreen() {
         end={{ x: 1, y: 1 }}
         style={styles.headerGradient}
       >
-        <HeaderBar tint="dark" rightSlot={<TopRightMenu theme="dark" />} />
+        <View style={styles.headerTopRow}>
+          <HeaderBar tint="dark" rightSlot={<TopRightMenu theme="dark" />} />
+        </View>
         <Text style={styles.headerTitle}>Market Insights</Text>
         <Text style={styles.headerSubtitle}>
           Visual breakdown of NEPSE market trends
@@ -120,16 +122,31 @@ export default function InsightsScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Sector Allocation</Text>
           {sectorData.length > 0 ? (
-            <PieChart
-              data={sectorData}
-              width={screenWidth - 40}
-              height={220}
-              accessor="population"
-              backgroundColor="transparent"
-              paddingLeft="15"
-              chartConfig={chartConfig}
-              absolute
-            />
+            <>
+              <View style={styles.pieChartWrap}>
+                <PieChart
+                  data={sectorData}
+                  width={screenWidth - 40}
+                  height={220}
+                  accessor="population"
+                  backgroundColor="transparent"
+                  paddingLeft="15"
+                  chartConfig={chartConfig}
+                  absolute
+                  hasLegend={false}
+                />
+              </View>
+              <View style={styles.sectorLegendWrap}>
+                {sectorData.map((item) => (
+                  <View key={item.name} style={styles.sectorLegendRow}>
+                    <View style={[styles.sectorLegendDot, { backgroundColor: item.color }]} />
+                    <Text style={styles.sectorLegendText}>
+                      {item.population} {item.name}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </>
           ) : (
             <Text style={styles.noDataText}>No sector data available</Text>
           )}
@@ -208,32 +225,55 @@ const chartConfig = {
 /* styling */
 
 const styles = StyleSheet.create({
-  container: { backgroundColor: "#F8FAFC" },
+  container: { flex: 1, backgroundColor: "#F8FAFC" },
   headerGradient: {
-    paddingTop: 60,
+    paddingTop: 64,
     paddingHorizontal: 20,
-    paddingBottom: 22,
+    paddingBottom: 28,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
-    overflow: "visible",
     position: "relative",
-    elevation: 4,
-    zIndex: 2,
+    zIndex: 20,
   },
+  headerTopRow: { marginBottom: 16 },
   headerTitle: {
     fontSize: 26,
-    fontWeight: "700",
+    fontWeight: "800",
+    lineHeight: 32,
     color: "#fff",
-    marginTop: 12,
   },
   headerSubtitle: {
     fontSize: 14,
-    color: "#E0E7FF",
-    marginTop: 6,
+    color: "#CBD5E1",
+    lineHeight: 20,
+    marginTop: 10,
   },
   content: { paddingHorizontal: 20, paddingTop: 16, zIndex: 0 },
   noDataText: { textAlign: "center", color: "#64748B", marginTop: 20 },
   heatText: { fontSize: 10, color: "#fff", fontWeight: "bold", textAlign: "center" },
+  pieChartWrap: {
+    alignItems: "center",
+  },
+  sectorLegendWrap: {
+    marginTop: 10,
+    gap: 8,
+  },
+  sectorLegendRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  sectorLegendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  sectorLegendText: {
+    fontSize: 13,
+    color: "#334155",
+    fontWeight: "600",
+    flex: 1,
+  },
 
   card: {
     backgroundColor: "#FFFFFF",

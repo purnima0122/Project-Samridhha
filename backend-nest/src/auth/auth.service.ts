@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, InternalServerErrorException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { signupDto } from './dtos/signup.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -11,6 +11,7 @@ import { randomUUID } from 'crypto';
 import { nanoid } from 'nanoid';
 import { ResetToken } from './schemas/reset.token.schema';
 import { MailService } from 'src/services/mail.service';
+import { BootstrapAdminDto } from './dtos/bootstrap-admin.dto';
 
 
 @Injectable()
@@ -26,9 +27,9 @@ export class AuthService {
   async signup(signupData: signupDto) {
   const rawName = signupData.name ?? '';
   const rawEmail = signupData.email ?? '';
-  const rawNumber = signupData.number ?? '';
+  const rawNumber = signupData.number ?? signupData.phone ?? signupData.phoneNumber ?? '';
   const rawAddress = signupData.address ?? '';
-  const rawWardNo = signupData.wardNo ?? '';
+  const rawWardNo = signupData.wardNo ?? signupData.wardNumber ?? '';
   const name = rawName.trim();
   const email = rawEmail.trim().toLowerCase();
   const number = rawNumber.replace(/\s+/g, '');
@@ -109,6 +110,73 @@ export class AuthService {
     return {
       ...tokens,
       userId:user._id,
+      isAdmin: Boolean(user.isAdmin),
+    }
+  }
+
+  async bootstrapSuperuser(payload: BootstrapAdminDto) {
+    const expectedBootstrapKey = process.env.ADMIN_BOOTSTRAP_KEY?.trim();
+    if (!expectedBootstrapKey) {
+      throw new ForbiddenException('Superuser bootstrap is disabled');
+    }
+
+    if (payload.bootstrapKey?.trim() !== expectedBootstrapKey) {
+      throw new ForbiddenException('Invalid bootstrap key');
+    }
+
+    const name = payload.name?.trim();
+    const email = payload.email?.trim().toLowerCase();
+    const number = payload.number?.replace(/\s+/g, '');
+    const address = payload.address?.trim() ?? '';
+    const wardNo = payload.wardNo?.trim() ?? '';
+
+    if (!name || !email || !number || !payload.password) {
+      throw new BadRequestException('Please fill all required fields');
+    }
+
+    const hashedPassword = await bcrypt.hash(payload.password, 10);
+    const existing = await this.UserModel.findOne({ email });
+
+    try {
+      if (existing) {
+        existing.name = name;
+        existing.number = number;
+        existing.address = address;
+        existing.wardNo = wardNo;
+        existing.password = hashedPassword;
+        existing.isGoogleUser = false;
+        existing.isProfileComplete = true;
+        existing.isAdmin = true;
+        await existing.save();
+
+        return {
+          message: 'Superuser updated successfully',
+          userId: existing._id,
+        };
+      }
+
+      const created = await this.UserModel.create({
+        name,
+        email,
+        number,
+        address,
+        wardNo,
+        password: hashedPassword,
+        isGoogleUser: false,
+        isProfileComplete: true,
+        isAdmin: true,
+      });
+
+      return {
+        message: 'Superuser created successfully',
+        userId: created._id,
+      };
+    } catch (error: any) {
+      if (error?.code === 11000) {
+        const duplicateField = Object.keys(error.keyPattern || {})[0] || 'value';
+        throw new BadRequestException(`Duplicate value for ${duplicateField}`);
+      }
+      throw error;
     }
   }
 
@@ -183,12 +251,13 @@ export class AuthService {
 
 
   
-  async loginWithGoogle(user: any) {
+async loginWithGoogle(user: any) {
   const tokens = await this.generateUserTokens(user._id);
 
   return {
     ...tokens,
     userId: user._id,
+    isAdmin: Boolean(user.isAdmin),
   };
 }
 

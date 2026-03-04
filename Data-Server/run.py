@@ -61,7 +61,7 @@ def create_app() -> tuple:
     # ─── Flask App ────────────────────────────────────────────────────────────
     app = Flask(__name__)
     app.config["SECRET_KEY"] = "kjfngaskjdnfklajsbdlihh;acvkjn98e"
-    CORS(app)  # Enable CORS for all routes
+    CORS(app, origins=Config.CORS_ORIGIN)  # Honor env-configured CORS origins
 
     # ─── Swagger API Docs ─────────────────────────────────────────────────────
     app.config["SWAGGER"] = {

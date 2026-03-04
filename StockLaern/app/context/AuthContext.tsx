@@ -13,6 +13,7 @@ type AuthState = {
   userId: string | null;
   userName: string | null;
   email: string | null;
+  isAdmin: boolean;
 };
 
 type AuthContextValue = AuthState & {
@@ -24,9 +25,10 @@ type AuthContextValue = AuthState & {
     userId: string;
     userName?: string | null;
     email?: string | null;
+    isAdmin?: boolean | null;
   }) => void;
   signOut: () => void;
-  updateUser: (params: { userName?: string | null; email?: string | null }) => void;
+  updateUser: (params: { userName?: string | null; email?: string | null; isAdmin?: boolean | null }) => void;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -37,6 +39,7 @@ const initialState: AuthState = {
   userId: null,
   userName: null,
   email: null,
+  isAdmin: false,
 };
 
 const AUTH_STORAGE_KEY = "stocklearn_auth";
@@ -145,6 +148,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           userId: stored.userId ?? null,
           userName: stored.userName ?? null,
           email: stored.email ?? null,
+          isAdmin: Boolean(stored.isAdmin),
         };
       });
       setIsHydrated(true);
@@ -161,7 +165,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       ...auth,
       isAuthenticated: Boolean(auth.accessToken),
       isHydrated,
-      signIn: ({ accessToken, refreshToken, userId, userName, email }) => {
+      signIn: ({ accessToken, refreshToken, userId, userName, email, isAdmin }) => {
         hasRuntimeAuthMutation.current = true;
         setIsHydrated(true);
         const next = {
@@ -170,6 +174,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           userId,
           userName: userName ?? null,
           email: email ?? null,
+          isAdmin: Boolean(isAdmin),
         };
         setAuth(next);
         void storeAuth(next);
@@ -180,13 +185,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setAuth(initialState);
         void clearAuth();
       },
-      updateUser: ({ userName, email }) =>
+      updateUser: ({ userName, email, isAdmin }) =>
         setAuth((prev) => {
           const resolvedUserName = userName ?? prev.userName;
           const resolvedEmail = email ?? prev.email;
+          const resolvedIsAdmin = isAdmin ?? prev.isAdmin;
           if (
             resolvedUserName === prev.userName &&
-            resolvedEmail === prev.email
+            resolvedEmail === prev.email &&
+            resolvedIsAdmin === prev.isAdmin
           ) {
             return prev;
           }
@@ -194,6 +201,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             ...prev,
             userName: resolvedUserName,
             email: resolvedEmail,
+            isAdmin: resolvedIsAdmin,
           };
           void storeAuth(next);
           return next;

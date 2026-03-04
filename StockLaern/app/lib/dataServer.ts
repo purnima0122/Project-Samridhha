@@ -13,6 +13,10 @@ const DEFAULT_DATA_SERVER_URL = "http://localhost:4000";
 export const DATA_SERVER_URL =
     process.env.EXPO_PUBLIC_DATA_SERVER_URL || DEFAULT_DATA_SERVER_URL;
 
+const NGROK_HEADERS = {
+    "ngrok-skip-browser-warning": "true",
+};
+
 // ─── Socket.IO Singleton ─────────────────────────────────────────────────────
 
 let socket: Socket | null = null;
@@ -124,7 +128,11 @@ export type AlertCheckResponse = {
 // ─── REST Helpers ────────────────────────────────────────────────────────────
 
 async function dataServerFetch<T>(path: string): Promise<T> {
-    const response = await fetch(`${DATA_SERVER_URL}${path}`);
+    const response = await fetch(`${DATA_SERVER_URL}${path}`, {
+        headers: {
+            ...NGROK_HEADERS,
+        },
+    });
     if (!response.ok) {
         throw new Error(`Data-Server error: ${response.status}`);
     }
@@ -136,6 +144,7 @@ async function dataServerPost<T>(path: string, body: unknown): Promise<T> {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
+            ...NGROK_HEADERS,
         },
         body: JSON.stringify(body),
     });

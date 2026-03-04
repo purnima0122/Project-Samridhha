@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import GuestAuthActions from "../components/GuestAuthActions";
 import HeaderBar from "../components/HeaderBar";
 import TopRightMenu from "../components/TopRightMenu";
 import { useAuth } from "../context/AuthContext";
@@ -176,7 +177,10 @@ export default function HomeScreen() {
         style={styles.hero}
       >
         <View style={styles.heroTopRow}>
-          <HeaderBar tint="dark" rightSlot={<TopRightMenu theme="dark" />} />
+          <HeaderBar
+            tint="dark"
+            rightSlot={inUserMode ? <TopRightMenu theme="dark" /> : <GuestAuthActions />}
+          />
         </View>
         <Text style={styles.heroTitle}>
           {inUserMode
@@ -189,64 +193,63 @@ export default function HomeScreen() {
             : "Learn, explore market insights, and build confidence step by step."}
         </Text>
         {inUserMode && (
-          <Text style={styles.connectionText}>
-            Data feed: {isDataServerConnected ? "Connected" : "Disconnected"}
-          </Text>
-        )}
-
-        {inUserMode && (
-          <View style={styles.toolsWrap}>
-            <TouchableOpacity
-              style={styles.toolsTrigger}
-              onPress={() => setShowTools((prev) => !prev)}
-            >
-              <Feather name="menu" size={16} color="#fff" />
-              <Text style={styles.toolsTriggerText}>Personalized Tools</Text>
-            </TouchableOpacity>
-            {showTools && (
-              <View style={styles.toolsDropdown}>
-                <TouchableOpacity
-                  style={styles.toolsRow}
-                  onPress={() => {
-                    setShowTools(false);
-                    router.push("/alert-settings");
-                  }}
-                >
-                  <Text style={styles.toolsRowText}>Alerts Center</Text>
-                  <Feather name="chevron-right" size={16} color="#94A3B8" />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.toolsRow}
-                  onPress={() => {
-                    setShowTools(false);
-                    router.push("/notifications");
-                  }}
-                >
-                  <Text style={styles.toolsRowText}>Notification Center</Text>
-                  <Feather name="chevron-right" size={16} color="#94A3B8" />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.toolsRow}
-                  onPress={() => {
-                    setShowTools(false);
-                    router.push("/news");
-                  }}
-                >
-                  <Text style={styles.toolsRowText}>Market News</Text>
-                  <Feather name="chevron-right" size={16} color="#94A3B8" />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.toolsRow}
-                  onPress={() => {
-                    setShowTools(false);
-                    router.push("/learn");
-                  }}
-                >
-                  <Text style={styles.toolsRowText}>Learning Progress</Text>
-                  <Feather name="chevron-right" size={16} color="#94A3B8" />
-                </TouchableOpacity>
-              </View>
-            )}
+          <View style={styles.connectionToolsRow}>
+            <Text style={styles.connectionText}>
+              Data feed: {isDataServerConnected ? "Connected" : "Disconnected"}
+            </Text>
+            <View style={styles.toolsWrap}>
+              <TouchableOpacity
+                style={styles.toolsTrigger}
+                onPress={() => setShowTools((prev) => !prev)}
+              >
+                <Feather name="menu" size={16} color="#fff" />
+                <Text style={styles.toolsTriggerText}>Personalized Tools</Text>
+              </TouchableOpacity>
+              {showTools && (
+                <View style={styles.toolsDropdown}>
+                  <TouchableOpacity
+                    style={styles.toolsRow}
+                    onPress={() => {
+                      setShowTools(false);
+                      router.push("/alert-settings");
+                    }}
+                  >
+                    <Text style={styles.toolsRowText}>Alerts Center</Text>
+                    <Feather name="chevron-right" size={16} color="#94A3B8" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.toolsRow}
+                    onPress={() => {
+                      setShowTools(false);
+                      router.push("/notifications");
+                    }}
+                  >
+                    <Text style={styles.toolsRowText}>Notification Center</Text>
+                    <Feather name="chevron-right" size={16} color="#94A3B8" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.toolsRow}
+                    onPress={() => {
+                      setShowTools(false);
+                      router.push("/news");
+                    }}
+                  >
+                    <Text style={styles.toolsRowText}>Market News</Text>
+                    <Feather name="chevron-right" size={16} color="#94A3B8" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.toolsRow}
+                    onPress={() => {
+                      setShowTools(false);
+                      router.push("/learn");
+                    }}
+                  >
+                    <Text style={styles.toolsRowText}>Learning Progress</Text>
+                    <Feather name="chevron-right" size={16} color="#94A3B8" />
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
           </View>
         )}
       </LinearGradient>
@@ -469,8 +472,15 @@ const styles = StyleSheet.create({
   heroTopRow: { marginBottom: 16 },
   heroTitle: { color: "#fff", fontSize: 26, fontWeight: "800", lineHeight: 32 },
   heroSubtitle: { color: "#CBD5E1", fontSize: 14, lineHeight: 20, marginTop: 10 },
-  connectionText: { color: "#E2E8F0", fontSize: 12, fontWeight: "600", marginTop: 8 },
-  toolsWrap: { marginTop: 18, alignItems: "flex-end" },
+  connectionToolsRow: {
+    marginTop: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  connectionText: { color: "#E2E8F0", fontSize: 12, fontWeight: "600", flex: 1 },
+  toolsWrap: { alignItems: "flex-end", position: "relative" },
   toolsTrigger: {
     flexDirection: "row",
     alignItems: "center",

@@ -17,6 +17,7 @@ export default function AuthRedirectScreen() {
     userId?: string | string[];
     email?: string | string[];
     name?: string | string[];
+    isAdmin?: string | string[];
   }>();
   const { accessToken, refreshToken, userId, signIn, updateUser } = useAuth();
   const [error, setError] = useState<string | null>(null);
@@ -29,6 +30,7 @@ export default function AuthRedirectScreen() {
       userId: firstValue(params.userId),
       email: firstValue(params.email),
       userName: firstValue(params.name),
+      isAdmin: firstValue(params.isAdmin),
     }),
     [params],
   );
@@ -65,6 +67,7 @@ export default function AuthRedirectScreen() {
       userId: authPayload.userId,
       email: authPayload.email,
       userName: authPayload.userName,
+      isAdmin: authPayload.isAdmin === "true",
     });
     const resolveNextRoute = async () => {
       try {
@@ -75,10 +78,12 @@ export default function AuthRedirectScreen() {
           number?: string;
           address?: string;
           wardNo?: string;
+          isAdmin?: boolean;
         }>("/users/me", {}, authPayload.accessToken);
         updateUser({
           userName: profile.name ?? authPayload.userName ?? null,
           email: profile.email ?? authPayload.email ?? null,
+          isAdmin: Boolean(profile.isAdmin),
         });
         const needsProfile =
           !profile.isProfileComplete ||

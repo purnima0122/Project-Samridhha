@@ -25,6 +25,7 @@ import {
   Matches,
   MinLength,
   IsNotEmpty,
+  IsOptional,
 } from 'class-validator';
 
 export class signupDto {
@@ -42,19 +43,42 @@ export class signupDto {
   })
   password: string;
 
+  @IsOptional()
   @IsString()
   @Matches(/^[0-9]{10}$/, {
     message: 'Phone number must be 10 digits',
   })
   number: string;
 
+  @IsOptional()
+  @IsString()
+  @Matches(/^[0-9]{10}$/, {
+    message: 'Phone number must be 10 digits',
+  })
+  phone?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^[0-9]{10}$/, {
+    message: 'Phone number must be 10 digits',
+  })
+  phoneNumber?: string;
+
   @IsString()
   @IsNotEmpty()
   address: string;
 
+  @IsOptional()
   @IsString()
   @Matches(/^(?:[1-9]|[12][0-9]|3[0-2])$/, {
     message: 'Ward number must be between 1 and 32',
   })
   wardNo: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^(?:[1-9]|[12][0-9]|3[0-2])$/, {
+    message: 'Ward number must be between 1 and 32',
+  })
+  wardNumber?: string;
 }

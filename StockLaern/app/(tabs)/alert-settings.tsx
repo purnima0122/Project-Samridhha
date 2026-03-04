@@ -492,7 +492,7 @@ export default function AlertSettingsScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
       <LinearGradient
-        colors={["#312E81", "#4338CA"]}
+        colors={["#0A2D5C", "#0B3B78"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.hero}
@@ -559,7 +559,7 @@ export default function AlertSettingsScreen() {
 
                     <TouchableOpacity onPress={() => setSelectedTemplateKey(template.key)}>
                       <LinearGradient
-                        colors={isSelected ? ["#3730A3", "#5B21B6"] : ["#4338CA", "#6D28D9"]}
+                        colors={isSelected ? ["#0A2D5C", "#0B3B78"] : ["#1D4ED8", "#2563EB"]}
                         start={{ x: 0, y: 0.5 }}
                         end={{ x: 1, y: 0.5 }}
                         style={styles.templateButton}
@@ -636,7 +636,7 @@ export default function AlertSettingsScreen() {
                       <Feather
                         name={enabled ? "check-square" : "square"}
                         size={16}
-                        color={enabled ? "#7E22CE" : "#64748B"}
+                        color={enabled ? "#1D4ED8" : "#64748B"}
                       />
                       <Text style={styles.channelButtonText}>{CHANNEL_LABELS[channel]}</Text>
                     </TouchableOpacity>
@@ -664,7 +664,7 @@ export default function AlertSettingsScreen() {
               <View style={styles.formFooter}>
                 <TouchableOpacity style={styles.primaryAction} onPress={handleCreateAlert}>
                   <LinearGradient
-                    colors={["#3730A3", "#5B21B6"]}
+                    colors={["#0A2D5C", "#0B3B78"]}
                     start={{ x: 0, y: 0.5 }}
                     end={{ x: 1, y: 0.5 }}
                     style={styles.primaryActionGradient}
@@ -850,7 +850,7 @@ export default function AlertSettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F3EFF8",
+    backgroundColor: "#F8FAFC",
   },
   contentContainer: {
     paddingBottom: 44,
@@ -960,9 +960,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   templateCardSelected: {
-    borderColor: "#6366F1",
-    backgroundColor: "#EEF2FF",
-    shadowColor: "#4338CA",
+    borderColor: "#2563EB",
+    backgroundColor: "#EFF6FF",
+    shadowColor: "#0B3B78",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.08,
     shadowRadius: 10,
@@ -997,7 +997,7 @@ const styles = StyleSheet.create({
   templateMetaRow: {
     marginTop: 12,
     borderRadius: 12,
-    backgroundColor: "#F4EFFA",
+    backgroundColor: "#EEF4FF",
     paddingVertical: 10,
     paddingHorizontal: 12,
     flexDirection: "row",
@@ -1026,7 +1026,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: "#A5B4FC",
+    borderColor: "#93C5FD",
     padding: 16,
   },
   formTitle: {
@@ -1068,8 +1068,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   symbolChipSelected: {
-    borderColor: "#4F46E5",
-    backgroundColor: "#EEF2FF",
+    borderColor: "#2563EB",
+    backgroundColor: "#EFF6FF",
   },
   symbolChipText: {
     fontSize: 12,
@@ -1077,7 +1077,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   symbolChipTextSelected: {
-    color: "#3730A3",
+    color: "#1D4ED8",
   },
   channelRow: {
     flexDirection: "row",
@@ -1098,8 +1098,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   channelButtonEnabled: {
-    borderColor: "#A5B4FC",
-    backgroundColor: "#EEF2FF",
+    borderColor: "#93C5FD",
+    backgroundColor: "#EFF6FF",
   },
   channelButtonText: {
     marginLeft: 8,
@@ -1123,8 +1123,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   hoursChipSelected: {
-    backgroundColor: "#EEF2FF",
-    borderColor: "#A5B4FC",
+    backgroundColor: "#EFF6FF",
+    borderColor: "#93C5FD",
   },
   hoursChipText: {
     color: "#334155",
@@ -1132,7 +1132,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   hoursChipTextSelected: {
-    color: "#3730A3",
+    color: "#1D4ED8",
   },
   formFooter: {
     flexDirection: "row",

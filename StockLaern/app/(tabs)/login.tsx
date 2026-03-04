@@ -43,6 +43,7 @@ export default function LoginScreen() {
         accessToken: string;
         RefreshToken: string;
         userId: string;
+        isAdmin?: boolean;
       }>("/auth/login", {
         method: "POST",
         body: JSON.stringify({ email: cleanEmail, password }),
@@ -52,6 +53,7 @@ export default function LoginScreen() {
         refreshToken: data.RefreshToken,
         userId: data.userId,
         email: cleanEmail,
+        isAdmin: Boolean(data.isAdmin),
       });
       setStatus({ type: "success", message: "Login successful." });
       router.replace("/dashboard");
@@ -82,6 +84,7 @@ export default function LoginScreen() {
               userId,
               email: typeof parsed.queryParams?.email === "string" ? parsed.queryParams.email : undefined,
               name: typeof parsed.queryParams?.name === "string" ? parsed.queryParams.name : undefined,
+              isAdmin: typeof parsed.queryParams?.isAdmin === "string" ? parsed.queryParams.isAdmin : undefined,
             },
           });
         } else {
@@ -153,7 +156,7 @@ export default function LoginScreen() {
         </TouchableOpacity>
 
         <View style={styles.footerRow}>
-          <Text style={styles.footerText}>Don't have an account?</Text>
+          <Text style={styles.footerText}>Don&apos;t have an account?</Text>
           <Link href="/signup" style={styles.footerLink}>Register</Link>
         </View>
       </View>

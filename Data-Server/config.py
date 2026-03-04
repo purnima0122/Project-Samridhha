@@ -38,7 +38,12 @@ class Config:
     ALERT_COOLDOWN_SECONDS = int(os.getenv("ALERT_COOLDOWN_SECONDS", "300"))
 
     # CORS
-    CORS_ORIGIN = os.getenv("CORS_ORIGIN", "*")
+    _cors_raw = os.getenv("CORS_ORIGIN", "*").strip()
+    CORS_ORIGIN = (
+        [origin.strip() for origin in _cors_raw.split(",") if origin.strip()]
+        if _cors_raw != "*"
+        else "*"
+    )
 
     # NEPSE trading days (0=Monday, 6=Sunday) — Sunday to Thursday
     MARKET_TRADING_DAYS = [6, 0, 1, 2, 3]  # Sun, Mon, Tue, Wed, Thu
