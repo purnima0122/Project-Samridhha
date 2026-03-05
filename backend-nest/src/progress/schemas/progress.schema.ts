@@ -29,6 +29,12 @@ export class Progress {
   @Prop({ default: false })
   quizPassed: boolean;
 
+  @Prop({ default: 0 })
+  bestCorrectAnswers: number;
+
+  @Prop({ default: 0 })
+  flashcardsViewed: number;
+
   @Prop()
   lastQuizAttemptAt?: Date;
 }
