@@ -80,6 +80,28 @@ type ApiLesson = {
 type ApiProgress = {
   lessonId: { _id: string } | string;
   completed: boolean;
+  flashcardsViewed?: number;
+};
+
+type GamificationSummary = {
+  xp: number;
+  level: number;
+  streakDays: number;
+  badges: string[];
+  lessonsCompletedCount: number;
+  correctQuizAnswers: number;
+  xpToNextLevel: number;
+  nextLessonId: string | null;
+  nextLessonTitle: string | null;
+  totalLessons: number;
+  completedLessons: number;
+  coursePercent: number;
+};
+
+type LessonCompletionResult = {
+  xpAwarded: number;
+  newBadges: string[];
+  gamification?: GamificationSummary;
 };
 
 type Lesson = {
@@ -218,7 +240,7 @@ function mapLesson(apiLesson: ApiLesson): Lesson {
     duration: formatDuration(apiLesson.duration),
     content: apiLesson.content,
     videoUrl: apiLesson.videoUrl || '',
-    mcqs: (apiLesson.quiz || []).map((question) => ({
+    mcqs: (apiLesson.quiz || []).slice(0, 3).map((question) => ({
       question: question.prompt,
       options: question.options,
       correctAnswer: question.correctOptionIndex,
@@ -257,7 +279,7 @@ function splitLessonIntoCards(content: string): string[] {
     .filter((item) => item.length > 15 && !item.endsWith('?'))
     .filter((item) => !/^(what|why|how|when|where|who)\b/i.test(item));
 
-  return Array.from(new Set(normalized)).slice(0, 6);
+  return Array.from(new Set(normalized)).slice(0, 4);
 }
 
 function isMiniAssessmentQuestion(question: QuizQuestion): boolean {
@@ -288,7 +310,7 @@ const FLASHCARD_THEMES = [
   },
   {
     front: ['#7C3AED', '#4C1D95'],
-    back: ['#6D28D9', '#3B0764'],
+    back: ['#1E40AF', '#3B0764'],
     accent: '#C4B5FD',
   },
   {
@@ -415,9 +437,37 @@ function Flashcard({
   );
 }
 
-function FlashcardCarousel({ cards }: { cards: string[] }) {
+function FlashcardCarousel({
+  cards,
+  onCardViewed,
+}: {
+  cards: string[];
+  onCardViewed?: (count: number) => void;
+}) {
   const cardWidth = Math.max(300, Dimensions.get('window').width - 40);
   const scrollX = useRef(new Animated.Value(0)).current;
+  const seenCardsRef = useRef<Set<number>>(new Set());
+
+  const markCardSeen = useCallback(
+    (index: number) => {
+      if (index < 0 || index >= cards.length) {
+        return;
+      }
+      if (seenCardsRef.current.has(index)) {
+        return;
+      }
+      seenCardsRef.current.add(index);
+      onCardViewed?.(1);
+    },
+    [cards.length, onCardViewed],
+  );
+
+  useEffect(() => {
+    seenCardsRef.current.clear();
+    if (cards.length > 0) {
+      markCardSeen(0);
+    }
+  }, [cards, markCardSeen]);
 
   if (cards.length === 0) {
     return null;
@@ -443,6 +493,11 @@ function FlashcardCarousel({ cards }: { cards: string[] }) {
           [{ nativeEvent: { contentOffset: { x: scrollX } } }],
           { useNativeDriver: true },
         )}
+        onMomentumScrollEnd={(event) => {
+          const x = event.nativeEvent.contentOffset.x;
+          const index = Math.round(x / (cardWidth + FLASHCARD_GAP));
+          markCardSeen(index);
+        }}
         scrollEventThrottle={16}
         renderItem={({ item, index }) => {
           return <Flashcard text={item} index={index} cardWidth={cardWidth} scrollX={scrollX} />;
@@ -618,12 +673,14 @@ function LessonDetailView({
   onComplete,
   isCompleted,
   nextLessonTitle,
+  onGamificationUpdate,
 }: {
   lesson: Lesson;
   onClose: () => void;
-  onComplete: (lessonId: string) => Promise<void> | void;
+  onComplete: (lessonId: string) => Promise<LessonCompletionResult | void> | LessonCompletionResult | void;
   isCompleted: boolean;
   nextLessonTitle?: string | null;
+  onGamificationUpdate?: (summary: GamificationSummary) => void;
 }) {
   const { accessToken } = useAuth();
   const [showQuiz, setShowQuiz] = useState(false);
@@ -631,6 +688,8 @@ function LessonDetailView({
   const [quizCompleted, setQuizCompleted] = useState(false);
   const [showVideo, setShowVideo] = useState(false);
   const [submittingQuiz, setSubmittingQuiz] = useState(false);
+  const [quizXpAwarded, setQuizXpAwarded] = useState(0);
+  const [reward, setReward] = useState<LessonCompletionResult | null>(null);
 
   const conceptCards = useMemo(() => splitLessonIntoCards(lesson.content), [lesson.content]);
   const recapPoints = useMemo(() => conceptCards.slice(0, 5), [conceptCards]);
@@ -671,13 +730,26 @@ function LessonDetailView({
         passed: boolean;
         scorePercent: number;
         bestScore: number;
+        xpAwarded?: number;
+        gamification?: GamificationSummary;
       }>(`/progress/quiz/${lesson.id}`, {
         method: 'POST',
         body: JSON.stringify({ answers }),
       }, accessToken);
 
+      setQuizXpAwarded(result.xpAwarded ?? 0);
+      if (result.gamification) {
+        onGamificationUpdate?.(result.gamification);
+      }
+
       if (result.passed) {
-        await onComplete(lesson.id);
+        const completionResult = await onComplete(lesson.id);
+        if (completionResult) {
+          setReward(completionResult);
+          if (completionResult.gamification) {
+            onGamificationUpdate?.(completionResult.gamification);
+          }
+        }
       }
     } catch (error: any) {
       Alert.alert('Quiz Error', error?.message || 'Unable to submit quiz.');
@@ -694,6 +766,7 @@ function LessonDetailView({
     setShowQuiz(true);
     setQuizScore(null);
     setQuizCompleted(false);
+    setQuizXpAwarded(0);
   };
 
   return (
@@ -778,7 +851,30 @@ function LessonDetailView({
             <Text style={styles.contentText}>{lessonIntro}</Text>
           </View>
 
-          <FlashcardCarousel cards={conceptCards} />
+          <FlashcardCarousel
+            cards={conceptCards}
+            onCardViewed={async (count) => {
+              if (!accessToken) {
+                return;
+              }
+
+              try {
+                const result = await apiFetch<{ gamification?: GamificationSummary }>(
+                  `/progress/flashcard/${lesson.id}`,
+                  {
+                    method: 'POST',
+                    body: JSON.stringify({ count }),
+                  },
+                  accessToken,
+                );
+                if (result.gamification) {
+                  onGamificationUpdate?.(result.gamification);
+                }
+              } catch (error) {
+                console.warn('Unable to record flashcard view', error);
+              }
+            }}
+          />
 
           {recapPoints.length > 0 && (
             <View style={styles.recapBlock}>
@@ -858,9 +954,23 @@ function LessonDetailView({
               {submittingQuiz && (
                 <Text style={styles.resultsScore}>Saving quiz results...</Text>
               )}
+              {quizXpAwarded > 0 && (
+                <Text style={styles.congratsText}>+{quizXpAwarded} XP from quiz performance</Text>
+              )}
               <TouchableOpacity style={styles.retakeButton} onPress={handleStartQuiz}>
                 <Text style={styles.retakeButtonText}>Retake Quiz</Text>
               </TouchableOpacity>
+            </View>
+          )}
+
+          {reward && (
+            <View style={styles.rewardCard}>
+              <Text style={styles.rewardTitle}>Lesson Completed!</Text>
+              <Text style={styles.rewardXp}>+{reward.xpAwarded} XP</Text>
+              <Text style={styles.rewardMeta}>Streak: {reward.gamification?.streakDays ?? 0} days</Text>
+              <Text style={styles.rewardMeta}>
+                Badge Earned: {reward.newBadges[0] ?? 'Keep going to unlock badges'}
+              </Text>
             </View>
           )}
 
@@ -868,7 +978,13 @@ function LessonDetailView({
             <TouchableOpacity
               style={styles.completeButton}
               onPress={async () => {
-                await onComplete(lesson.id);
+                const completionResult = await onComplete(lesson.id);
+                if (completionResult) {
+                  setReward(completionResult);
+                  if (completionResult.gamification) {
+                    onGamificationUpdate?.(completionResult.gamification);
+                  }
+                }
                 Alert.alert('Lesson Completed!', 'Great job! You\'ve completed this lesson.', [
                   {
                     text: 'OK',
@@ -903,6 +1019,7 @@ export default function LearnScreen() {
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [completedLessons, setCompletedLessons] = useState<string[]>([]);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
+  const [gamification, setGamification] = useState<GamificationSummary | null>(null);
   const [loadingLessons, setLoadingLessons] = useState(false);
   const [lessonsError, setLessonsError] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<LearningSection>('lessons');
@@ -936,11 +1053,22 @@ export default function LearnScreen() {
     }
   }, [accessToken]);
 
+  const loadGamification = useCallback(async () => {
+    if (!accessToken) return;
+    try {
+      const data = await apiFetch<GamificationSummary>('/progress/gamification', {}, accessToken);
+      setGamification(data);
+    } catch (error) {
+      console.warn('Unable to load gamification summary', error);
+    }
+  }, [accessToken]);
+
   useEffect(() => {
     if (!accessToken) return;
     loadLessons();
     loadProgress();
-  }, [accessToken, loadLessons, loadProgress]);
+    loadGamification();
+  }, [accessToken, loadLessons, loadProgress, loadGamification]);
 
   const toggleLesson = async (lesson: Lesson) => {
     setSelectedLesson(lesson);
@@ -952,16 +1080,26 @@ export default function LearnScreen() {
     }
   };
 
-  const handleLessonComplete = async (lessonId: string) => {
+  const handleLessonComplete = async (lessonId: string): Promise<LessonCompletionResult> => {
+    let completionResult: LessonCompletionResult = {
+      xpAwarded: 20,
+      newBadges: [],
+    };
+
     if (accessToken) {
       try {
-        await apiFetch(`/progress/complete/${lessonId}`, { method: 'POST' }, accessToken);
+        const result = await apiFetch<LessonCompletionResult>(`/progress/complete/${lessonId}`, { method: 'POST' }, accessToken);
+        completionResult = result;
+        if (result.gamification) {
+          setGamification(result.gamification);
+        }
       } catch (error) {
         console.warn('Unable to complete lesson', error);
       }
     }
 
     setCompletedLessons((prev) => (prev.includes(lessonId) ? prev : [...prev, lessonId]));
+    return completionResult;
   };
 
   const progress = lessons.length > 0 ? (completedLessons.length / lessons.length) * 100 : 0;
@@ -978,6 +1116,21 @@ export default function LearnScreen() {
     [sortedLessons, completedLessons],
   );
   const unlockedPendingLessonId = pendingLessonCards[0]?.id ?? null;
+  const continueLesson = useMemo(() => {
+    if (!sortedLessons.length) {
+      return null;
+    }
+
+    if (gamification?.nextLessonId) {
+      return sortedLessons.find((item) => item.id === gamification.nextLessonId) ?? null;
+    }
+
+    if (unlockedPendingLessonId) {
+      return sortedLessons.find((item) => item.id === unlockedPendingLessonId) ?? null;
+    }
+
+    return sortedLessons[0] ?? null;
+  }, [gamification?.nextLessonId, sortedLessons, unlockedPendingLessonId]);
 
   const nextLessonTitle = useMemo(() => {
     if (!selectedLesson) {
@@ -1018,9 +1171,15 @@ export default function LearnScreen() {
 
   return (
     <View style={styles.container}>
+      <View style={styles.sparkleBg}>
+        <View style={[styles.sparkleDot, { top: 90, left: 28 }]} />
+        <View style={[styles.sparkleDotSmall, { top: 170, left: 240 }]} />
+        <View style={[styles.sparkleDotSmall, { top: 320, left: 90 }]} />
+        <View style={[styles.sparkleDot, { top: 520, left: 278 }]} />
+      </View>
       {/* Dark Blue Header */}
       <LinearGradient
-        colors={["#0A2D5C", "#0B3B78"]}
+        colors={["#041B38", "#0A3269"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.blueHeader}
@@ -1032,7 +1191,7 @@ export default function LearnScreen() {
           />
         </View>
         <Text style={styles.headerTitle}>Beginners Guide</Text>
-        <Text style={styles.headerSubtitle}>Learn stock market basics with videos & quizzes</Text>
+        <Text style={styles.headerSubtitle}>Micro lessons, instant feedback, rewards, and streaks</Text>
       </LinearGradient>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
@@ -1083,6 +1242,24 @@ export default function LearnScreen() {
 
         {activeSection === 'lessons' ? (
           <>
+            <View style={styles.learningDashboardCard}>
+              <View style={styles.learningDashboardRow}>
+                <Text style={styles.dashboardChip}>🔥 {gamification?.streakDays ?? 0} Day Streak</Text>
+                <Text style={styles.dashboardChip}>XP: {gamification?.xp ?? 0}</Text>
+                <Text style={styles.dashboardChip}>Level: {gamification?.level ?? 1}</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.continueButton}
+                onPress={() => continueLesson && toggleLesson(continueLesson)}
+                disabled={!continueLesson}
+              >
+                <Text style={styles.continueButtonText}>
+                  Continue Learning {continueLesson ? `- ${continueLesson.title}` : ''}
+                </Text>
+                <ChevronRight size={16} color="#DBEAFE" />
+              </TouchableOpacity>
+            </View>
+
             {/* Progress Card */}
             <View style={styles.progressCard}>
               <View style={styles.progressTextContainer}>
@@ -1098,6 +1275,34 @@ export default function LearnScreen() {
                 )}
               </View>
             </View>
+
+            {sortedLessons.length > 0 && (
+              <View style={styles.pathCard}>
+                <Text style={styles.pathTitle}>Lesson Path</Text>
+                {sortedLessons.map((lesson, index) => {
+                  const isComplete = completedLessons.includes(lesson.id);
+                  const isPendingUnlocked = unlockedPendingLessonId === lesson.id;
+                  const isLocked = !isComplete && !isPendingUnlocked;
+                  return (
+                    <View key={`path-${lesson.id}`} style={styles.pathRow}>
+                      <View
+                        style={[
+                          styles.pathBubble,
+                          isComplete && styles.pathBubbleComplete,
+                          isPendingUnlocked && styles.pathBubbleActive,
+                          isLocked && styles.pathBubbleLocked,
+                        ]}
+                      >
+                        {isComplete ? <CheckCircle size={14} color="#E2E8F0" /> : isLocked ? <Lock size={14} color="#94A3B8" /> : <Play size={14} color="#DBEAFE" />}
+                      </View>
+                      <Text style={[styles.pathLessonText, isLocked && styles.pathLessonTextLocked]}>
+                        Lesson {index + 1}: {lesson.title}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
 
             {loadingLessons && (
               <View style={{ paddingVertical: 20, alignItems: 'center' }}>
@@ -1221,7 +1426,7 @@ export default function LearnScreen() {
             {/* Study Tip Section */}
             <View style={styles.tipCard}>
               <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                <Info size={16} color="#6D28D9" />
+                <Info size={16} color="#1E40AF" />
                 <Text style={styles.tipTitle}>Study Tip</Text>
               </View>
               <Text style={styles.tipText}>
@@ -1300,7 +1505,7 @@ export default function LearnScreen() {
             </View>
 
             <View style={styles.taxDisclaimerCard}>
-              <Info size={14} color="#6D28D9" />
+              <Info size={14} color="#1E40AF" />
               <Text style={styles.taxDisclaimerText}>
                 Tax Hub values are for educational estimation only. Always verify with current official tax notices and a licensed tax advisor.
               </Text>
@@ -1319,6 +1524,7 @@ export default function LearnScreen() {
           onComplete={handleLessonComplete}
           isCompleted={completedLessons.includes(selectedLesson.id)}
           nextLessonTitle={nextLessonTitle}
+          onGamificationUpdate={setGamification}
         />
       )}
     </View>
@@ -1326,7 +1532,25 @@ export default function LearnScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC', overflow: "visible" },
+  container: { flex: 1, backgroundColor: '#020B18', overflow: "visible" },
+  sparkleBg: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 0,
+  },
+  sparkleDot: {
+    position: 'absolute',
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: 'rgba(148, 197, 255, 0.25)',
+  },
+  sparkleDotSmall: {
+    position: 'absolute',
+    width: 6,
+    height: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(125, 211, 252, 0.22)',
+  },
   blueHeader: {
     paddingTop: 64,
     paddingHorizontal: 20,
@@ -1337,7 +1561,7 @@ const styles = StyleSheet.create({
     zIndex: 20,
   },
   blueHeaderTop: { marginBottom: 16 },
-  scrollView: { flex: 1, paddingHorizontal: 20, zIndex: 0 },
+  scrollView: { flex: 1, paddingHorizontal: 20, zIndex: 2 },
   header: { marginBottom: 20 },
   headerTitle: { color: '#fff', fontSize: 26, fontWeight: '800', lineHeight: 32 },
   headerSubtitle: { color: '#CBD5E1', fontSize: 14, lineHeight: 20, marginTop: 10 },
@@ -1479,9 +1703,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   taxDisclaimerCard: {
-    backgroundColor: '#F3E8FF',
+    backgroundColor: '#E0ECFF',
     borderWidth: 1,
-    borderColor: '#D8B4FE',
+    borderColor: '#93C5FD',
     borderRadius: 14,
     padding: 12,
     flexDirection: 'row',
@@ -1490,35 +1714,124 @@ const styles = StyleSheet.create({
   },
   taxDisclaimerText: {
     flex: 1,
-    color: '#6D28D9',
+    color: '#1E40AF',
     fontSize: 12,
     lineHeight: 18,
     fontWeight: '600',
   },
 
+  learningDashboardCard: {
+    backgroundColor: '#07172C',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#1E3A5F',
+    padding: 14,
+    marginBottom: 12,
+  },
+  learningDashboardRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+  },
+  dashboardChip: {
+    flex: 1,
+    textAlign: 'center',
+    color: '#DBEAFE',
+    backgroundColor: '#0B264A',
+    borderRadius: 999,
+    paddingVertical: 8,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  continueButton: {
+    backgroundColor: '#0E315E',
+    borderWidth: 1,
+    borderColor: '#1D4ED8',
+    borderRadius: 12,
+    paddingVertical: 11,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  continueButtonText: {
+    color: '#DBEAFE',
+    fontSize: 13,
+    fontWeight: '700',
+  },
   progressCard: {
-    backgroundColor: '#FAFAF5',
+    backgroundColor: '#07172C',
     borderRadius: 20,
     padding: 20,
     marginBottom: 24,
     elevation: 2,
     boxShadow: '0px 2px 10px rgba(0, 0, 0, 0.05)',
     borderWidth: 1,
-    borderColor: '#E8E8E3',
+    borderColor: '#1E3A5F',
   },
   progressTextContainer: { flex: 1 },
-  cardTitle: { fontSize: 15, fontWeight: '600', color: '#1E293B' },
-  progressStat: { fontSize: 14, fontWeight: '700', color: '#166534' },
-  progressBarBg: { backgroundColor: '#F1F5F9', height: 10, borderRadius: 5 },
-  progressBarFill: { backgroundColor: '#166534', height: 10, borderRadius: 5 },
+  cardTitle: { fontSize: 15, fontWeight: '600', color: '#E2E8F0' },
+  progressStat: { fontSize: 14, fontWeight: '700', color: '#60A5FA' },
+  progressBarBg: { backgroundColor: '#0B264A', height: 10, borderRadius: 5 },
+  progressBarFill: { backgroundColor: '#3B82F6', height: 10, borderRadius: 5 },
   levelCompleteText: {
     marginTop: 10,
     fontSize: 12,
     fontWeight: '700',
-    color: '#166534',
+    color: '#93C5FD',
   },
 
-  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#1E293B', marginBottom: 16, marginTop: 8 },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#DBEAFE', marginBottom: 16, marginTop: 8 },
+  pathCard: {
+    backgroundColor: '#07172C',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#1E3A5F',
+    padding: 14,
+    marginBottom: 16,
+  },
+  pathTitle: {
+    color: '#DBEAFE',
+    fontSize: 15,
+    fontWeight: '800',
+    marginBottom: 10,
+  },
+  pathRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    gap: 10,
+  },
+  pathBubble: {
+    width: 30,
+    height: 30,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#1E3A5F',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#0B264A',
+  },
+  pathBubbleComplete: {
+    backgroundColor: '#2563EB',
+    borderColor: '#60A5FA',
+  },
+  pathBubbleActive: {
+    backgroundColor: '#1D4ED8',
+    borderColor: '#93C5FD',
+  },
+  pathBubbleLocked: {
+    backgroundColor: '#111827',
+    borderColor: '#334155',
+  },
+  pathLessonText: {
+    color: '#BFDBFE',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  pathLessonTextLocked: {
+    color: '#94A3B8',
+  },
 
   lessonCard: {
     backgroundColor: '#FAFAF5',
@@ -1594,9 +1907,9 @@ const styles = StyleSheet.create({
   resourceTitle: { fontSize: 15, fontWeight: '700', color: '#1E293B' },
   resourceDesc: { fontSize: 12, color: '#64748B' },
 
-  tipCard: { backgroundColor: '#F3E8FF', padding: 16, borderRadius: 16, marginTop: 10, borderWidth: 1, borderColor: '#D8B4FE' },
-  tipTitle: { fontSize: 14, fontWeight: '700', color: '#6D28D9', marginLeft: 8 },
-  tipText: { fontSize: 13, color: '#6D28D9', lineHeight: 18, marginTop: 4 },
+  tipCard: { backgroundColor: '#E0ECFF', padding: 16, borderRadius: 16, marginTop: 10, borderWidth: 1, borderColor: '#93C5FD' },
+  tipTitle: { fontSize: 14, fontWeight: '700', color: '#1E40AF', marginLeft: 8 },
+  tipText: { fontSize: 13, color: '#1E40AF', lineHeight: 18, marginTop: 4 },
 
   // Modal Styles
   modalContainer: { flex: 1, backgroundColor: '#082349' },
@@ -1659,7 +1972,7 @@ const styles = StyleSheet.create({
   topicLabel: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#5E22AD',
+    color: '#1E3A8A',
     letterSpacing: 0.4,
     textTransform: 'uppercase',
   },
@@ -1846,7 +2159,7 @@ const styles = StyleSheet.create({
     width: 7,
     height: 7,
     borderRadius: 4,
-    backgroundColor: '#8A2BE2',
+    backgroundColor: '#2563EB',
   },
   flashcardsTitle: {
     fontSize: 14,
@@ -1880,7 +2193,7 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 4,
-    backgroundColor: '#5E22AD',
+    backgroundColor: '#1E3A8A',
   },
   recapText: {
     flex: 1,
@@ -1901,7 +2214,7 @@ const styles = StyleSheet.create({
   quizSectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
   quizSectionTitle: { fontSize: 16, fontWeight: '800', color: '#123B77' },
   quizSectionDesc: { fontSize: 13, color: '#415A80', marginBottom: 8, lineHeight: 18 },
-  quizSectionSubText: { fontSize: 12, color: '#5E22AD', marginBottom: 10, fontWeight: '600' },
+  quizSectionSubText: { fontSize: 12, color: '#1E3A8A', marginBottom: 10, fontWeight: '600' },
   noQuizHint: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -1928,7 +2241,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: '#7B2BD9',
+    backgroundColor: '#1D4ED8',
   },
   startQuizButtonText: { color: '#fff', fontWeight: '700', fontSize: 14 },
 
@@ -2008,7 +2321,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 12,
     borderWidth: 2,
-    borderColor: '#8A2BE2',
+    borderColor: '#2563EB',
   },
   optionCorrect: { backgroundColor: '#D1FAE5', borderColor: '#10B981' },
   optionIncorrect: { backgroundColor: '#FEF2F2', borderColor: '#EF4444' },
@@ -2022,7 +2335,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginTop: 12,
     borderLeftWidth: 4,
-    borderLeftColor: '#8A2BE2',
+    borderLeftColor: '#2563EB',
   },
   answerText: {
     fontSize: 14,
@@ -2037,7 +2350,7 @@ const styles = StyleSheet.create({
   },
   nextButton: {
     alignSelf: 'center',
-    backgroundColor: '#7B2BD9',
+    backgroundColor: '#1D4ED8',
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 12,
@@ -2120,5 +2433,31 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 6,
   },
+  rewardCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#1D4ED8',
+    backgroundColor: '#0B264A',
+    padding: 14,
+    marginBottom: 10,
+    alignItems: 'center',
+    gap: 4,
+  },
+  rewardTitle: {
+    color: '#DBEAFE',
+    fontWeight: '800',
+    fontSize: 19,
+  },
+  rewardXp: {
+    color: '#7DD3FC',
+    fontWeight: '800',
+    fontSize: 24,
+  },
+  rewardMeta: {
+    color: '#BFDBFE',
+    fontSize: 13,
+    fontWeight: '600',
+  },
 });
+
 

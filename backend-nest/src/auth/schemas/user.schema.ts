@@ -41,6 +41,24 @@ spikeAlertsEnabled: boolean;
 @Prop({ default: false })
 isAdmin: boolean;
 
+@Prop({ default: 0 })
+xp: number;
+
+@Prop({ default: 0 })
+streakDays: number;
+
+@Prop()
+lastLearningAt?: Date;
+
+@Prop({ type: [String], default: [] })
+badges: string[];
+
+@Prop({ default: 0 })
+lessonsCompletedCount: number;
+
+@Prop({ default: 0 })
+correctQuizAnswers: number;
+
 }
 export const UserSchema= SchemaFactory.createForClass(User);
 
