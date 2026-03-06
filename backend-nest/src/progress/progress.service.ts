@@ -13,6 +13,8 @@ const QUIZ_CORRECT_XP = 5;
 const MAX_FLASHCARDS_PER_LESSON = 4;
 const PASSING_SCORE_PERCENT = 70;
 const LEVEL_XP_STEP = 120;
+const QUIZ_BONUS_XP = 15;
+const MAX_ACTIVITY_DAYS = 35;
 
 @Injectable()
 export class ProgressService {
@@ -36,26 +38,109 @@ export class ProgressService {
     return Math.floor((this.getDayStart(to).getTime() - this.getDayStart(from).getTime()) / dayMs);
   }
 
+  private getDateKey(date: Date): string {
+    return date.toISOString().slice(0, 10);
+  }
+
+  private appendLearningDay(user: User, now: Date) {
+    const todayKey = this.getDateKey(now);
+    const existing = user.learningActivityDates ?? [];
+    if (!existing.includes(todayKey)) {
+      user.learningActivityDates = [...existing, todayKey].slice(-MAX_ACTIVITY_DAYS);
+    }
+  }
+
+  private getCurrentWeekProgress(user: User, now: Date) {
+    const currentDay = now.getDay();
+    const mondayOffset = currentDay === 0 ? -6 : 1 - currentDay;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + mondayOffset);
+    monday.setHours(0, 0, 0, 0);
+
+    const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const activity = new Set(user.learningActivityDates ?? []);
+
+    return labels.map((label, index) => {
+      const date = new Date(monday);
+      date.setDate(monday.getDate() + index);
+      const dateKey = this.getDateKey(date);
+      const isToday = this.getDateKey(now) === dateKey;
+      const completed = activity.has(dateKey);
+
+      return {
+        label,
+        date: dateKey,
+        completed,
+        isToday,
+        status: completed ? 'done' : date > now ? 'locked' : isToday ? 'today' : 'missed',
+      };
+    });
+  }
+
+  private applyFreezeRefillMilestones(user: User, newBadges: string[]) {
+    const maxFreezes = user.maxStreakFreezes ?? 3;
+    const currentFreezes = user.streakFreezes ?? 0;
+    const streakDays = user.streakDays ?? 0;
+    const freezeUsed = (user.streakFreezeUsedCount ?? 0) > 0;
+
+    const rewards: Array<{ minDays: number; freeze: number; badge: string; requiresFreezeUse?: boolean }> = [
+      { minDays: 7, freeze: 1, badge: '7 Day Streak' },
+      { minDays: 14, freeze: 1, badge: '14 Day Streak Freeze Refill', requiresFreezeUse: true },
+      { minDays: 30, freeze: 2, badge: '30 Day Streak' },
+    ];
+
+    let updatedFreezes = currentFreezes;
+    for (const reward of rewards) {
+      if (streakDays < reward.minDays) {
+        continue;
+      }
+      if (reward.requiresFreezeUse && !freezeUsed) {
+        continue;
+      }
+      if ((user.badges ?? []).includes(reward.badge)) {
+        continue;
+      }
+      updatedFreezes = Math.min(maxFreezes, updatedFreezes + reward.freeze);
+      this.addBadge(user, reward.badge, newBadges);
+    }
+
+    user.streakFreezes = updatedFreezes;
+  }
+
   private updateStreak(user: User, now: Date) {
+    let freezeUsed = 0;
     if (!user.lastLearningAt) {
       user.streakDays = 1;
       user.lastLearningAt = now;
-      return;
+      this.appendLearningDay(user, now);
+      return { freezeUsed };
     }
 
     const dayDiff = this.diffInDays(user.lastLearningAt, now);
     if (dayDiff === 0) {
       user.lastLearningAt = now;
-      return;
+      this.appendLearningDay(user, now);
+      return { freezeUsed };
     }
 
     if (dayDiff === 1) {
       user.streakDays = (user.streakDays ?? 0) + 1;
     } else {
-      user.streakDays = 1;
+      const missedDays = dayDiff - 1;
+      const freezes = user.streakFreezes ?? 0;
+      if (missedDays > 0 && freezes >= missedDays) {
+        user.streakFreezes = freezes - missedDays;
+        user.streakFreezeUsedCount = (user.streakFreezeUsedCount ?? 0) + missedDays;
+        freezeUsed = missedDays;
+        user.streakDays = (user.streakDays ?? 0) + 1;
+      } else {
+        user.streakDays = 1;
+      }
     }
 
     user.lastLearningAt = now;
+    this.appendLearningDay(user, now);
+    return { freezeUsed };
   }
 
   private getLevel(xp: number): number {
@@ -94,14 +179,19 @@ export class ProgressService {
   private gamificationSnapshot(user: User) {
     const xp = user.xp ?? 0;
     const progressInLevel = xp % LEVEL_XP_STEP;
+    const now = new Date();
     return {
       xp,
       level: this.getLevel(xp),
       streakDays: user.streakDays ?? 0,
+      streakFreezes: user.streakFreezes ?? 3,
+      maxStreakFreezes: user.maxStreakFreezes ?? 3,
       badges: user.badges ?? [],
       lessonsCompletedCount: user.lessonsCompletedCount ?? 0,
       correctQuizAnswers: user.correctQuizAnswers ?? 0,
       xpToNextLevel: LEVEL_XP_STEP - progressInLevel,
+      weeklyProgress: this.getCurrentWeekProgress(user, now),
+      streakMessage: 'Do not forget me today!',
     };
   }
 
@@ -204,7 +294,7 @@ export class ProgressService {
     let xpAwarded = 0;
     const newBadges: string[] = [];
 
-    this.updateStreak(user, now);
+    const streakMeta = this.updateStreak(user, now);
 
     if (!wasCompleted) {
       user.lessonsCompletedCount = (user.lessonsCompletedCount ?? 0) + 1;
@@ -230,10 +320,12 @@ export class ProgressService {
         completedInModule === moduleLessonIds.length
       ) {
         const unitBadge = `Unit Completed: ${lesson.module}`;
+        const chapterBadge = `Chapter Badge: ${lesson.module}`;
         if (!(user.badges ?? []).includes(unitBadge)) {
           user.xp = (user.xp ?? 0) + UNIT_COMPLETION_XP;
           xpAwarded += UNIT_COMPLETION_XP;
           this.addBadge(user, unitBadge, newBadges);
+          this.addBadge(user, chapterBadge, newBadges);
         }
       }
 
@@ -257,11 +349,13 @@ export class ProgressService {
     }
 
     this.applyMilestoneBadges(user, newBadges);
+    this.applyFreezeRefillMilestones(user, newBadges);
     await user.save();
 
     return {
       progress,
       xpAwarded,
+      freezeUsed: streakMeta.freezeUsed,
       newBadges,
       gamification: this.gamificationSnapshot(user),
     };
@@ -306,7 +400,7 @@ export class ProgressService {
       throw new NotFoundException('User not found');
     }
 
-    this.updateStreak(user, now);
+    const streakMeta = this.updateStreak(user, now);
 
     if (xpAwarded > 0) {
       user.xp = (user.xp ?? 0) + xpAwarded;
@@ -314,11 +408,13 @@ export class ProgressService {
 
     const newBadges: string[] = [];
     this.applyMilestoneBadges(user, newBadges);
+    this.applyFreezeRefillMilestones(user, newBadges);
     await user.save();
 
     return {
       grantedCount,
       xpAwarded,
+      freezeUsed: streakMeta.freezeUsed,
       newBadges,
       gamification: this.gamificationSnapshot(user),
     };
@@ -544,17 +640,21 @@ export class ProgressService {
       throw new NotFoundException('User not found');
     }
 
-    this.updateStreak(user, now);
+    const streakMeta = this.updateStreak(user, now);
 
     const previousBestCorrectAnswers = existing?.bestCorrectAnswers ?? 0;
     const newlyImprovedCorrectAnswers = Math.max(0, correctAnswers - previousBestCorrectAnswers);
-    const xpAwarded = newlyImprovedCorrectAnswers * QUIZ_CORRECT_XP;
+    const bonusThreshold = Math.ceil(quiz.length * 0.75);
+    const earnedBonus = correctAnswers >= bonusThreshold && (existing?.bestScore ?? 0) < 75;
+    const bonusXpAwarded = earnedBonus ? QUIZ_BONUS_XP : 0;
+    const xpAwarded = newlyImprovedCorrectAnswers * QUIZ_CORRECT_XP + bonusXpAwarded;
 
     user.xp = (user.xp ?? 0) + xpAwarded;
     user.correctQuizAnswers = (user.correctQuizAnswers ?? 0) + correctAnswers;
 
     const newBadges: string[] = [];
     this.applyMilestoneBadges(user, newBadges);
+    this.applyFreezeRefillMilestones(user, newBadges);
     await user.save();
 
     return {
@@ -564,6 +664,8 @@ export class ProgressService {
       passed,
       bestScore,
       xpAwarded,
+      bonusXpAwarded,
+      freezeUsed: streakMeta.freezeUsed,
       feedback,
       newBadges,
       gamification: this.gamificationSnapshot(user),

@@ -59,6 +59,18 @@ lessonsCompletedCount: number;
 @Prop({ default: 0 })
 correctQuizAnswers: number;
 
+@Prop({ default: 3 })
+streakFreezes: number;
+
+@Prop({ default: 3 })
+maxStreakFreezes: number;
+
+@Prop({ default: 0 })
+streakFreezeUsedCount: number;
+
+@Prop({ type: [String], default: [] })
+learningActivityDates: string[];
+
 }
 export const UserSchema= SchemaFactory.createForClass(User);
 

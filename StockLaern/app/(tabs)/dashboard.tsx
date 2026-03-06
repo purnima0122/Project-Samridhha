@@ -48,6 +48,25 @@ type DashboardData = {
   }[];
 };
 
+type WeeklyProgressDay = {
+  label: string;
+  date: string;
+  completed: boolean;
+  isToday: boolean;
+  status: "done" | "today" | "missed" | "locked";
+};
+
+type GamificationSummary = {
+  xp: number;
+  level: number;
+  streakDays: number;
+  streakFreezes: number;
+  maxStreakFreezes: number;
+  weeklyProgress: WeeklyProgressDay[];
+  nextLessonTitle: string | null;
+  streakMessage?: string;
+};
+
 export default function HomeScreen() {
   const router = useRouter();
   const {
@@ -71,6 +90,7 @@ export default function HomeScreen() {
   } = useDataServer();
   const [loadingDashboard, setLoadingDashboard] = useState(false);
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [gamification, setGamification] = useState<GamificationSummary | null>(null);
   const [showTools, setShowTools] = useState(false);
   const [watchlistSelection, setWatchlistSelection] = useState<string[]>([]);
   const inUserMode = isAuthenticated;
@@ -90,6 +110,20 @@ export default function HomeScreen() {
     };
 
     loadDashboard();
+  }, [accessToken]);
+
+  useEffect(() => {
+    const loadGamification = async () => {
+      if (!accessToken) return;
+      try {
+        const data = await apiFetch<GamificationSummary>("/progress/gamification", {}, accessToken);
+        setGamification(data);
+      } catch (error) {
+        console.warn("Unable to load gamification summary", error);
+      }
+    };
+
+    loadGamification();
   }, [accessToken]);
 
   useEffect(() => {
@@ -257,6 +291,41 @@ export default function HomeScreen() {
       <View style={styles.content}>
         {inUserMode && (
           <>
+            <View style={styles.streakHero}>
+              <View style={styles.streakHeroTop}>
+                <Text style={styles.streakCount}>🔥 {gamification?.streakDays ?? 0} Day Streak</Text>
+                <Text style={styles.freezeCount}>❄️ {gamification?.streakFreezes ?? 3}/{gamification?.maxStreakFreezes ?? 3}</Text>
+              </View>
+              <Text style={styles.streakHint}>{gamification?.streakMessage ?? "Don't forget me today!"}</Text>
+              <View style={styles.weekRow}>
+                {(gamification?.weeklyProgress ?? []).map((day) => (
+                  <View
+                    key={day.date}
+                    style={[
+                      styles.weekDay,
+                      day.status === "done" && styles.weekDayDone,
+                      day.status === "today" && styles.weekDayToday,
+                      day.status === "locked" && styles.weekDayLocked,
+                    ]}
+                  >
+                    <Text style={styles.weekDayLabel}>{day.label}</Text>
+                    <Text style={styles.weekDayValue}>
+                      {day.status === "done" ? "✔" : day.status === "today" ? "⏳" : day.status === "locked" ? "🔒" : "•"}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+              <View style={styles.streakMetaRow}>
+                <Text style={styles.streakMetaText}>XP: {gamification?.xp ?? 0}</Text>
+                <Text style={styles.streakMetaText}>Level: {gamification?.level ?? 1}</Text>
+              </View>
+              <TouchableOpacity style={styles.continueLearnBtn} onPress={() => router.push("/learn")}>
+                <Text style={styles.continueLearnText}>
+                  Continue Learning {gamification?.nextLessonTitle ? `- ${gamification.nextLessonTitle}` : ""}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
             <View style={styles.statsRow}>
               <View style={styles.statCard}>
                 <Text style={styles.statLabel}>Active Alerts</Text>
@@ -511,6 +580,51 @@ const styles = StyleSheet.create({
   },
   toolsRowText: { color: "#0F172A", fontWeight: "600", fontSize: 12 },
   content: { paddingHorizontal: 20, paddingTop: 20, position: "relative", zIndex: 1 },
+  streakHero: {
+    backgroundColor: "#081D38",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#1E3A5F",
+    padding: 14,
+    marginBottom: 14,
+  },
+  streakHeroTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  streakCount: { color: "#F8FAFC", fontSize: 20, fontWeight: "800" },
+  freezeCount: { color: "#BFDBFE", fontSize: 13, fontWeight: "700" },
+  streakHint: { color: "#93C5FD", marginTop: 6, fontSize: 12, fontWeight: "600" },
+  weekRow: { flexDirection: "row", gap: 8, marginTop: 10 },
+  weekDay: {
+    flex: 1,
+    borderRadius: 10,
+    backgroundColor: "#0F2747",
+    alignItems: "center",
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: "#1E3A5F",
+  },
+  weekDayDone: { backgroundColor: "#14532D", borderColor: "#22C55E" },
+  weekDayToday: { backgroundColor: "#1D4ED8", borderColor: "#60A5FA" },
+  weekDayLocked: { backgroundColor: "#111827", borderColor: "#374151" },
+  weekDayLabel: { color: "#E2E8F0", fontSize: 10, fontWeight: "700" },
+  weekDayValue: { color: "#F8FAFC", marginTop: 2, fontSize: 12, fontWeight: "800" },
+  streakMetaRow: {
+    marginTop: 10,
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  streakMetaText: { color: "#DBEAFE", fontSize: 12, fontWeight: "700" },
+  continueLearnBtn: {
+    marginTop: 10,
+    backgroundColor: "#1D4ED8",
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  continueLearnText: { color: "#F8FAFC", fontSize: 12, fontWeight: "800" },
   statsRow: {
     flexDirection: "row",
     gap: 12,

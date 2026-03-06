@@ -83,14 +83,26 @@ type ApiProgress = {
   flashcardsViewed?: number;
 };
 
+type WeeklyProgressDay = {
+  label: string;
+  date: string;
+  completed: boolean;
+  isToday: boolean;
+  status: 'done' | 'today' | 'missed' | 'locked';
+};
+
 type GamificationSummary = {
   xp: number;
   level: number;
   streakDays: number;
+  streakFreezes: number;
+  maxStreakFreezes: number;
   badges: string[];
   lessonsCompletedCount: number;
   correctQuizAnswers: number;
   xpToNextLevel: number;
+  weeklyProgress: WeeklyProgressDay[];
+  streakMessage?: string;
   nextLessonId: string | null;
   nextLessonTitle: string | null;
   totalLessons: number;
@@ -687,8 +699,10 @@ function LessonDetailView({
   const [quizScore, setQuizScore] = useState<number | null>(null);
   const [quizCompleted, setQuizCompleted] = useState(false);
   const [showVideo, setShowVideo] = useState(false);
+  const [startedWorld, setStartedWorld] = useState(false);
   const [submittingQuiz, setSubmittingQuiz] = useState(false);
   const [quizXpAwarded, setQuizXpAwarded] = useState(0);
+  const [bonusXpAwarded, setBonusXpAwarded] = useState(0);
   const [reward, setReward] = useState<LessonCompletionResult | null>(null);
 
   const conceptCards = useMemo(() => splitLessonIntoCards(lesson.content), [lesson.content]);
@@ -731,6 +745,7 @@ function LessonDetailView({
         scorePercent: number;
         bestScore: number;
         xpAwarded?: number;
+        bonusXpAwarded?: number;
         gamification?: GamificationSummary;
       }>(`/progress/quiz/${lesson.id}`, {
         method: 'POST',
@@ -738,6 +753,7 @@ function LessonDetailView({
       }, accessToken);
 
       setQuizXpAwarded(result.xpAwarded ?? 0);
+      setBonusXpAwarded(result.bonusXpAwarded ?? 0);
       if (result.gamification) {
         onGamificationUpdate?.(result.gamification);
       }
@@ -767,6 +783,7 @@ function LessonDetailView({
     setQuizScore(null);
     setQuizCompleted(false);
     setQuizXpAwarded(0);
+    setBonusXpAwarded(0);
   };
 
   return (
@@ -776,7 +793,7 @@ function LessonDetailView({
         <View style={styles.modalHeaderCompact}>
           <View style={styles.modalHeaderTop}>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Text style={styles.closeButtonText}>✕</Text>
+              <Text style={styles.closeButtonText}>×</Text>
             </TouchableOpacity>
             <View style={[styles.modalIconBoxCompact, { backgroundColor: lesson.color + '20' }]}>
               {React.createElement(lesson.icon, { color: '#fff', size: 20 })}
@@ -845,51 +862,66 @@ function LessonDetailView({
             </Text>
           </View>
 
-          {/* Content Section */}
-          <View style={styles.contentSection}>
-            <Text style={styles.contentTitle}>Lesson Content</Text>
-            <Text style={styles.contentText}>{lessonIntro}</Text>
-          </View>
-
-          <FlashcardCarousel
-            cards={conceptCards}
-            onCardViewed={async (count) => {
-              if (!accessToken) {
-                return;
-              }
-
-              try {
-                const result = await apiFetch<{ gamification?: GamificationSummary }>(
-                  `/progress/flashcard/${lesson.id}`,
-                  {
-                    method: 'POST',
-                    body: JSON.stringify({ count }),
-                  },
-                  accessToken,
-                );
-                if (result.gamification) {
-                  onGamificationUpdate?.(result.gamification);
-                }
-              } catch (error) {
-                console.warn('Unable to record flashcard view', error);
-              }
-            }}
-          />
-
-          {recapPoints.length > 0 && (
-            <View style={styles.recapBlock}>
-              <Text style={styles.blockTitle}>Quick Recap</Text>
-              {recapPoints.map((point, index) => (
-                <View key={`${lesson.id}-recap-${index}`} style={styles.recapRow}>
-                  <View style={styles.recapDot} />
-                  <Text style={styles.recapText}>{point}</Text>
-                </View>
-              ))}
+          {!startedWorld && (
+            <View style={styles.worldCard}>
+              <Text style={styles.worldTitle}>Start Learning</Text>
+              <Text style={styles.worldText}>{lessonIntro}</Text>
+              <Text style={styles.worldMeta}>Step 1: Flashcards World • Step 2: Quiz World • Step 3: Rewards</Text>
+              <TouchableOpacity style={styles.worldActionButton} onPress={() => setStartedWorld(true)}>
+                <Text style={styles.worldActionText}>Enter Flashcards World</Text>
+              </TouchableOpacity>
             </View>
           )}
 
+          {startedWorld && (
+            <>
+              {/* Content Section */}
+              <View style={styles.contentSection}>
+                <Text style={styles.contentTitle}>Flashcards World</Text>
+                <Text style={styles.contentText}>{lessonIntro}</Text>
+              </View>
+
+              <FlashcardCarousel
+                cards={conceptCards}
+                onCardViewed={async (count) => {
+                  if (!accessToken) {
+                    return;
+                  }
+
+                  try {
+                    const result = await apiFetch<{ gamification?: GamificationSummary }>(
+                      `/progress/flashcard/${lesson.id}`,
+                      {
+                        method: 'POST',
+                        body: JSON.stringify({ count }),
+                      },
+                      accessToken,
+                    );
+                    if (result.gamification) {
+                      onGamificationUpdate?.(result.gamification);
+                    }
+                  } catch (error) {
+                    console.warn('Unable to record flashcard view', error);
+                  }
+                }}
+              />
+
+              {recapPoints.length > 0 && (
+                <View style={styles.recapBlock}>
+                  <Text style={styles.blockTitle}>Quick Recap</Text>
+                  {recapPoints.map((point, index) => (
+                    <View key={`${lesson.id}-recap-${index}`} style={styles.recapRow}>
+                      <View style={styles.recapDot} />
+                      <Text style={styles.recapText}>{point}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </>
+          )}
+
           {/* Quiz Section */}
-          {!showQuiz && !quizCompleted && (
+          {startedWorld && !showQuiz && !quizCompleted && (
             <View style={styles.quizSection}>
               <View style={styles.quizSectionHeader}>
                 <HelpCircle size={18} color={lesson.color} />
@@ -913,7 +945,7 @@ function LessonDetailView({
               ) : (
                 <TouchableOpacity style={styles.startQuizButton} onPress={handleStartQuiz}>
                   <HelpCircle size={14} color="#fff" />
-                  <Text style={styles.startQuizButtonText}>Start Quiz</Text>
+                  <Text style={styles.startQuizButtonText}>Go To Quiz World</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -956,6 +988,9 @@ function LessonDetailView({
               )}
               {quizXpAwarded > 0 && (
                 <Text style={styles.congratsText}>+{quizXpAwarded} XP from quiz performance</Text>
+              )}
+              {bonusXpAwarded > 0 && (
+                <Text style={styles.congratsText}>+{bonusXpAwarded} XP bonus for scoring 3/4 or higher</Text>
               )}
               <TouchableOpacity style={styles.retakeButton} onPress={handleStartQuiz}>
                 <Text style={styles.retakeButtonText}>Retake Quiz</Text>
@@ -1245,8 +1280,27 @@ export default function LearnScreen() {
             <View style={styles.learningDashboardCard}>
               <View style={styles.learningDashboardRow}>
                 <Text style={styles.dashboardChip}>🔥 {gamification?.streakDays ?? 0} Day Streak</Text>
+                <Text style={styles.dashboardChip}>❄️ {gamification?.streakFreezes ?? 3}/{gamification?.maxStreakFreezes ?? 3}</Text>
                 <Text style={styles.dashboardChip}>XP: {gamification?.xp ?? 0}</Text>
-                <Text style={styles.dashboardChip}>Level: {gamification?.level ?? 1}</Text>
+              </View>
+              <Text style={styles.streakHintText}>{gamification?.streakMessage ?? "Don't forget me today!"}</Text>
+              <View style={styles.weekProgressRow}>
+                {(gamification?.weeklyProgress ?? []).map((day) => (
+                  <View
+                    key={day.date}
+                    style={[
+                      styles.weekProgressDot,
+                      day.status === 'done' && styles.weekProgressDotDone,
+                      day.status === 'today' && styles.weekProgressDotToday,
+                      day.status === 'locked' && styles.weekProgressDotLocked,
+                    ]}
+                  >
+                    <Text style={styles.weekProgressLabel}>{day.label}</Text>
+                    <Text style={styles.weekProgressValue}>
+                      {day.status === 'done' ? '✔' : day.status === 'today' ? '⏳' : day.status === 'locked' ? '🔒' : '•'}
+                    </Text>
+                  </View>
+                ))}
               </View>
               <TouchableOpacity
                 style={styles.continueButton}
@@ -1284,7 +1338,12 @@ export default function LearnScreen() {
                   const isPendingUnlocked = unlockedPendingLessonId === lesson.id;
                   const isLocked = !isComplete && !isPendingUnlocked;
                   return (
-                    <View key={`path-${lesson.id}`} style={styles.pathRow}>
+                    <TouchableOpacity
+                      key={`path-${lesson.id}`}
+                      style={[styles.pathRow, index % 2 ? styles.pathRowRight : styles.pathRowLeft]}
+                      disabled={isLocked}
+                      onPress={() => !isLocked && toggleLesson(lesson)}
+                    >
                       <View
                         style={[
                           styles.pathBubble,
@@ -1296,9 +1355,9 @@ export default function LearnScreen() {
                         {isComplete ? <CheckCircle size={14} color="#E2E8F0" /> : isLocked ? <Lock size={14} color="#94A3B8" /> : <Play size={14} color="#DBEAFE" />}
                       </View>
                       <Text style={[styles.pathLessonText, isLocked && styles.pathLessonTextLocked]}>
-                        Lesson {index + 1}: {lesson.title}
+                        {lesson.module} {index + 1}: {lesson.title}
                       </Text>
-                    </View>
+                    </TouchableOpacity>
                   );
                 })}
               </View>
@@ -1731,7 +1790,7 @@ const styles = StyleSheet.create({
   learningDashboardRow: {
     flexDirection: 'row',
     gap: 8,
-    marginBottom: 12,
+    marginBottom: 8,
   },
   dashboardChip: {
     flex: 1,
@@ -1742,6 +1801,49 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     fontSize: 12,
     fontWeight: '700',
+  },
+  streakHintText: {
+    color: '#93C5FD',
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  weekProgressRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 10,
+  },
+  weekProgressDot: {
+    flex: 1,
+    borderRadius: 10,
+    backgroundColor: '#0B264A',
+    borderWidth: 1,
+    borderColor: '#1E3A5F',
+    alignItems: 'center',
+    paddingVertical: 7,
+  },
+  weekProgressDotDone: {
+    backgroundColor: '#14532D',
+    borderColor: '#22C55E',
+  },
+  weekProgressDotToday: {
+    backgroundColor: '#1D4ED8',
+    borderColor: '#93C5FD',
+  },
+  weekProgressDotLocked: {
+    backgroundColor: '#111827',
+    borderColor: '#334155',
+  },
+  weekProgressLabel: {
+    color: '#E2E8F0',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  weekProgressValue: {
+    color: '#F8FAFC',
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 2,
   },
   continueButton: {
     backgroundColor: '#0E315E',
@@ -1801,6 +1903,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 10,
     gap: 10,
+  },
+  pathRowLeft: {
+    alignSelf: 'flex-start',
+  },
+  pathRowRight: {
+    alignSelf: 'flex-end',
   },
   pathBubble: {
     width: 30,
@@ -2458,6 +2566,44 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
+  worldCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#1E3A5F',
+    backgroundColor: '#0B264A',
+    padding: 14,
+    marginBottom: 12,
+    gap: 6,
+  },
+  worldTitle: {
+    color: '#DBEAFE',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  worldText: {
+    color: '#BFDBFE',
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  worldMeta: {
+    color: '#93C5FD',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  worldActionButton: {
+    marginTop: 6,
+    borderRadius: 10,
+    backgroundColor: '#1D4ED8',
+    paddingVertical: 11,
+    alignItems: 'center',
+  },
+  worldActionText: {
+    color: '#F8FAFC',
+    fontWeight: '800',
+    fontSize: 13,
+  },
 });
+
+
 
 
