@@ -293,8 +293,8 @@ export default function HomeScreen() {
           <>
             <View style={styles.streakHero}>
               <View style={styles.streakHeroTop}>
-                <Text style={styles.streakCount}>🔥 {gamification?.streakDays ?? 0} Day Streak</Text>
-                <Text style={styles.freezeCount}>❄️ {gamification?.streakFreezes ?? 3}/{gamification?.maxStreakFreezes ?? 3}</Text>
+                <Text style={styles.streakCount}>{"\u{1F525}"} {gamification?.streakDays ?? 0} Day Streak</Text>
+                <Text style={styles.freezeCount}>{"\u{2744}\u{FE0F}"} {gamification?.streakFreezes ?? 3}/{gamification?.maxStreakFreezes ?? 3}</Text>
               </View>
               <Text style={styles.streakHint}>{gamification?.streakMessage ?? "Don't forget me today!"}</Text>
               <View style={styles.weekRow}>
@@ -310,7 +310,7 @@ export default function HomeScreen() {
                   >
                     <Text style={styles.weekDayLabel}>{day.label}</Text>
                     <Text style={styles.weekDayValue}>
-                      {day.status === "done" ? "✔" : day.status === "today" ? "⏳" : day.status === "locked" ? "🔒" : "•"}
+                      {day.status === "done" ? "\u{1F525}" : day.status === "locked" ? "\u{1F9CA}" : "\u{1F614}"}
                     </Text>
                   </View>
                 ))}

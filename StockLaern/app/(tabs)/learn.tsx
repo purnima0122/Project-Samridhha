@@ -3,7 +3,7 @@ import {
   BookOpen,
   CheckCircle,
   ChevronRight,
-  ExternalLink,
+  Flame,
   HelpCircle,
   Info,
   Lock,
@@ -20,7 +20,6 @@ import {
   ActivityIndicator,
   Alert,
   Dimensions,
-  Linking,
   Modal,
   Platform,
   ScrollView,
@@ -135,6 +134,20 @@ type Lesson = {
   }[];
 };
 
+type ChapterNode = {
+  id: string;
+  module: string;
+  chapterNumber: number;
+  lessons: Lesson[];
+  total: number;
+  completedCount: number;
+  isCompleted: boolean;
+  isLocked: boolean;
+  openLesson: Lesson | null;
+  icon: any;
+  color: string;
+};
+
 const iconMap: Record<string, any> = {
   TrendingUp,
   BookOpen,
@@ -142,12 +155,6 @@ const iconMap: Record<string, any> = {
   PieChart,
   HelpCircle,
 };
-
-const externalResources = [
-  { title: 'NEPSE Official', url: 'https://www.nepalstock.com', description: 'Live market data and announcements' },
-  { title: 'SEBON Website', url: 'https://www.sebon.gov.np', description: 'Regulatory info for Nepali investors' },
-  { title: 'Investopedia', url: 'https://www.investopedia.com', description: 'Global stock market encyclopedia' },
-];
 
 type LearningSection = 'lessons' | 'tax';
 
@@ -704,6 +711,9 @@ function LessonDetailView({
   const [quizXpAwarded, setQuizXpAwarded] = useState(0);
   const [bonusXpAwarded, setBonusXpAwarded] = useState(0);
   const [reward, setReward] = useState<LessonCompletionResult | null>(null);
+  const [showXpCelebration, setShowXpCelebration] = useState(false);
+  const [celebrationXp, setCelebrationXp] = useState(0);
+  const celebrationAnim = useRef(new Animated.Value(0)).current;
 
   const conceptCards = useMemo(() => splitLessonIntoCards(lesson.content), [lesson.content]);
   const recapPoints = useMemo(() => conceptCards.slice(0, 5), [conceptCards]);
@@ -727,6 +737,25 @@ function LessonDetailView({
   };
 
   const embedUrl = getYouTubeEmbedUrl(lesson.videoUrl);
+
+  const playXpCelebration = useCallback((xp: number) => {
+    setCelebrationXp(xp);
+    setShowXpCelebration(true);
+    celebrationAnim.setValue(0);
+    Animated.sequence([
+      Animated.timing(celebrationAnim, {
+        toValue: 1,
+        duration: 420,
+        useNativeDriver: true,
+      }),
+      Animated.delay(900),
+      Animated.timing(celebrationAnim, {
+        toValue: 0,
+        duration: 280,
+        useNativeDriver: true,
+      }),
+    ]).start(() => setShowXpCelebration(false));
+  }, [celebrationAnim]);
 
   const handleQuizComplete = async (score: number, answers: number[]) => {
     setQuizScore(score);
@@ -762,6 +791,7 @@ function LessonDetailView({
         const completionResult = await onComplete(lesson.id);
         if (completionResult) {
           setReward(completionResult);
+          playXpCelebration((result.xpAwarded ?? 0) + (completionResult.xpAwarded ?? 0));
           if (completionResult.gamification) {
             onGamificationUpdate?.(completionResult.gamification);
           }
@@ -1100,6 +1130,7 @@ function LessonDetailView({
                 const completionResult = await onComplete(lesson.id);
                 if (completionResult) {
                   setReward(completionResult);
+                  playXpCelebration(completionResult.xpAwarded ?? 0);
                   if (completionResult.gamification) {
                     onGamificationUpdate?.(completionResult.gamification);
                   }
@@ -1128,6 +1159,28 @@ function LessonDetailView({
             </Text>
           </View>
         </ScrollView>
+
+        {showXpCelebration && (
+          <Animated.View
+            style={[
+              styles.celebrationOverlay,
+              {
+                opacity: celebrationAnim,
+                transform: [
+                  {
+                    translateY: celebrationAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [22, 0],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <Flame size={18} color="#60A5FA" />
+            <Text style={styles.celebrationText}>Streak Flame Lit • +{celebrationXp} XP</Text>
+          </Animated.View>
+        )}
       </View>
     </Modal>
   );
@@ -1142,8 +1195,32 @@ export default function LearnScreen() {
   const [loadingLessons, setLoadingLessons] = useState(false);
   const [lessonsError, setLessonsError] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<LearningSection>('lessons');
+  const [selectedChapter, setSelectedChapter] = useState<ChapterNode | null>(null);
   const [annualIncomeInput, setAnnualIncomeInput] = useState('');
   const [investmentProfitInput, setInvestmentProfitInput] = useState('');
+  const flamePulse = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(flamePulse, {
+          toValue: 1,
+          duration: 850,
+          useNativeDriver: true,
+        }),
+        Animated.timing(flamePulse, {
+          toValue: 0,
+          duration: 850,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+
+    return () => {
+      loop.stop();
+    };
+  }, [flamePulse]);
 
   const loadLessons = useCallback(async () => {
     if (!accessToken) return;
@@ -1221,20 +1298,10 @@ export default function LearnScreen() {
     return completionResult;
   };
 
-  const progress = lessons.length > 0 ? (completedLessons.length / lessons.length) * 100 : 0;
   const sortedLessons = useMemo(
     () => [...lessons].sort((a, b) => a.order - b.order),
     [lessons],
   );
-  const completedLessonCards = useMemo(
-    () => sortedLessons.filter((lesson) => completedLessons.includes(lesson.id)),
-    [sortedLessons, completedLessons],
-  );
-  const pendingLessonCards = useMemo(
-    () => sortedLessons.filter((lesson) => !completedLessons.includes(lesson.id)),
-    [sortedLessons, completedLessons],
-  );
-  const unlockedPendingLessonId = pendingLessonCards[0]?.id ?? null;
   const continueLesson = useMemo(() => {
     if (!sortedLessons.length) {
       return null;
@@ -1243,13 +1310,67 @@ export default function LearnScreen() {
     if (gamification?.nextLessonId) {
       return sortedLessons.find((item) => item.id === gamification.nextLessonId) ?? null;
     }
+    return sortedLessons.find((item) => !completedLessons.includes(item.id)) ?? sortedLessons[0] ?? null;
+  }, [completedLessons, gamification?.nextLessonId, sortedLessons]);
 
-    if (unlockedPendingLessonId) {
-      return sortedLessons.find((item) => item.id === unlockedPendingLessonId) ?? null;
+  const chapterCards = useMemo<ChapterNode[]>(() => {
+    const moduleMap = new Map<string, Lesson[]>();
+    for (const lesson of sortedLessons) {
+      const key = lesson.module || 'chapter';
+      if (!moduleMap.has(key)) {
+        moduleMap.set(key, []);
+      }
+      moduleMap.get(key)!.push(lesson);
     }
 
-    return sortedLessons[0] ?? null;
-  }, [gamification?.nextLessonId, sortedLessons, unlockedPendingLessonId]);
+    const groupedLessons = Array.from(moduleMap.values());
+    return Array.from(moduleMap.entries()).map(([module, moduleLessons], index) => {
+      const total = moduleLessons.length;
+      const completed = moduleLessons.filter((lesson) => completedLessons.includes(lesson.id));
+      const completedCount = completed.length;
+      const firstPending = moduleLessons.find((lesson) => !completedLessons.includes(lesson.id)) ?? null;
+      const openLesson = firstPending ?? moduleLessons[0] ?? null;
+      const isCompleted = completedCount === total && total > 0;
+      const previousChapter = index > 0 ? groupedLessons[index - 1] : null;
+      const previousChapterCompleted = previousChapter
+        ? previousChapter.every((lesson) => completedLessons.includes(lesson.id))
+        : true;
+      const isLocked = !isCompleted && !previousChapterCompleted;
+      const firstLesson = moduleLessons[0];
+
+      return {
+        id: `chapter-${module}-${index}`,
+        module,
+        chapterNumber: index + 1,
+        lessons: moduleLessons,
+        total,
+        completedCount,
+        isCompleted,
+        isLocked,
+        openLesson,
+        icon: firstLesson?.icon ?? BookOpen,
+        color: firstLesson?.color ?? '#60A5FA',
+      };
+    });
+  }, [completedLessons, sortedLessons]);
+
+  const activeChapter = useMemo(
+    () => chapterCards.find((chapter) => !chapter.isLocked && !chapter.isCompleted) ?? chapterCards[0] ?? null,
+    [chapterCards],
+  );
+
+  const isLessonLocked = useCallback(
+    (lesson: Lesson) => {
+      const previous = sortedLessons
+        .filter((item) => item.module === lesson.module && item.order < lesson.order)
+        .sort((a, b) => b.order - a.order)[0];
+      if (!previous) {
+        return false;
+      }
+      return !completedLessons.includes(previous.id);
+    },
+    [completedLessons, sortedLessons],
+  );
 
   const nextLessonTitle = useMemo(() => {
     if (!selectedLesson) {
@@ -1283,10 +1404,6 @@ export default function LearnScreen() {
       effectiveRate,
     };
   }, [annualIncomeInput, investmentProfitInput]);
-
-  const handleOpenURL = (url: string) => {
-    Linking.openURL(url).catch((err: any) => console.error("Couldn't load page", err));
-  };
 
   return (
     <View style={styles.container}>
@@ -1362,10 +1479,38 @@ export default function LearnScreen() {
         {activeSection === 'lessons' ? (
           <>
             <View style={styles.learningDashboardCard}>
+              <Text style={styles.chapterHeroKicker}>CHAPTER {activeChapter?.chapterNumber ?? 1}</Text>
+              <Text style={styles.chapterHeroTitle}>{activeChapter?.module ?? 'Financial Literacy Quest'}</Text>
               <View style={styles.learningDashboardRow}>
-                <Text style={styles.dashboardChip}>🔥 {gamification?.streakDays ?? 0} Day Streak</Text>
-                <Text style={styles.dashboardChip}>❄️ {gamification?.streakFreezes ?? 3}/{gamification?.maxStreakFreezes ?? 3}</Text>
-                <Text style={styles.dashboardChip}>XP: {gamification?.xp ?? 0}</Text>
+                <View style={styles.dashboardChip}>
+                  <Animated.View
+                    style={{
+                      transform: [
+                        {
+                          scale: flamePulse.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [1, 1.12],
+                          }),
+                        },
+                      ],
+                      opacity: flamePulse.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.8, 1],
+                      }),
+                    }}
+                  >
+                    <Flame size={12} color="#60A5FA" />
+                  </Animated.View>
+                  <Text style={styles.dashboardChipText}>{gamification?.streakDays ?? 0}</Text>
+                </View>
+                <View style={styles.dashboardChip}>
+                  <Text style={styles.dashboardChipText}>
+                    Freeze {gamification?.streakFreezes ?? 3}/{gamification?.maxStreakFreezes ?? 3}
+                  </Text>
+                </View>
+                <View style={styles.dashboardChip}>
+                  <Text style={styles.dashboardChipText}>XP {gamification?.xp ?? 0}</Text>
+                </View>
               </View>
               <Text style={styles.streakHintText}>{gamification?.streakMessage ?? "Don't forget me today!"}</Text>
               <View style={styles.weekProgressRow}>
@@ -1381,7 +1526,11 @@ export default function LearnScreen() {
                   >
                     <Text style={styles.weekProgressLabel}>{day.label}</Text>
                     <Text style={styles.weekProgressValue}>
-                      {day.status === 'done' ? '✔' : day.status === 'today' ? '⏳' : day.status === 'locked' ? '🔒' : '•'}
+                      {day.status === 'done'
+                        ? '\u{1F525}'
+                        : day.status === 'locked'
+                          ? '\u{1F9CA}'
+                          : '\u{1F614}'}
                     </Text>
                   </View>
                 ))}
@@ -1398,55 +1547,49 @@ export default function LearnScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Progress Card */}
-            <View style={styles.progressCard}>
-              <View style={styles.progressTextContainer}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <Text style={styles.cardTitle}>Your Progress</Text>
-                  <Text style={styles.progressStat}>{completedLessonCards.length}/{sortedLessons.length}</Text>
-                </View>
-                <View style={styles.progressBarBg}>
-                  <View style={[styles.progressBarFill, { width: `${progress}%` }]} />
-                </View>
-                {progress >= 100 && sortedLessons.length > 0 && (
-                  <Text style={styles.levelCompleteText}>Financial Literacy Level 1 Completed</Text>
-                )}
-              </View>
-            </View>
-
-            {sortedLessons.length > 0 && (
+            {chapterCards.length > 0 && (
               <View style={styles.pathCard}>
-                <Text style={styles.pathTitle}>Lesson Path</Text>
-                {sortedLessons.map((lesson, index) => {
-                  const isComplete = completedLessons.includes(lesson.id);
-                  const isPendingUnlocked = unlockedPendingLessonId === lesson.id;
-                  const isLocked = !isComplete && !isPendingUnlocked;
+                <Text style={styles.pathTitle}>Quest Map</Text>
+                {chapterCards.map((chapter, index) => {
+                  const Icon = chapter.icon;
                   return (
                     <TouchableOpacity
-                      key={`path-${lesson.id}`}
-                      style={[styles.pathRow, index % 2 ? styles.pathRowRight : styles.pathRowLeft]}
-                      disabled={isLocked}
-                      onPress={() => !isLocked && toggleLesson(lesson)}
+                      key={chapter.id}
+                      style={[styles.pathNodeRow, index % 2 ? styles.pathRowRight : styles.pathRowLeft]}
+                      disabled={chapter.isLocked}
+                      onPress={() => !chapter.isLocked && setSelectedChapter(chapter)}
                     >
-                      <View
+                      <LinearGradient
+                        colors={
+                          chapter.isCompleted
+                            ? ['#1D4ED8', '#1E40AF']
+                            : chapter.isLocked
+                              ? ['#1F2937', '#111827']
+                              : ['#38BDF8', '#2563EB']
+                        }
                         style={[
                           styles.pathBubble,
-                          isComplete && styles.pathBubbleComplete,
-                          isPendingUnlocked && styles.pathBubbleActive,
-                          isLocked && styles.pathBubbleLocked,
+                          chapter.isCompleted && styles.pathBubbleComplete,
+                          !chapter.isCompleted && !chapter.isLocked && styles.pathBubbleActive,
+                          chapter.isLocked && styles.pathBubbleLocked,
                         ]}
                       >
-                        {isComplete ? <CheckCircle size={14} color="#E2E8F0" /> : isLocked ? <Lock size={14} color="#94A3B8" /> : <Play size={14} color="#DBEAFE" />}
+                        {chapter.isCompleted ? (
+                          <CheckCircle size={22} color="#E2E8F0" />
+                        ) : chapter.isLocked ? (
+                          <Lock size={22} color="#94A3B8" />
+                        ) : (
+                          <Icon size={22} color="#E0F2FE" />
+                        )}
+                      </LinearGradient>
+                      <View style={styles.pathProgressPill}>
+                        <Text style={styles.pathProgressText}>{chapter.completedCount}/{chapter.total}</Text>
                       </View>
-                      <Text style={[styles.pathLessonText, isLocked && styles.pathLessonTextLocked]}>
-                        {lesson.module} {index + 1}: {lesson.title}
-                      </Text>
                     </TouchableOpacity>
                   );
                 })}
               </View>
             )}
-
             {loadingLessons && (
               <View style={{ paddingVertical: 20, alignItems: 'center' }}>
                 <ActivityIndicator color="#5B8DEF" />
@@ -1464,118 +1607,16 @@ export default function LearnScreen() {
               </View>
             )}
 
-            {/* Completed Lessons Section */}
-            {completedLessonCards.length > 0 && sortedLessons.length > 0 && (
-              <>
-                <Text style={styles.sectionTitle}>Completed Lessons</Text>
-                {completedLessonCards
-                  .map((lesson) => {
-                    const Icon = lesson.icon;
-                    return (
-                      <TouchableOpacity
-                        key={lesson.id}
-                        onPress={() => toggleLesson(lesson)}
-                        style={styles.completedLessonCard}
-                      >
-                        <View style={styles.lessonHeader}>
-                          <View style={[styles.iconBox, { backgroundColor: lesson.color + '20' }]}>
-                            <Icon color={lesson.color} size={20} />
-                          </View>
-                          <View style={{ flex: 1, marginLeft: 12 }}>
-                            <View style={styles.titleRow}>
-                              <Text style={styles.lessonTitle}>{lesson.title}</Text>
-                              <CheckCircle size={18} color="#5B8DEF" />
-                            </View>
-                            <Text style={styles.lessonContent} numberOfLines={1}>{lesson.content}</Text>
-                          </View>
-                        </View>
-                      </TouchableOpacity>
-                    );
-                  })}
-              </>
-            )}
-
-            {/* Lessons Section */}
-            <Text style={styles.sectionTitle}>Interactive Lessons</Text>
-            {pendingLessonCards
-              .map((lesson) => {
-                const Icon = lesson.icon;
-                const isLocked = unlockedPendingLessonId !== null && lesson.id !== unlockedPendingLessonId;
-                return (
-                  <View key={lesson.id} style={styles.lessonCard}>
-                    <View style={styles.lessonHeader}>
-                      <View style={[styles.iconBox, { backgroundColor: lesson.color + '20' }]}>
-                        <Icon color={lesson.color} size={20} />
-                      </View>
-                      <View style={{ flex: 1, marginLeft: 12 }}>
-                        <View style={styles.titleRow}>
-                          <Text style={styles.lessonTitle}>{lesson.title}</Text>
-                          <Text style={styles.durationText}>{lesson.duration}</Text>
-                        </View>
-                        <Text style={styles.lessonContent} numberOfLines={2}>{lesson.content}</Text>
-                        <View style={styles.lessonFeatures}>
-                          <View style={styles.featureBadge}>
-                            <Play size={12} color={lesson.color} />
-                            <Text style={[styles.featureText, { color: lesson.color }]}>Video</Text>
-                          </View>
-                          <View style={styles.featureBadge}>
-                            <HelpCircle size={12} color={lesson.color} />
-                            <Text style={[styles.featureText, { color: lesson.color }]}>
-                              Quiz
-                            </Text>
-                          </View>
-                          {isLocked && (
-                            <View style={styles.lockPill}>
-                              <Lock size={12} color="#334155" />
-                              <Text style={styles.lockPillText}>Locked</Text>
-                            </View>
-                          )}
-                        </View>
-                      </View>
-                    </View>
-
-                    <TouchableOpacity
-                      onPress={() => toggleLesson(lesson)}
-                      disabled={isLocked}
-                      style={[styles.buttonIncomplete, isLocked && styles.buttonLocked]}
-                    >
-                      <Text style={styles.buttonTextIncomplete}>
-                        {isLocked ? 'Complete Previous Lesson to Unlock' : 'Start Learning'}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                );
-              })}
-
-            {/* Verified Resources Section */}
-            <Text style={styles.sectionTitle}>Verified Resources</Text>
-            {externalResources.map((resource, index) => (
-              <TouchableOpacity
-                key={index}
-                style={styles.resourceCard}
-                onPress={() => handleOpenURL(resource.url)}
-              >
-                <View style={styles.resourceIconBox}>
-                  <ExternalLink size={18} color="#5B8DEF" />
-                </View>
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={styles.resourceTitle}>{resource.title}</Text>
-                  <Text style={styles.resourceDesc}>{resource.description}</Text>
-                </View>
-                <ChevronRight size={18} color="#CBD5E1" />
-              </TouchableOpacity>
-            ))}
-
-            {/* Study Tip Section */}
-            <View style={styles.tipCard}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                <Info size={16} color="#1E40AF" />
-                <Text style={styles.tipTitle}>Study Tip</Text>
-              </View>
-              <Text style={styles.tipText}>
-                Watch the video first, read the content, then take the quiz to test your knowledge. Complete all lessons to master stock market basics!
+            <TouchableOpacity
+              style={styles.continueButton}
+              onPress={() => continueLesson && toggleLesson(continueLesson)}
+              disabled={!continueLesson}
+            >
+              <Text style={styles.continueButtonText}>
+                Continue Learning {continueLesson ? `- ${continueLesson.title}` : ''}
               </Text>
-            </View>
+              <ChevronRight size={16} color="#DBEAFE" />
+            </TouchableOpacity>
           </>
         ) : (
           <>
@@ -1656,8 +1697,53 @@ export default function LearnScreen() {
           </>
         )}
 
-        <View style={{ height: 50 }} />
+      <View style={{ height: 50 }} />
       </ScrollView>
+
+      {selectedChapter && (
+        <Modal visible={true} animationType="slide" presentationStyle="formSheet">
+          <View style={styles.chapterModalContainer}>
+            <View style={styles.chapterModalHeader}>
+              <TouchableOpacity onPress={() => setSelectedChapter(null)} style={styles.closeButton}>
+                <Text style={styles.closeButtonText}>×</Text>
+              </TouchableOpacity>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.chapterModalKicker}>Chapter {selectedChapter.chapterNumber}</Text>
+                <Text style={styles.chapterModalTitle}>{selectedChapter.module}</Text>
+              </View>
+            </View>
+            <ScrollView style={styles.chapterModalList} showsVerticalScrollIndicator={false}>
+              {selectedChapter.lessons.map((lesson) => {
+                const Icon = lesson.icon;
+                const isDone = completedLessons.includes(lesson.id);
+                const isLocked = isLessonLocked(lesson);
+                return (
+                  <TouchableOpacity
+                    key={lesson.id}
+                    style={[styles.chapterLessonRow, isDone && styles.chapterLessonDone, isLocked && styles.chapterLessonLocked]}
+                    disabled={isLocked}
+                    onPress={() => {
+                      setSelectedChapter(null);
+                      toggleLesson(lesson);
+                    }}
+                  >
+                    <View style={[styles.chapterLessonIcon, { backgroundColor: lesson.color + '22' }]}>
+                      <Icon size={18} color={lesson.color} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.chapterLessonTitle}>{lesson.title}</Text>
+                      <Text style={styles.chapterLessonMeta}>
+                        {isDone ? 'Completed' : isLocked ? 'Locked' : 'Interactive lesson'}
+                      </Text>
+                    </View>
+                    {isDone ? <CheckCircle size={18} color="#60A5FA" /> : isLocked ? <Lock size={18} color="#64748B" /> : <Play size={18} color="#BFDBFE" />}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </Modal>
+      )}
 
       {/* Lesson Detail Modal */}
       {selectedLesson && (
@@ -1864,12 +1950,25 @@ const styles = StyleSheet.create({
   },
 
   learningDashboardCard: {
-    backgroundColor: '#07172C',
+    backgroundColor: '#DCEEFF',
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#1E3A5F',
+    borderColor: '#93C5FD',
     padding: 14,
     marginBottom: 12,
+  },
+  chapterHeroKicker: {
+    color: '#2563EB',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+    marginBottom: 4,
+  },
+  chapterHeroTitle: {
+    color: '#0F2E66',
+    fontSize: 26,
+    fontWeight: '800',
+    marginBottom: 10,
   },
   learningDashboardRow: {
     flexDirection: 'row',
@@ -1878,16 +1977,22 @@ const styles = StyleSheet.create({
   },
   dashboardChip: {
     flex: 1,
-    textAlign: 'center',
-    color: '#DBEAFE',
-    backgroundColor: '#0B264A',
+    backgroundColor: '#BFDBFE',
     borderRadius: 999,
+    paddingHorizontal: 10,
     paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  dashboardChipText: {
+    color: '#1E3A8A',
     fontSize: 12,
     fontWeight: '700',
   },
   streakHintText: {
-    color: '#93C5FD',
+    color: '#1D4ED8',
     fontSize: 12,
     fontWeight: '600',
     marginBottom: 8,
@@ -1988,6 +2093,12 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     gap: 10,
   },
+  pathNodeRow: {
+    width: 90,
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 8,
+  },
   pathRowLeft: {
     alignSelf: 'flex-start',
   },
@@ -1995,8 +2106,8 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
   },
   pathBubble: {
-    width: 30,
-    height: 30,
+    width: 68,
+    height: 68,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: '#1E3A5F',
@@ -2015,6 +2126,19 @@ const styles = StyleSheet.create({
   pathBubbleLocked: {
     backgroundColor: '#111827',
     borderColor: '#334155',
+  },
+  pathProgressPill: {
+    backgroundColor: '#0B264A',
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#1E3A5F',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  pathProgressText: {
+    color: '#BFDBFE',
+    fontSize: 11,
+    fontWeight: '700',
   },
   pathLessonText: {
     color: '#BFDBFE',
@@ -2650,6 +2774,27 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
+  celebrationOverlay: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#3B82F6',
+    backgroundColor: 'rgba(8, 30, 64, 0.95)',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  celebrationText: {
+    color: '#DBEAFE',
+    fontSize: 13,
+    fontWeight: '800',
+  },
   worldCard: {
     borderRadius: 14,
     borderWidth: 1,
@@ -2686,6 +2831,72 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     fontSize: 13,
   },
+  chapterModalContainer: {
+    flex: 1,
+    backgroundColor: '#04152D',
+  },
+  chapterModalHeader: {
+    paddingTop: 52,
+    paddingHorizontal: 16,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1E3A5F',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  chapterModalKicker: {
+    color: '#93C5FD',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  chapterModalTitle: {
+    color: '#E0F2FE',
+    fontSize: 22,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  chapterModalList: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  chapterLessonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#1E3A5F',
+    backgroundColor: '#0A2244',
+    marginBottom: 10,
+  },
+  chapterLessonDone: {
+    borderColor: '#60A5FA',
+    backgroundColor: '#0E315E',
+  },
+  chapterLessonLocked: {
+    opacity: 0.6,
+  },
+  chapterLessonIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chapterLessonTitle: {
+    color: '#E2E8F0',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  chapterLessonMeta: {
+    color: '#93C5FD',
+    fontSize: 12,
+    marginTop: 2,
+  },
   flashcardsWorldContainer: {
     flex: 1,
     paddingHorizontal: 16,
@@ -2698,6 +2909,7 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
 });
+
 
 
 
