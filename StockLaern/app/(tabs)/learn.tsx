@@ -787,6 +787,40 @@ function LessonDetailView({
   };
 
   const inFlashcardsWorld = startedWorld && !showQuiz && !quizCompleted;
+  const inQuizWorld = showQuiz && !quizCompleted;
+
+  if (inQuizWorld) {
+    return (
+      <Modal visible={true} animationType="slide" presentationStyle="fullScreen">
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeaderCompact}>
+            <View style={styles.modalHeaderTop}>
+              <TouchableOpacity onPress={() => setShowQuiz(false)} style={styles.closeButton}>
+                <Text style={styles.closeButtonText}>×</Text>
+              </TouchableOpacity>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitleCompact}>Quiz World</Text>
+              </View>
+            </View>
+          </View>
+          <ScrollView
+            style={styles.modalContent}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.quizWorldContainer}
+          >
+            {lesson.mcqs.length > 0 ? (
+              <MCQQuiz questions={lesson.mcqs} onComplete={handleQuizComplete} />
+            ) : (
+              <View style={styles.noQuizHint}>
+                <Info size={14} color="#1D4ED8" />
+                <Text style={styles.noQuizHintText}>Quiz questions are not added for this lesson yet.</Text>
+              </View>
+            )}
+          </ScrollView>
+        </View>
+      </Modal>
+    );
+  }
 
   if (inFlashcardsWorld) {
     return (
@@ -2658,6 +2692,10 @@ const styles = StyleSheet.create({
     paddingTop: 18,
     paddingBottom: 24,
     justifyContent: 'space-between',
+  },
+  quizWorldContainer: {
+    paddingTop: 18,
+    paddingBottom: 24,
   },
 });
 
