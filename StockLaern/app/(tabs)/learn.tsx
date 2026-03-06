@@ -786,6 +786,56 @@ function LessonDetailView({
     setBonusXpAwarded(0);
   };
 
+  const inFlashcardsWorld = startedWorld && !showQuiz && !quizCompleted;
+
+  if (inFlashcardsWorld) {
+    return (
+      <Modal visible={true} animationType="slide" presentationStyle="fullScreen">
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeaderCompact}>
+            <View style={styles.modalHeaderTop}>
+              <TouchableOpacity onPress={() => setStartedWorld(false)} style={styles.closeButton}>
+                <Text style={styles.closeButtonText}>×</Text>
+              </TouchableOpacity>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitleCompact}>Flashcards World</Text>
+              </View>
+            </View>
+          </View>
+          <View style={styles.flashcardsWorldContainer}>
+            <FlashcardCarousel
+              cards={conceptCards}
+              onCardViewed={async (count) => {
+                if (!accessToken) {
+                  return;
+                }
+
+                try {
+                  const result = await apiFetch<{ gamification?: GamificationSummary }>(
+                    `/progress/flashcard/${lesson.id}`,
+                    {
+                      method: 'POST',
+                      body: JSON.stringify({ count }),
+                    },
+                    accessToken,
+                  );
+                  if (result.gamification) {
+                    onGamificationUpdate?.(result.gamification);
+                  }
+                } catch (error) {
+                  console.warn('Unable to record flashcard view', error);
+                }
+              }}
+            />
+            <TouchableOpacity style={styles.worldActionButton} onPress={handleStartQuiz}>
+              <Text style={styles.worldActionText}>Go To Quiz World</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    );
+  }
+
   return (
     <Modal visible={true} animationType="slide" presentationStyle="formSheet">
       <View style={styles.modalContainer}>
@@ -873,7 +923,7 @@ function LessonDetailView({
             </View>
           )}
 
-          {startedWorld && (
+          {startedWorld && !showQuiz && !quizCompleted && (
             <>
               {/* Content Section */}
               <View style={styles.contentSection}>
@@ -2601,6 +2651,13 @@ const styles = StyleSheet.create({
     color: '#F8FAFC',
     fontWeight: '800',
     fontSize: 13,
+  },
+  flashcardsWorldContainer: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 18,
+    paddingBottom: 24,
+    justifyContent: 'space-between',
   },
 });
 
