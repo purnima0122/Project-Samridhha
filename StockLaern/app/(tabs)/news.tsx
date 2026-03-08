@@ -1,14 +1,24 @@
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import HeaderBar from "../components/HeaderBar";
 import TopRightMenu from "../components/TopRightMenu";
 import { useAuth } from "../context/AuthContext";
+import { apiFetch } from "../lib/api";
+
+type NewsItem = {
+  _id: string;
+  title: string;
+  summary: string;
+  source?: string;
+  publishedAt?: string;
+};
 
 const sampleNews = [
   {
-    title: "NEPSE: Commercial banks lead today’s turnover",
+    title: "NEPSE: Commercial banks lead today's turnover",
     source: "NEPSE Bulletin",
     time: "2 hours ago",
   },
@@ -27,6 +37,49 @@ const sampleNews = [
 export default function NewsScreen() {
   const router = useRouter();
   const { isAuthenticated } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [news, setNews] = useState<NewsItem[]>([]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadNews() {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await apiFetch<NewsItem[]>("/news");
+        if (!active) return;
+        setNews(data || []);
+      } catch (e: any) {
+        if (!active) return;
+        setError(e?.message || "Unable to load live news. Showing sample items.");
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+
+    if (isAuthenticated) {
+      loadNews();
+    } else {
+      setLoading(false);
+    }
+
+    return () => {
+      active = false;
+    };
+  }, [isAuthenticated]);
+
+  const listToRender = useMemo(() => {
+    if (news.length > 0) return news;
+    return sampleNews.map((item, index) => ({
+      _id: `sample-${index}`,
+      title: item.title,
+      summary: item.title,
+      source: item.source,
+      publishedAt: undefined,
+    }));
+  }, [news]);
 
   if (!isAuthenticated) {
     return (
@@ -58,14 +111,26 @@ export default function NewsScreen() {
       </LinearGradient>
 
       <View style={styles.content}>
-        {sampleNews.map((item) => (
-          <View key={item.title} style={styles.newsCard}>
+        {loading && (
+          <View style={styles.loadingBox}>
+            <ActivityIndicator size="small" color="#0B3B78" />
+            <Text style={styles.loadingText}>Loading news...</Text>
+          </View>
+        )}
+
+        {error && <Text style={styles.errorText}>{error}</Text>}
+
+        {listToRender.map((item) => (
+          <View key={item._id} style={styles.newsCard}>
             <View style={styles.newsIcon}>
               <Feather name="file-text" size={18} color="#0B3B78" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.newsTitle}>{item.title}</Text>
-              <Text style={styles.newsMeta}>{item.source} • {item.time}</Text>
+              <Text style={styles.newsMeta}>
+                {item.source || "Unknown source"} | {item.publishedAt ? new Date(item.publishedAt).toLocaleDateString() : "Recently"}
+              </Text>
+              <Text style={styles.newsSummary}>{item.summary}</Text>
             </View>
             <Feather name="chevron-right" size={18} color="#94A3B8" />
           </View>
@@ -92,6 +157,21 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 22, fontWeight: "800", color: "#fff", marginTop: 12 },
   headerSubtitle: { fontSize: 13, color: "#E0E7FF", marginTop: 6 },
   content: { paddingHorizontal: 20, paddingTop: 16, zIndex: 0 },
+  loadingBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+  },
+  loadingText: {
+    fontSize: 13,
+    color: "#334155",
+  },
+  errorText: {
+    fontSize: 12,
+    color: "#B91C1C",
+    marginBottom: 10,
+  },
   newsCard: {
     backgroundColor: "#fff",
     borderRadius: 16,
@@ -113,6 +193,7 @@ const styles = StyleSheet.create({
   },
   newsTitle: { fontSize: 14, fontWeight: "700", color: "#0F172A" },
   newsMeta: { fontSize: 11, color: "#94A3B8", marginTop: 4 },
+  newsSummary: { fontSize: 12, color: "#475569", marginTop: 4 },
   gateTitle: { fontSize: 20, fontWeight: "700", color: "#0F172A", marginTop: 80 },
   gateText: { fontSize: 13, color: "#64748B", marginTop: 8, lineHeight: 18 },
   gateButton: {
@@ -124,4 +205,3 @@ const styles = StyleSheet.create({
   },
   gateButtonText: { color: "#fff", fontWeight: "700" },
 });
-
