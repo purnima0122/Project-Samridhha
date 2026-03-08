@@ -34,8 +34,10 @@ type WardCoverageResponse = {
         from?: string;
         to?: string;
         totalUsers?: number;
+        generatedAt?: string;
     };
     wards: WardStat[];
+    literacyTopics?: LiteracyTopicStat[];
 };
 
 const FALLBACK_WARD_DATA: WardStat[] = [
@@ -76,7 +78,9 @@ export default function RegulatorScreen() {
     const [totalUsers, setTotalUsers] = useState<number | undefined>(undefined);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [literacyStats] = useState<LiteracyTopicStat[]>(FALLBACK_LITERACY_DATA);
+    const [literacyStats, setLiteracyStats] = useState<LiteracyTopicStat[]>(
+        FALLBACK_LITERACY_DATA
+    );
     const [wardChartType, setWardChartType] = useState<"bar" | "pie">("bar");
     const [literacyChartType, setLiteracyChartType] = useState<"bar" | "pie">(
         "bar"
@@ -90,8 +94,6 @@ export default function RegulatorScreen() {
                 setLoading(true);
                 setError(null);
 
-                // NOTE: This expects a backend regulator endpoint like:
-                // GET /regulator/ward-coverage
                 const res = await apiFetch<WardCoverageResponse>("/regulator/ward-coverage");
 
                 if (!isMounted) return;
@@ -102,12 +104,18 @@ export default function RegulatorScreen() {
                     setTotalUsers(
                         FALLBACK_WARD_DATA.reduce((sum, w) => sum + w.userCount, 0)
                     );
+                    setLiteracyStats(FALLBACK_LITERACY_DATA);
                 } else {
                     setWards(res.wards);
                     const total =
                         res.metadata?.totalUsers ??
                         res.wards.reduce((sum, w) => sum + w.userCount, 0);
                     setTotalUsers(total);
+                    if (Array.isArray(res.literacyTopics) && res.literacyTopics.length > 0) {
+                        setLiteracyStats(res.literacyTopics);
+                    } else {
+                        setLiteracyStats(FALLBACK_LITERACY_DATA);
+                    }
                 }
             } catch (e) {
                 if (!isMounted) return;
@@ -117,6 +125,7 @@ export default function RegulatorScreen() {
                 setTotalUsers(
                     FALLBACK_WARD_DATA.reduce((sum, w) => sum + w.userCount, 0)
                 );
+                setLiteracyStats(FALLBACK_LITERACY_DATA);
             } finally {
                 if (isMounted) {
                     setLoading(false);

@@ -10,6 +10,7 @@ import { LessonModule } from './lesson/lesson.module';
 import { ProgressModule } from './progress/progress.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { StockDataModule } from './stock-data/stock-data.module';
+import { RegulatorModule } from './regulator/regulator.module';
 import config from './config/config';
 import googleOauthConfig from './config/google-oauth.config';
 
@@ -45,6 +46,7 @@ import googleOauthConfig from './config/google-oauth.config';
     ProgressModule,
     DashboardModule,
     StockDataModule,
+    RegulatorModule,
   ],
 
   controllers: [AppController],
