@@ -138,6 +138,7 @@ type ChapterNode = {
   id: string;
   module: string;
   chapterNumber: number;
+  cover: string;
   lessons: Lesson[];
   total: number;
   completedCount: number;
@@ -196,6 +197,41 @@ const TAX_BASICS = [
 const DEFAULT_COLOR = '#5B8DEF';
 const DEFAULT_ICON = 'BookOpen';
 const PASSING_SCORE_PERCENT = 70;
+
+const CHAPTER_METADATA: Record<string, { order: number; cover: string }> = {
+  'Money 101': {
+    order: 1,
+    cover: 'What money is, why it exists, and how inflation affects daily life.',
+  },
+  'Banking Basics': {
+    order: 2,
+    cover: 'How banks work, deposits vs fixed deposits, and loan fundamentals.',
+  },
+  'Personal Finance': {
+    order: 3,
+    cover: 'Budgeting, emergency funds, and avoiding common spending traps.',
+  },
+  'Nepal Share Market': {
+    order: 4,
+    cover: 'NEPSE basics, IPO process, and reading key market indicators.',
+  },
+  'Investing Principles': {
+    order: 5,
+    cover: 'Risk, diversification, long-term strategy, and investor discipline.',
+  },
+  'Advanced NEPSE': {
+    order: 6,
+    cover: 'Market cycles, valuation signals, and advanced investing behavior.',
+  },
+};
+
+function getChapterOrder(moduleName: string): number {
+  return CHAPTER_METADATA[moduleName]?.order ?? Number.MAX_SAFE_INTEGER;
+}
+
+function getChapterCover(moduleName: string): string {
+  return CHAPTER_METADATA[moduleName]?.cover ?? 'Core concepts and practice quiz for this chapter.';
+}
 
 function parseNumericInput(value: string): number {
   if (!value) {
@@ -259,7 +295,7 @@ function mapLesson(apiLesson: ApiLesson): Lesson {
     duration: formatDuration(apiLesson.duration),
     content: apiLesson.content,
     videoUrl: apiLesson.videoUrl || '',
-    mcqs: (apiLesson.quiz || []).slice(0, 3).map((question) => ({
+    mcqs: (apiLesson.quiz || []).map((question) => ({
       question: question.prompt,
       options: question.options,
       correctAnswer: question.correctOptionIndex,
@@ -1323,8 +1359,25 @@ export default function LearnScreen() {
       moduleMap.get(key)!.push(lesson);
     }
 
-    const groupedLessons = Array.from(moduleMap.values());
-    return Array.from(moduleMap.entries()).map(([module, moduleLessons], index) => {
+    const sortedEntries = Array.from(moduleMap.entries()).sort(([moduleA, lessonsA], [moduleB, lessonsB]) => {
+      const orderA = getChapterOrder(moduleA);
+      const orderB = getChapterOrder(moduleB);
+
+      if (orderA !== orderB) {
+        return orderA - orderB;
+      }
+
+      const firstOrderA = Math.min(...lessonsA.map((lesson) => lesson.order));
+      const firstOrderB = Math.min(...lessonsB.map((lesson) => lesson.order));
+      if (firstOrderA !== firstOrderB) {
+        return firstOrderA - firstOrderB;
+      }
+
+      return moduleA.localeCompare(moduleB);
+    });
+
+    const groupedLessons = sortedEntries.map(([, moduleLessons]) => moduleLessons);
+    return sortedEntries.map(([module, moduleLessons], index) => {
       const total = moduleLessons.length;
       const completed = moduleLessons.filter((lesson) => completedLessons.includes(lesson.id));
       const completedCount = completed.length;
@@ -1342,6 +1395,7 @@ export default function LearnScreen() {
         id: `chapter-${module}-${index}`,
         module,
         chapterNumber: index + 1,
+        cover: getChapterCover(module),
         lessons: moduleLessons,
         total,
         completedCount,
@@ -1481,6 +1535,7 @@ export default function LearnScreen() {
             <View style={styles.learningDashboardCard}>
               <Text style={styles.chapterHeroKicker}>CHAPTER {activeChapter?.chapterNumber ?? 1}</Text>
               <Text style={styles.chapterHeroTitle}>{activeChapter?.module ?? 'Financial Literacy Quest'}</Text>
+              <Text style={styles.chapterHeroCover}>{activeChapter?.cover ?? 'Build confidence one lesson at a time.'}</Text>
               <View style={styles.learningDashboardRow}>
                 <View style={styles.dashboardChip}>
                   <Animated.View
@@ -1710,6 +1765,7 @@ export default function LearnScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.chapterModalKicker}>Chapter {selectedChapter.chapterNumber}</Text>
                 <Text style={styles.chapterModalTitle}>{selectedChapter.module}</Text>
+                <Text style={styles.chapterModalCover}>Covers: {selectedChapter.cover}</Text>
               </View>
             </View>
             <ScrollView style={styles.chapterModalList} showsVerticalScrollIndicator={false}>
@@ -1968,7 +2024,14 @@ const styles = StyleSheet.create({
     color: '#0F2E66',
     fontSize: 26,
     fontWeight: '800',
+    marginBottom: 6,
+  },
+  chapterHeroCover: {
+    color: '#1E3A8A',
+    fontSize: 13,
+    lineHeight: 18,
     marginBottom: 10,
+    fontWeight: '600',
   },
   learningDashboardRow: {
     flexDirection: 'row',
@@ -2856,6 +2919,13 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '800',
     marginTop: 2,
+  },
+  chapterModalCover: {
+    marginTop: 4,
+    color: '#BFDBFE',
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '600',
   },
   chapterModalList: {
     flex: 1,
