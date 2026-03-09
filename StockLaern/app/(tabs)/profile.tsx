@@ -1,6 +1,8 @@
 import { Feather } from "@expo/vector-icons";
 import { Link, useRouter } from "expo-router";
+import { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,13 +12,49 @@ import {
 import HeaderBar from "../components/HeaderBar";
 import TopRightMenu from "../components/TopRightMenu";
 import { useAuth } from "../context/AuthContext";
+import { apiFetch } from "../lib/api";
+
+type WeeklyProgressDay = {
+  label: string;
+  date: string;
+  completed: boolean;
+  status: "done" | "today" | "missed" | "locked";
+};
+
+type GamificationSummary = {
+  streakDays: number;
+  streakFreezes: number;
+  maxStreakFreezes: number;
+  xp: number;
+  level: number;
+  weeklyProgress: WeeklyProgressDay[];
+};
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { isAuthenticated, userName, email } = useAuth();
+  const { isAuthenticated, userName, email, accessToken } = useAuth();
   const inUserMode = isAuthenticated;
   const activeEmail = email;
   const activeUserName = userName || email?.split("@")[0] || "StockLearn User";
+  const [gamification, setGamification] = useState<GamificationSummary | null>(null);
+  const [loadingStreak, setLoadingStreak] = useState(false);
+
+  useEffect(() => {
+    const loadGamification = async () => {
+      if (!accessToken) return;
+      try {
+        setLoadingStreak(true);
+        const data = await apiFetch<GamificationSummary>("/progress/gamification", {}, accessToken);
+        setGamification(data);
+      } catch (error) {
+        console.warn("Unable to load streak data", error);
+      } finally {
+        setLoadingStreak(false);
+      }
+    };
+
+    loadGamification();
+  }, [accessToken]);
 
   if (inUserMode) {
     return (
@@ -33,6 +71,37 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.formCard}>
+          <View style={styles.streakCard}>
+            <Text style={styles.streakTitle}>Streak</Text>
+            {loadingStreak ? (
+              <View style={styles.streakLoading}>
+                <ActivityIndicator color="#60A5FA" />
+                <Text style={styles.streakHint}>Loading streak...</Text>
+              </View>
+            ) : (
+              <>
+                <Text style={styles.streakCount}>🔥 {gamification?.streakDays ?? 0} day streak</Text>
+                <Text style={styles.streakFreeze}>❄️ {gamification?.streakFreezes ?? 3}/{gamification?.maxStreakFreezes ?? 3} freezes</Text>
+                <View style={styles.weekRow}>
+                  {(gamification?.weeklyProgress ?? []).map((day) => (
+                    <View
+                      key={day.date}
+                      style={[
+                        styles.weekDot,
+                        day.status === "done" && styles.weekDotDone,
+                        day.status === "today" && styles.weekDotToday,
+                        day.status === "locked" && styles.weekDotLocked,
+                      ]}
+                    >
+                      <Text style={styles.weekLabel}>{day.label}</Text>
+                    </View>
+                  ))}
+                </View>
+                <Text style={styles.streakHint}>Keep your streak alive by finishing a lesson today.</Text>
+              </>
+            )}
+          </View>
+
           <Text style={styles.sectionTitle}>Account Overview</Text>
           <View style={styles.infoRow}>
             <Feather name="mail" size={16} color="#0B3B78" />
@@ -179,6 +248,33 @@ const styles = StyleSheet.create({
     elevation: 4,
     zIndex: 1,
   },
+  streakCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#1E3A5F",
+    backgroundColor: "#07172C",
+    padding: 14,
+    marginBottom: 14,
+  },
+  streakTitle: { color: "#E2E8F0", fontSize: 16, fontWeight: "800", marginBottom: 6 },
+  streakCount: { color: "#F8FAFC", fontSize: 20, fontWeight: "800" },
+  streakFreeze: { color: "#BFDBFE", fontSize: 13, fontWeight: "700", marginTop: 4 },
+  streakHint: { color: "#93C5FD", fontSize: 12, fontWeight: "600", marginTop: 8 },
+  streakLoading: { flexDirection: "row", alignItems: "center", gap: 8 },
+  weekRow: { flexDirection: "row", gap: 6, marginTop: 10 },
+  weekDot: {
+    flex: 1,
+    borderRadius: 8,
+    paddingVertical: 6,
+    alignItems: "center",
+    backgroundColor: "#0B264A",
+    borderWidth: 1,
+    borderColor: "#1E3A5F",
+  },
+  weekDotDone: { backgroundColor: "#14532D", borderColor: "#22C55E" },
+  weekDotToday: { backgroundColor: "#1D4ED8", borderColor: "#93C5FD" },
+  weekDotLocked: { backgroundColor: "#111827", borderColor: "#334155" },
+  weekLabel: { color: "#E2E8F0", fontSize: 10, fontWeight: "700" },
   sectionTitle: { fontSize: 14, fontWeight: "700", color: "#1E293B", marginBottom: 12 },
   infoRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 },
   infoText: { fontSize: 13, color: "#475569", fontWeight: "600" },

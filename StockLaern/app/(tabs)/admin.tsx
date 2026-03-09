@@ -25,6 +25,14 @@ type Lesson = {
   color?: string;
   icon?: string;
   isPublished?: boolean;
+  quiz?: QuizQuestion[];
+};
+
+type QuizQuestion = {
+  prompt: string;
+  options: string[];
+  correctOptionIndex: number;
+  explanation?: string;
 };
 
 type AlertItem = {
@@ -45,7 +53,19 @@ type WatchlistItem = {
   isPositive?: boolean;
 };
 
-type AdminPanel = "learning" | "alerts" | "watchlist";
+type NewsItem = {
+  _id: string;
+  title: string;
+  summary: string;
+  source?: string;
+  url?: string;
+  category?: string;
+  imageUrl?: string;
+  isPublished?: boolean;
+  publishedAt?: string;
+};
+
+type AdminPanel = "learning" | "alerts" | "watchlist" | "news";
 
 export default function AdminScreen() {
   const router = useRouter();
@@ -58,6 +78,7 @@ export default function AdminScreen() {
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
+  const [news, setNews] = useState<NewsItem[]>([]);
 
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
   const [lessonSearch, setLessonSearch] = useState("");
@@ -75,6 +96,7 @@ export default function AdminScreen() {
   const [quizOptions, setQuizOptions] = useState("");
   const [quizCorrectIndex, setQuizCorrectIndex] = useState("0");
   const [quizExplanation, setQuizExplanation] = useState("");
+  const [quizEditIndex, setQuizEditIndex] = useState<number | null>(null);
 
   const [alertSymbol, setAlertSymbol] = useState("");
   const [alertType, setAlertType] = useState("greater than");
@@ -85,6 +107,17 @@ export default function AdminScreen() {
   const [watchPrice, setWatchPrice] = useState("");
   const [watchChange, setWatchChange] = useState("");
   const [watchAlertType, setWatchAlertType] = useState("");
+
+  const [selectedNewsId, setSelectedNewsId] = useState<string | null>(null);
+  const [newsSearch, setNewsSearch] = useState("");
+  const [newsTitle, setNewsTitle] = useState("");
+  const [newsSummary, setNewsSummary] = useState("");
+  const [newsSource, setNewsSource] = useState("");
+  const [newsUrl, setNewsUrl] = useState("");
+  const [newsCategory, setNewsCategory] = useState("");
+  const [newsImageUrl, setNewsImageUrl] = useState("");
+  const [newsPublished, setNewsPublished] = useState(true);
+  const [newsPublishedAt, setNewsPublishedAt] = useState("");
 
   const selectedLesson = useMemo(
     () => lessons.find((lesson) => lesson._id === selectedLessonId) || null,
@@ -104,19 +137,43 @@ export default function AdminScreen() {
     });
   }, [lessonSearch, lessons]);
 
+  const selectedNews = useMemo(
+    () => news.find((item) => item._id === selectedNewsId) || null,
+    [news, selectedNewsId],
+  );
+
+  const filteredNews = useMemo(() => {
+    const query = newsSearch.trim().toLowerCase();
+    if (!query) return news;
+    return news.filter((item) => {
+      const title = item.title?.toLowerCase() || "";
+      const summary = item.summary?.toLowerCase() || "";
+      const source = item.source?.toLowerCase() || "";
+      const category = item.category?.toLowerCase() || "";
+      return (
+        title.includes(query) ||
+        summary.includes(query) ||
+        source.includes(query) ||
+        category.includes(query)
+      );
+    });
+  }, [news, newsSearch]);
+
   const loadAll = useCallback(async () => {
     if (!accessToken) return;
     try {
       setLoading(true);
       setError(null);
-      const [lessonData, alertData, watchData] = await Promise.all([
+      const [lessonData, alertData, watchData, newsData] = await Promise.all([
         apiFetch<Lesson[]>("/lessons/admin/all", {}, accessToken),
         apiFetch<AlertItem[]>("/alerts", {}, accessToken),
         apiFetch<WatchlistItem[]>("/watchlist", {}, accessToken),
+        apiFetch<NewsItem[]>("/news/admin/all", {}, accessToken),
       ]);
       setLessons(lessonData || []);
       setAlerts(alertData || []);
       setWatchlist(watchData || []);
+      setNews(newsData || []);
       setAccessState("allowed");
     } catch (err: any) {
       if (err?.status === 403) {
@@ -153,6 +210,22 @@ export default function AdminScreen() {
     setLessonPublished(Boolean(selectedLesson.isPublished));
   }, [selectedLesson]);
 
+  useEffect(() => {
+    if (!selectedNews) return;
+    setNewsTitle(selectedNews.title || "");
+    setNewsSummary(selectedNews.summary || "");
+    setNewsSource(selectedNews.source || "");
+    setNewsUrl(selectedNews.url || "");
+    setNewsCategory(selectedNews.category || "");
+    setNewsImageUrl(selectedNews.imageUrl || "");
+    setNewsPublished(Boolean(selectedNews.isPublished));
+    setNewsPublishedAt(
+      selectedNews.publishedAt
+        ? new Date(selectedNews.publishedAt).toISOString().slice(0, 16)
+        : "",
+    );
+  }, [selectedNews]);
+
   const resetLessonForm = () => {
     setSelectedLessonId(null);
     setLessonTitle("");
@@ -164,6 +237,26 @@ export default function AdminScreen() {
     setLessonColor("#10B981");
     setLessonIcon("BookOpen");
     setLessonPublished(true);
+  };
+
+  const resetQuizForm = () => {
+    setQuizPrompt("");
+    setQuizOptions("");
+    setQuizCorrectIndex("0");
+    setQuizExplanation("");
+    setQuizEditIndex(null);
+  };
+
+  const resetNewsForm = () => {
+    setSelectedNewsId(null);
+    setNewsTitle("");
+    setNewsSummary("");
+    setNewsSource("");
+    setNewsUrl("");
+    setNewsCategory("");
+    setNewsImageUrl("");
+    setNewsPublished(true);
+    setNewsPublishedAt("");
   };
 
   const handleLessonSave = async () => {
@@ -240,7 +333,7 @@ export default function AdminScreen() {
     }
   };
 
-  const handleQuizAdd = async () => {
+  const handleQuizSave = async () => {
     if (!accessToken || !selectedLessonId) return;
     if (!quizPrompt.trim()) {
       setError("Quiz prompt is required.");
@@ -261,26 +354,120 @@ export default function AdminScreen() {
     }
     try {
       setError(null);
-      await apiFetch(
-        `/lessons/${selectedLessonId}/quiz`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            prompt: quizPrompt,
-            options,
-            correctOptionIndex: correctIndex,
-            explanation: quizExplanation || undefined,
-          }),
-        },
-        accessToken,
-      );
-      setQuizPrompt("");
-      setQuizOptions("");
-      setQuizCorrectIndex("0");
-      setQuizExplanation("");
+      const payload = {
+        prompt: quizPrompt,
+        options,
+        correctOptionIndex: correctIndex,
+        explanation: quizExplanation || undefined,
+      };
+      if (quizEditIndex === null) {
+        await apiFetch(
+          `/lessons/${selectedLessonId}/quiz`,
+          {
+            method: "POST",
+            body: JSON.stringify(payload),
+          },
+          accessToken,
+        );
+      } else {
+        await apiFetch(
+          `/lessons/${selectedLessonId}/quiz/${quizEditIndex}`,
+          {
+            method: "PATCH",
+            body: JSON.stringify(payload),
+          },
+          accessToken,
+        );
+      }
+      resetQuizForm();
       await loadAll();
     } catch (err: any) {
-      setError(err?.message || "Unable to add quiz question.");
+      setError(err?.message || "Unable to save quiz question.");
+    }
+  };
+
+  const handleQuizEdit = (question: QuizQuestion, index: number) => {
+    setQuizPrompt(question.prompt || "");
+    setQuizOptions((question.options || []).join(", "));
+    setQuizCorrectIndex(String(question.correctOptionIndex ?? 0));
+    setQuizExplanation(question.explanation || "");
+    setQuizEditIndex(index);
+  };
+
+  const handleQuizDelete = async (index: number) => {
+    if (!accessToken || !selectedLessonId) return;
+    try {
+      setError(null);
+      await apiFetch(
+        `/lessons/${selectedLessonId}/quiz/${index}`,
+        { method: "DELETE" },
+        accessToken,
+      );
+      resetQuizForm();
+      await loadAll();
+    } catch (err: any) {
+      setError(err?.message || "Unable to delete quiz question.");
+    }
+  };
+
+  const handleNewsSave = async () => {
+    if (!accessToken) return;
+    if (!newsTitle.trim() || !newsSummary.trim()) {
+      setError("News title and summary are required.");
+      return;
+    }
+    let publishedDate: string | undefined;
+    if (newsPublishedAt?.trim()) {
+      const parsed = new Date(newsPublishedAt);
+      if (Number.isNaN(parsed.getTime())) {
+        setError("Published date format is invalid. Use YYYY-MM-DDTHH:mm.");
+        return;
+      }
+      publishedDate = parsed.toISOString();
+    }
+    const payload = {
+      title: newsTitle.trim(),
+      summary: newsSummary.trim(),
+      source: newsSource.trim(),
+      url: newsUrl.trim(),
+      category: newsCategory.trim(),
+      imageUrl: newsImageUrl.trim(),
+      isPublished: newsPublished,
+      publishedAt: publishedDate,
+    };
+    try {
+      setError(null);
+      if (selectedNewsId) {
+        await apiFetch(
+          `/news/${selectedNewsId}`,
+          { method: "PATCH", body: JSON.stringify(payload) },
+          accessToken,
+        );
+      } else {
+        await apiFetch(
+          "/news",
+          { method: "POST", body: JSON.stringify(payload) },
+          accessToken,
+        );
+      }
+      resetNewsForm();
+      await loadAll();
+    } catch (err: any) {
+      setError(err?.message || "Unable to save news item.");
+    }
+  };
+
+  const handleNewsDelete = async (id: string) => {
+    if (!accessToken) return;
+    try {
+      setError(null);
+      await apiFetch(`/news/${id}`, { method: "DELETE" }, accessToken);
+      if (selectedNewsId === id) {
+        resetNewsForm();
+      }
+      await loadAll();
+    } catch (err: any) {
+      setError(err?.message || "Unable to delete news item.");
     }
   };
 
@@ -401,7 +588,7 @@ export default function AdminScreen() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.heroTitle}>Admin Portal</Text>
-          <Text style={styles.heroSubtitle}>Manage learning content, alerts, and watchlist entries</Text>
+          <Text style={styles.heroSubtitle}>Manage lessons, quizzes, alerts, watchlist, and news</Text>
         </View>
         <TouchableOpacity onPress={loadAll} style={styles.refreshBtn}>
           <Feather name="refresh-cw" size={16} color="#0F172A" />
@@ -420,6 +607,10 @@ export default function AdminScreen() {
         <View style={styles.statCard}>
           <Text style={styles.statValue}>{watchlist.length}</Text>
           <Text style={styles.statLabel}>Watchlist</Text>
+        </View>
+        <View style={styles.statCard}>
+          <Text style={styles.statValue}>{news.length}</Text>
+          <Text style={styles.statLabel}>News</Text>
         </View>
       </View>
 
@@ -441,6 +632,12 @@ export default function AdminScreen() {
           icon="list"
           active={activePanel === "watchlist"}
           onPress={() => setActivePanel("watchlist")}
+        />
+        <PanelTab
+          label="News"
+          icon="file-text"
+          active={activePanel === "news"}
+          onPress={() => setActivePanel("news")}
         />
       </View>
 
@@ -505,7 +702,9 @@ export default function AdminScreen() {
           </View>
 
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Add Quiz Question</Text>
+            <Text style={styles.cardTitle}>
+              {quizEditIndex === null ? "Add Quiz Question" : "Edit Quiz Question"}
+            </Text>
             <Text style={styles.label}>Select Lesson</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
               {lessons.map((lesson) => (
@@ -526,9 +725,44 @@ export default function AdminScreen() {
             <TextInput value={quizCorrectIndex} onChangeText={setQuizCorrectIndex} style={styles.input} keyboardType="numeric" />
             <Text style={styles.label}>Explanation</Text>
             <TextInput value={quizExplanation} onChangeText={setQuizExplanation} style={styles.input} />
-            <TouchableOpacity style={styles.primaryButton} onPress={handleQuizAdd}>
-              <Text style={styles.primaryButtonText}>Add Quiz Question</Text>
-            </TouchableOpacity>
+            <View style={styles.row}>
+              <TouchableOpacity style={styles.primaryButton} onPress={handleQuizSave}>
+                <Text style={styles.primaryButtonText}>
+                  {quizEditIndex === null ? "Add Quiz Question" : "Update Quiz Question"}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.secondaryButton} onPress={resetQuizForm}>
+                <Text style={styles.secondaryButtonText}>Clear</Text>
+              </TouchableOpacity>
+            </View>
+
+            {selectedLesson?.quiz && selectedLesson.quiz.length > 0 && (
+              <View>
+                <Text style={styles.label}>Existing Questions</Text>
+                {selectedLesson.quiz.map((question, index) => (
+                  <View key={`${selectedLesson._id}-quiz-${index}`} style={styles.listRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.listTitle}>Q{index + 1}. {question.prompt}</Text>
+                      <Text style={styles.listMeta}>
+                        Correct: Option {question.correctOptionIndex}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => handleQuizEdit(question, index)}
+                      style={styles.listButton}
+                    >
+                      <Text style={styles.listButtonText}>Edit</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleQuizDelete(index)}
+                      style={styles.dangerButton}
+                    >
+                      <Text style={styles.dangerButtonText}>Delete</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
           </View>
 
           <View style={styles.card}>
@@ -630,6 +864,94 @@ export default function AdminScreen() {
           </View>
         </View>
       )}
+
+      {activePanel === "news" && (
+        <View style={styles.section}>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>{selectedNewsId ? "Edit News" : "Create News"}</Text>
+            <Text style={styles.label}>Title</Text>
+            <TextInput value={newsTitle} onChangeText={setNewsTitle} style={styles.input} />
+            <Text style={styles.label}>Summary</Text>
+            <TextInput
+              value={newsSummary}
+              onChangeText={setNewsSummary}
+              style={[styles.input, styles.multiline]}
+              multiline
+            />
+            <View style={styles.row}>
+              <View style={styles.rowItem}>
+                <Text style={styles.label}>Source</Text>
+                <TextInput value={newsSource} onChangeText={setNewsSource} style={styles.input} />
+              </View>
+              <View style={styles.rowItem}>
+                <Text style={styles.label}>Category</Text>
+                <TextInput value={newsCategory} onChangeText={setNewsCategory} style={styles.input} />
+              </View>
+            </View>
+            <Text style={styles.label}>URL</Text>
+            <TextInput
+              value={newsUrl}
+              onChangeText={setNewsUrl}
+              style={styles.input}
+              placeholder="https://..."
+            />
+            <Text style={styles.label}>Image URL</Text>
+            <TextInput
+              value={newsImageUrl}
+              onChangeText={setNewsImageUrl}
+              style={styles.input}
+              placeholder="https://..."
+            />
+            <Text style={styles.label}>Published At (optional: YYYY-MM-DDTHH:mm)</Text>
+            <TextInput
+              value={newsPublishedAt}
+              onChangeText={setNewsPublishedAt}
+              style={styles.input}
+              placeholder="2026-03-08T16:30"
+            />
+            <View style={styles.toggleRow}>
+              <Text style={styles.label}>Published</Text>
+              <Switch value={newsPublished} onValueChange={setNewsPublished} trackColor={{ true: "#86EFAC", false: "#CBD5E1" }} />
+            </View>
+            <View style={styles.row}>
+              <TouchableOpacity style={styles.primaryButton} onPress={handleNewsSave}>
+                <Text style={styles.primaryButtonText}>
+                  {selectedNewsId ? "Update News" : "Create News"}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.secondaryButton} onPress={resetNewsForm}>
+                <Text style={styles.secondaryButtonText}>Clear</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Existing News</Text>
+            <TextInput
+              value={newsSearch}
+              onChangeText={setNewsSearch}
+              style={styles.input}
+              placeholder="Search by title, summary, source, or category"
+            />
+            {filteredNews.map((item) => (
+              <View key={item._id} style={styles.listRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.listTitle}>{item.title}</Text>
+                  <Text style={styles.listMeta}>
+                    {(item.source || "Unknown source")} | {item.category || "General"} | {item.isPublished ? "Published" : "Draft"}
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => setSelectedNewsId(item._id)} style={styles.listButton}>
+                  <Text style={styles.listButtonText}>Edit</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => handleNewsDelete(item._id)} style={styles.dangerButton}>
+                  <Text style={styles.dangerButtonText}>Delete</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -700,12 +1022,13 @@ const styles = StyleSheet.create({
   },
   statsRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 10,
     paddingHorizontal: 16,
     marginBottom: 12,
   },
   statCard: {
-    flex: 1,
+    width: "48%",
     backgroundColor: "#0F172A",
     borderRadius: 14,
     paddingVertical: 10,

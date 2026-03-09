@@ -42,6 +42,12 @@ export class ProgressController {
     return this.progressService.getUserProgress(req.userId);
   }
 
+  @UseGuards(AuthGuard)
+  @Get('gamification')
+  getGamification(@Req() req) {
+    return this.progressService.getGamificationSummary(req.userId);
+  }
+
   // Summary for progress bars
   @UseGuards(AuthGuard)
   @Get('summary')
@@ -67,6 +73,20 @@ export class ProgressController {
       req.userId,
       lessonId,
       answers,
+    );
+  }
+
+  @UseGuards(AuthGuard)
+  @Post('flashcard/:lessonId')
+  submitFlashcardView(
+    @Req() req,
+    @Param('lessonId') lessonId: string,
+    @Body('count') count?: number,
+  ) {
+    return this.progressService.recordFlashcardView(
+      req.userId,
+      lessonId,
+      count,
     );
   }
 }
