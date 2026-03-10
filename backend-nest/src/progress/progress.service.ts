@@ -15,6 +15,7 @@ const PASSING_SCORE_PERCENT = 70;
 const LEVEL_XP_STEP = 120;
 const QUIZ_BONUS_XP = 15;
 const MAX_ACTIVITY_DAYS = 35;
+const DEFAULT_MAX_HEARTS = 5;
 
 @Injectable()
 export class ProgressService {
@@ -75,6 +76,25 @@ export class ProgressService {
         status: completed ? 'done' : date > now ? 'locked' : isToday ? 'today' : 'missed',
       };
     });
+  }
+
+  private ensureHeartsFresh(user: User, now: Date) {
+    const maxHearts = user.maxHearts ?? DEFAULT_MAX_HEARTS;
+    const currentHearts = user.hearts ?? maxHearts;
+    const lastRefill = user.lastHeartsRefillAt;
+
+    if (!lastRefill || this.diffInDays(lastRefill, now) >= 1) {
+      user.hearts = maxHearts;
+      user.lastHeartsRefillAt = now;
+      return true;
+    }
+
+    if (currentHearts !== user.hearts) {
+      user.hearts = currentHearts;
+      return true;
+    }
+
+    return false;
   }
 
   private applyFreezeRefillMilestones(user: User, newBadges: string[]) {
@@ -180,6 +200,7 @@ export class ProgressService {
     const xp = user.xp ?? 0;
     const progressInLevel = xp % LEVEL_XP_STEP;
     const now = new Date();
+    this.ensureHeartsFresh(user, now);
     return {
       xp,
       level: this.getLevel(xp),
@@ -187,6 +208,8 @@ export class ProgressService {
       streakFreezes: user.streakFreezes ?? 3,
       maxStreakFreezes: user.maxStreakFreezes ?? 3,
       badges: user.badges ?? [],
+      hearts: user.hearts ?? DEFAULT_MAX_HEARTS,
+      maxHearts: user.maxHearts ?? DEFAULT_MAX_HEARTS,
       lessonsCompletedCount: user.lessonsCompletedCount ?? 0,
       correctQuizAnswers: user.correctQuizAnswers ?? 0,
       xpToNextLevel: LEVEL_XP_STEP - progressInLevel,
@@ -291,6 +314,7 @@ export class ProgressService {
       throw new NotFoundException('User not found');
     }
 
+    this.ensureHeartsFresh(user, now);
     let xpAwarded = 0;
     const newBadges: string[] = [];
 
@@ -400,6 +424,7 @@ export class ProgressService {
       throw new NotFoundException('User not found');
     }
 
+    this.ensureHeartsFresh(user, now);
     const streakMeta = this.updateStreak(user, now);
 
     if (xpAwarded > 0) {
@@ -484,6 +509,12 @@ export class ProgressService {
 
     if (!user) {
       throw new NotFoundException('User not found');
+    }
+
+    const now = new Date();
+    const heartsUpdated = this.ensureHeartsFresh(user, now);
+    if (heartsUpdated) {
+      await user.save();
     }
 
     const lessons = await this.lessonModel
@@ -640,6 +671,7 @@ export class ProgressService {
       throw new NotFoundException('User not found');
     }
 
+    this.ensureHeartsFresh(user, now);
     const streakMeta = this.updateStreak(user, now);
 
     const previousBestCorrectAnswers = existing?.bestCorrectAnswers ?? 0;
@@ -651,6 +683,8 @@ export class ProgressService {
 
     user.xp = (user.xp ?? 0) + xpAwarded;
     user.correctQuizAnswers = (user.correctQuizAnswers ?? 0) + correctAnswers;
+    const wrongAnswers = Math.max(0, quiz.length - correctAnswers);
+    user.hearts = Math.max(0, (user.hearts ?? DEFAULT_MAX_HEARTS) - wrongAnswers);
 
     const newBadges: string[] = [];
     this.applyMilestoneBadges(user, newBadges);

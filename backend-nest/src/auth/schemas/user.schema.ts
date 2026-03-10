@@ -44,6 +44,15 @@ isAdmin: boolean;
 @Prop({ default: 0 })
 xp: number;
 
+@Prop({ default: 5 })
+hearts: number;
+
+@Prop({ default: 5 })
+maxHearts: number;
+
+@Prop()
+lastHeartsRefillAt?: Date;
+
 @Prop({ default: 0 })
 streakDays: number;
 
