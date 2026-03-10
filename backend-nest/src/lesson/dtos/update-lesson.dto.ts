@@ -3,6 +3,9 @@ import {
   IsArray,
   IsBoolean,
   IsInt,
+  IsIn,
+  IsMongoId,
+  IsNumber,
   IsOptional,
   IsString,
   Min,
@@ -26,6 +29,29 @@ class UpdateQuizQuestionDto {
   explanation?: string;
 }
 
+class UpdateFlashcardDto {
+  @IsString()
+  prompt: string;
+
+  @IsString()
+  answer: string;
+
+  @IsOptional()
+  @IsString()
+  tag?: string;
+}
+
+class UpdateVaultFactDto {
+  @IsString()
+  icon: string;
+
+  @IsString()
+  title: string;
+
+  @IsString()
+  body: string;
+}
+
 export class UpdateLessonDto {
   @IsOptional()
   @IsString()
@@ -36,8 +62,16 @@ export class UpdateLessonDto {
   module?: string;
 
   @IsOptional()
+  @IsMongoId()
+  moduleId?: string;
+
+  @IsOptional()
   @IsString()
   content?: string;
+
+  @IsOptional()
+  @IsIn(['lesson', 'vault'])
+  type?: 'lesson' | 'vault';
 
   @IsOptional()
   @Type(() => Number)
@@ -68,8 +102,30 @@ export class UpdateLessonDto {
   icon?: string;
 
   @IsOptional()
+  @IsString()
+  emoji?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  xp?: number;
+
+  @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => UpdateQuizQuestionDto)
   quiz?: UpdateQuizQuestionDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => UpdateFlashcardDto)
+  flashcards?: UpdateFlashcardDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => UpdateVaultFactDto)
+  facts?: UpdateVaultFactDto[];
 }
