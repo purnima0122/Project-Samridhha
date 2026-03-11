@@ -17,5 +17,6 @@ import { AuthGuard } from 'src/guards/auth.guard';
   ],
   providers: [ProgressService, AuthGuard],
   controllers: [ProgressController],
+  exports: [ProgressService],
 })
 export class ProgressModule {}
