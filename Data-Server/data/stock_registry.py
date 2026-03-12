@@ -97,11 +97,30 @@ def get_tracked_symbols() -> List[str]:
     These are the stocks actively simulated and monitored by default.
     Users can subscribe to additional stocks as needed.
     """
-    # Default tracked stocks as mentioned in the report
+    # Default tracked stocks
     default_stocks = [
-        "NABIL", "NLIC", "SCB", "UPPER", "HDL", "NHPC",
-        # Additional popular stocks
-        "SBI", "EBL", "HIDCL", "NTC", "CHCL", "SHPC",
+        # Commercial Banks
+        "NABIL", "SCB", "SBI", "EBL", "NMB", "SBL", "KBL", "MBL", "HBL", "CZBIL",
+        # Hydropower
+        "NHPC", "CHCL", "SHPC", "UPPER", "BPCL", "AHPC", "BARUN", "SJCL",
+        # Life Insurance
+        "NLIC", "NLICL", "LICN", "ALICL",
+        # Non-Life Insurance
+        "NICL", "NIL", "SICL",
+        # Development Banks
+        "MDB", "GBBL", "JBBL",
+        # Finance
+        "BFC", "GFCL",
+        # Manufacturing & Processing
+        "HDL", "BNL", "UNL",
+        # Investment
+        "HIDCL", "CHDC",
+        # Hotel & Tourism
+        "SHL", "TRH",
+        # Others
+        "NTC", "NRM",
+        # Microfinance
+        "NUBL",
     ]
     available = set(get_all_symbols())
     return [s for s in default_stocks if s in available]
