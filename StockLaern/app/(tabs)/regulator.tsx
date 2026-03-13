@@ -183,17 +183,19 @@ export default function RegulatorScreen() {
             showsVerticalScrollIndicator={false}
         >
             <LinearGradient
-                colors={["#111827", "#020617"]}
+                colors={["#0A2D5C", "#0B3B78"]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.headerGradient}
             >
-                <HeaderBar
-                    tint="dark"
-                    rightSlot={
-                        <Feather name="shield" size={20} color="#E5E7EB" />
-                    }
-                />
+                <View style={styles.headerTopRow}>
+                    <HeaderBar
+                        tint="dark"
+                        rightSlot={
+                            <Feather name="shield" size={20} color="#E5E7EB" />
+                        }
+                    />
+                </View>
                 <Text style={styles.headerTitle}>Regulator Insights</Text>
                 <Text style={styles.headerSubtitle}>
                     Ward-wise view of StockLearn adoption for government & regulators
@@ -390,11 +392,11 @@ const pieChartConfig = {
 };
 
 const styles = StyleSheet.create({
-    container: { backgroundColor: "#020617" },
+    container: { backgroundColor: "#0A2D5C" },
     headerGradient: {
-        paddingTop: 60,
+        paddingTop: 64,
         paddingHorizontal: 20,
-        paddingBottom: 22,
+        paddingBottom: 28,
         borderBottomLeftRadius: 28,
         borderBottomRightRadius: 28,
         overflow: "visible",
@@ -402,16 +404,18 @@ const styles = StyleSheet.create({
         elevation: 50,
         zIndex: 50,
     },
+    headerTopRow: { marginBottom: 16 },
     headerTitle: {
         fontSize: 26,
-        fontWeight: "700",
+        fontWeight: "800",
+        lineHeight: 32,
         color: "#fff",
-        marginTop: 12,
     },
     headerSubtitle: {
         fontSize: 14,
+        lineHeight: 20,
         color: "#E5E7EB",
-        marginTop: 6,
+        marginTop: 10,
     },
     content: { paddingHorizontal: 20, paddingTop: 16, zIndex: 0 },
     loadingBox: {
