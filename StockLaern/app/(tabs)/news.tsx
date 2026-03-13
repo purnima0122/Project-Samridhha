@@ -103,7 +103,9 @@ export default function NewsScreen() {
         end={{ x: 1, y: 1 }}
         style={styles.headerGradient}
       >
-        <HeaderBar tint="dark" rightSlot={<TopRightMenu theme="dark" />} />
+        <View style={styles.headerTopRow}>
+          <HeaderBar tint="dark" rightSlot={<TopRightMenu theme="dark" />} />
+        </View>
         <Text style={styles.headerTitle}>News & Research</Text>
         <Text style={styles.headerSubtitle}>
           Curated NEPSE updates focused on commercial sector activity.
@@ -144,9 +146,9 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F5F7FB" },
   gateContainer: { paddingHorizontal: 20 },
   headerGradient: {
-    paddingTop: 60,
+    paddingTop: 64,
     paddingHorizontal: 20,
-    paddingBottom: 22,
+    paddingBottom: 28,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
     overflow: "visible",
@@ -154,8 +156,9 @@ const styles = StyleSheet.create({
     elevation: 4,
     zIndex: 2,
   },
-  headerTitle: { fontSize: 22, fontWeight: "800", color: "#fff", marginTop: 12 },
-  headerSubtitle: { fontSize: 13, color: "#E0E7FF", marginTop: 6 },
+  headerTopRow: { marginBottom: 16 },
+  headerTitle: { fontSize: 26, fontWeight: "800", lineHeight: 32, color: "#fff" },
+  headerSubtitle: { fontSize: 14, lineHeight: 20, color: "#E0E7FF", marginTop: 10 },
   content: { paddingHorizontal: 20, paddingTop: 16, zIndex: 0 },
   loadingBox: {
     flexDirection: "row",
