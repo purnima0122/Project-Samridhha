@@ -412,7 +412,7 @@ export default function RegulatorScreen() {
                 HERO HEADER
             ════════════════════════════════ */}
             <LinearGradient
-                colors={["#0D1B2E", "#0F2447", "#1E3A5F"]}
+                colors={["#0A2D5C", "#0B3B78"]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={s.hero}
@@ -657,7 +657,6 @@ const s = StyleSheet.create({
         paddingBottom: 28,
         borderBottomLeftRadius: 32,
         borderBottomRightRadius: 32,
-
     },
     liveBadge: {
         flexDirection: "row",

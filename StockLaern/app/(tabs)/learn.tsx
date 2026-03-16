@@ -1409,9 +1409,9 @@ const s = StyleSheet.create({
     alignSelf: "stretch",
   },
   navBrand: {
-    paddingTop: Platform.OS === "android" ? 24 : 64,
+    paddingTop: 64,
     paddingHorizontal: 20,
-    paddingBottom: 14,
+    paddingBottom: 16,
   },
   statsRow: { flexDirection: "row", gap: 10, paddingHorizontal: 20, paddingBottom: 14 },
   statPill: {
