@@ -1,2463 +1,1921 @@
+
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Award,
-  BookOpen,
-  CheckCircle,
-  ChevronRight,
-  ExternalLink,
-  HelpCircle,
-  Info,
-  Lock,
-  PieChart,
-  Play,
-  Shield,
-  TrendingUp,
-  X,
-} from 'lucide-react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Animated,
   ActivityIndicator,
-  Alert,
-  Dimensions,
-  Linking,
+  Animated,
+  Easing,
   Modal,
   Platform,
+  Pressable,
+  Share,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
-  TouchableOpacity,
   View,
-} from 'react-native';
-import GuestAuthActions from "../components/GuestAuthActions";
+} from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import HeaderBar from "../components/HeaderBar";
 import TopRightMenu from "../components/TopRightMenu";
-import { useAuth } from '../context/AuthContext';
-import { apiFetch } from '../lib/api';
+import { useAuth } from "../context/AuthContext";
+import { apiFetch } from "../lib/api";
 
-let WebView: any = null;
-try {
-  WebView = require('react-native-webview').WebView;
-} catch (e) {
-  console.warn('WebView not available', e);
-}
-function getYouTubeEmbedUrl(url: string): string {
-  if (!url) return '';
+/* -- Design Tokens (matches web app) ---------------------- */
+const C = {
+  bg: "#080C1A",
+  surface: "#0F1527",
+  card: "#131829",
+  border: "#1E2540",
+  text: "#F0F4FF",
+  muted: "#4B5680",
+  accent: "#818CF8",
+  gold: "#F59E0B",
+  green: "#10B981",
+  red: "#EF4444",
+  purple: "#7C3AED",
+};
 
-  if (url.includes('youtu.be/')) {
-    const id = url.split('youtu.be/')[1].split('?')[0];
-    return `https://www.youtube.com/embed/${id}?controls=1&playsinline=1`;
-  }
-  if (url.includes('watch?v=')) {
-    const id = url.split('watch?v=')[1].split('&')[0];
-    return `https://www.youtube.com/embed/${id}?controls=1&playsinline=1`;
-  }
+const COLOR_POOL = [
+  { color: "#6366F1", dark: "#3730A3" },
+  { color: "#10B981", dark: "#065F46" },
+  { color: "#F59E0B", dark: "#92400E" },
+  { color: "#8B5CF6", dark: "#4C1D95" },
+  { color: "#3B82F6", dark: "#1E3A8A" },
+  { color: "#EC4899", dark: "#831843" },
+];
 
-  return url;
-}
+/* -- Types ------------------------------------------------- */
+type IconName = React.ComponentProps<typeof MaterialCommunityIcons>["name"];
 
-type ApiQuizQuestion = {
+interface Flashcard {
+  id: number;
   prompt: string;
-  options: string[];
-  correctOptionIndex: number;
-  explanation?: string;
-};
+  answer: string;
+  tag: string;
+}
 
-type ApiLesson = {
-  _id: string;
+interface QuizQuestion {
+  q: string;
+  opts: string[];
+  ans: number;
+  exp: string;
+}
+
+interface Fact {
+  iconKey: string;
   title: string;
-  module: string;
-  content: string;
-  order: number;
-  duration: number;
-  videoUrl?: string;
-  color?: string;
-  icon?: string;
-  quiz?: ApiQuizQuestion[];
-};
+  body: string;
+}
 
-type ApiProgress = {
-  lessonId: { _id: string } | string;
-  completed: boolean;
-  flashcardsViewed?: number;
-};
-
-type GamificationSummary = {
-  xp: number;
-  level: number;
-  streakDays: number;
-  badges: string[];
-  lessonsCompletedCount: number;
-  correctQuizAnswers: number;
-  xpToNextLevel: number;
-  nextLessonId: string | null;
-  nextLessonTitle: string | null;
-  totalLessons: number;
-  completedLessons: number;
-  coursePercent: number;
-};
-
-type LessonCompletionResult = {
-  xpAwarded: number;
-  newBadges: string[];
-  gamification?: GamificationSummary;
-};
-
-type Lesson = {
+interface Quest {
   id: string;
   title: string;
-  module: string;
+  iconKey: string;
+  type: "lesson" | "vault";
   order: number;
-  icon: any;
-  iconName: string;
+  xp: number;
+  flashcards: Flashcard[];
+  quiz: QuizQuestion[];
+  facts: Fact[];
+}
+
+interface Chapter {
+  id: number;
+  key: string;
+  title: string;
+  iconKey: string;
   color: string;
-  duration: string;
-  content: string;
-  videoUrl: string;
-  mcqs: {
-    question: string;
-    options: string[];
-    correctAnswer: number;
-    explanation?: string;
-  }[];
+  darkColor: string;
+  tagline: string;
+  xpTotal: number;
+  quests: Quest[];
+}
+
+type StreakHistoryDay = {
+  date: string;
+  lessonsCompleted: number;
+  quizzesCompleted: number;
+  xpEarned: number;
+  streakCount: number;
+  freezeUsed: boolean;
 };
 
-const iconMap: Record<string, any> = {
-  TrendingUp,
-  BookOpen,
-  Shield,
-  PieChart,
-  HelpCircle,
+type StreakCelebration = {
+  date: string;
+  xpEarned: number;
+  streakCount: number;
 };
 
-const externalResources = [
-  { title: 'NEPSE Official', url: 'https://www.nepalstock.com', description: 'Live market data and announcements' },
-  { title: 'SEBON Website', url: 'https://www.sebon.gov.np', description: 'Regulatory info for Nepali investors' },
-  { title: 'Investopedia', url: 'https://www.investopedia.com', description: 'Global stock market encyclopedia' },
+interface GameState {
+  xp: number;
+  level: number;
+  streak: number;
+  freezes: number;
+  hearts: number;
+  maxHearts: number;
+  completedQuests: Set<string>;
+  questStars: Record<string, number>;
+  perfectQuizzes: number;
+  totalFlips: number;
+  vaultsOpened: number;
+  badges: string[];
+  streakHistory: StreakHistoryDay[];
+  weeklyProgress: Array<{ label: string; completed: boolean }>;
+}
+
+type BadgeDef = {
+  id: string;
+  icon: string;
+  title: string;
+  desc: string;
+  backendMatch?: string[];
+  condition?: (s: GameState) => boolean;
+};
+
+/* -- Badge & Icon config ---------------------------------- */
+const BADGES: BadgeDef[] = [
+  {
+    id: "first_lesson",
+    icon: "mdi:sprout",
+    title: "First Steps",
+    desc: "Complete your first lesson",
+    backendMatch: ["First Lesson Completed"],
+    condition: (s) => s.completedQuests.size >= 1,
+  },
+  {
+    id: "lessons_5",
+    icon: "mdi:run-fast",
+    title: "Momentum",
+    desc: "Complete 5 lessons",
+    backendMatch: ["5 Lessons Completed"],
+    condition: (s) => s.completedQuests.size >= 5,
+  },
+  {
+    id: "streak_3",
+    icon: "mdi:fire",
+    title: "On Fire",
+    desc: "3-day streak",
+    condition: (s) => s.streak >= 3,
+  },
+  {
+    id: "streak_7",
+    icon: "mdi:lightning-bolt",
+    title: "Lightning",
+    desc: "7-day streak",
+    backendMatch: ["7 Day Streak"],
+    condition: (s) => s.streak >= 7,
+  },
+  {
+    id: "xp_100",
+    icon: "mdi:star-circle",
+    title: "Rising Star",
+    desc: "Earn 100 XP",
+    condition: (s) => s.xp >= 100,
+  },
+  {
+    id: "xp_300",
+    icon: "mdi:school",
+    title: "Scholar",
+    desc: "Earn 300 XP",
+    condition: (s) => s.xp >= 300,
+  },
+  {
+    id: "quiz_perfect",
+    icon: "mdi:target",
+    title: "Sharpshooter",
+    desc: "100% on a quiz",
+    condition: (s) => s.perfectQuizzes >= 1,
+  },
+  {
+    id: "flashcard_flip",
+    icon: "mdi:cards",
+    title: "Card Shark",
+    desc: "Flip 20 flashcards",
+    condition: (s) => s.totalFlips >= 20,
+  },
+  {
+    id: "vault_open",
+    icon: "mdi:safe",
+    title: "Vault Hunter",
+    desc: "Open your first vault",
+    condition: (s) => s.vaultsOpened >= 1,
+  },
 ];
 
-type LearningSection = 'lessons' | 'tax';
-
-const TAX_REFERENCE_RATES = {
-  capitalGainsPercent: 7.5,
-  dividendPercent: 5,
-  vatPercent: 13,
-  corporatePercent: 25,
-};
-
-const TAX_BASICS = [
-  {
-    title: 'Income Tax',
-    subtitle: 'Progressive slab system on yearly earnings.',
-    value: 'Approx 1% - 30%',
-  },
-  {
-    title: 'Capital Gains Tax',
-    subtitle: 'Applies to profit from selling investments.',
-    value: `${TAX_REFERENCE_RATES.capitalGainsPercent}%`,
-  },
-  {
-    title: 'Dividend Tax',
-    subtitle: 'Withholding tax on received dividends.',
-    value: `${TAX_REFERENCE_RATES.dividendPercent}%`,
-  },
-  {
-    title: 'VAT',
-    subtitle: 'Consumption tax charged on goods/services.',
-    value: `${TAX_REFERENCE_RATES.vatPercent}%`,
-  },
-  {
-    title: 'Corporate Tax',
-    subtitle: 'Tax on business profits (entity level).',
-    value: `${TAX_REFERENCE_RATES.corporatePercent}%`,
-  },
+const KEYWORD_ICON_MAP = [
+  { kw: ["bank", "banking"], icon: "mdi:bank" },
+  { kw: ["loan", "emi", "debt", "interest"], icon: "mdi:bank-transfer" },
+  { kw: ["budget", "expense", "saving", "wallet"], icon: "mdi:wallet" },
+  { kw: ["money", "cash", "income", "salary", "finance"], icon: "mdi:cash-multiple" },
+  { kw: ["stock", "market", "nepse", "share", "invest", "trading"], icon: "mdi:chart-line" },
+  { kw: ["insurance", "risk", "protect", "shield"], icon: "mdi:shield-check" },
+  { kw: ["vault", "secret", "facts"], icon: "mdi:safe" },
+  { kw: ["intro", "basic", "guide", "learn"], icon: "mdi:book-open-page-variant" },
 ];
 
-const DEFAULT_COLOR = '#5B8DEF';
-const DEFAULT_ICON = 'BookOpen';
-const PASSING_SCORE_PERCENT = 70;
+const MODULE_ICONS = [
+  "mdi:cash-multiple",
+  "mdi:bank",
+  "mdi:chart-line",
+  "mdi:brain",
+  "mdi:rocket-launch",
+  "mdi:book-open-page-variant",
+];
 
-function parseNumericInput(value: string): number {
-  if (!value) {
-    return 0;
+/* -- Helpers ---------------------------------------------- */
+const pn = (v: any, f: number) => (typeof v === "number" && !isNaN(v) ? v : f);
+const ps = (v: any, f: string) => (typeof v === "string" && v.trim() ? v : f);
+const pa = (v: any, f: any[]) => (Array.isArray(v) ? v : f);
+
+function resolveIcon(title: string, fallback: string) {
+  if (!title) return fallback;
+  const low = title.toLowerCase();
+  for (const e of KEYWORD_ICON_MAP) {
+    if (e.kw.some((w) => low.includes(w))) return e.icon;
   }
-  const normalized = value.replace(/[^0-9.]/g, '');
-  const parsed = Number.parseFloat(normalized);
-  return Number.isFinite(parsed) ? parsed : 0;
+  return fallback;
 }
 
-function formatCurrency(value: number): string {
-  return `NPR ${Math.max(0, value).toLocaleString('en-US', {
-    maximumFractionDigits: 2,
-  })}`;
+function calcStars(score: number) {
+  if (!score || score <= 0) return 0;
+  if (score >= 90) return 3;
+  if (score >= 70) return 2;
+  return 1;
 }
 
-function calculateIncomeTaxFromSlab(income: number): number {
-  if (income <= 0) return 0;
-
-  const slabs = [
-    { limit: 500000, rate: 0.01 },
-    { limit: 200000, rate: 0.1 },
-    { limit: 300000, rate: 0.2 },
-    { limit: Number.POSITIVE_INFINITY, rate: 0.3 },
-  ];
-
-  let remaining = income;
-  let totalTax = 0;
-
-  for (const slab of slabs) {
-    if (remaining <= 0) {
-      break;
-    }
-    const taxableAmount = Math.min(remaining, slab.limit);
-    totalTax += taxableAmount * slab.rate;
-    remaining -= taxableAmount;
+function isBadgeEarned(badge: BadgeDef, gs: GameState) {
+  if (badge.backendMatch && badge.backendMatch.length) {
+    const backendEarned = (gs.badges ?? []).some((item) => badge.backendMatch!.includes(item));
+    if (backendEarned) return true;
   }
-
-  return totalTax;
+  return badge.condition ? badge.condition(gs) : false;
 }
 
-function formatDuration(minutes?: number) {
-  if (!minutes || Number.isNaN(minutes)) {
-    return '5 min';
-  }
-  return `${minutes} min`;
+function formatDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
-function mapLesson(apiLesson: ApiLesson): Lesson {
-  const iconName = apiLesson.icon && iconMap[apiLesson.icon] ? apiLesson.icon : DEFAULT_ICON;
-  const icon = iconMap[iconName] || BookOpen;
-
-  return {
-    id: apiLesson._id,
-    title: apiLesson.title,
-    module: apiLesson.module,
-    order: apiLesson.order ?? 0,
-    icon,
-    iconName,
-    color: apiLesson.color || DEFAULT_COLOR,
-    duration: formatDuration(apiLesson.duration),
-    content: apiLesson.content,
-    videoUrl: apiLesson.videoUrl || '',
-    mcqs: (apiLesson.quiz || []).slice(0, 3).map((question) => ({
-      question: question.prompt,
-      options: question.options,
-      correctAnswer: question.correctOptionIndex,
-      explanation: question.explanation,
-    })),
-  };
-}
-
-type QuizQuestion = Lesson['mcqs'][number];
-
-function splitLessonIntoCards(content: string): string[] {
-  const rawSegments = content
-    .split('\n')
-    .flatMap((line) => line.split(/(?<=[.!?])\s+/))
-    .map((item) => item.trim())
-    .filter((item) => item.length > 15);
-
-  const normalized = rawSegments
-    .map((item) =>
-      item
-        .replace(/^[\u2022\-]\s*/, '')
-        .replace(/^Concept Card \d+:\s*/i, '')
-        .replace(/^Module \d+:\s*/i, '')
-        .trim(),
-    )
-    .map((item) => {
-      if (!item.includes('?')) {
-        return item;
-      }
-      const questionSplit = item.split(/\?\s*/, 2);
-      if (questionSplit.length > 1 && questionSplit[1].trim().length > 10) {
-        return questionSplit[1].trim();
-      }
-      return '';
+function normalizeQuest(quest: any, index: number, chapterKey: string): Quest {
+  const s = quest || {};
+  const type: "vault" | "lesson" = s.type === "vault" ? "vault" : "lesson";
+  const id = String(s.id || s._id || `${chapterKey}-${index + 1}`);
+  const title = ps(s.title, type === "vault" ? "Mind Vault" : `Lesson ${index + 1}`);
+  const iconKey =
+    type === "vault"
+      ? "mdi:safe"
+      : resolveIcon(title, MODULE_ICONS[index % MODULE_ICONS.length]);
+  const xp = pn(s.xp, type === "vault" ? 20 : 50);
+  const flashcards = pa(s.flashcards, [])
+    .map((c, i) => ({
+      id: i + 1,
+      prompt: ps(c?.prompt, ""),
+      answer: ps(c?.answer, ""),
+      tag: ps(c?.tag, "Concept"),
+    }))
+    .filter((c) => c.prompt);
+  const quiz = pa(s.quiz, [])
+    .map((q) => {
+      const opts = pa(q?.opts, pa(q?.options, []));
+      const ans =
+        typeof q?.ans === "number"
+          ? q.ans
+          : typeof q?.correctOptionIndex === "number"
+            ? q.correctOptionIndex
+            : 0;
+      return {
+        q: ps(q?.q, ps(q?.prompt, "")),
+        opts,
+        ans,
+        exp: ps(q?.exp, ps(q?.explanation, "Keep learning!")),
+      };
     })
-    .filter((item) => item.length > 15 && !item.endsWith('?'))
-    .filter((item) => !/^(what|why|how|when|where|who)\b/i.test(item));
-
-  return Array.from(new Set(normalized)).slice(0, 4);
+    .filter((q) => q.q && q.opts.length);
+  const facts = pa(s.facts, [])
+    .map((f, i) => ({
+      iconKey: ps(f?.icon, ["mdi:lightbulb-on", "mdi:star-four-points", "mdi:brain"][i % 3]),
+      title: ps(f?.title, "Key Insight"),
+      body: ps(f?.body, ""),
+    }))
+    .filter((f) => f.body);
+  return { id, title, iconKey, type, order: pn(s.order, index), xp, flashcards, quiz, facts };
 }
 
-function isMiniAssessmentQuestion(question: QuizQuestion): boolean {
-  if (question.options.length !== 2) {
-    return false;
-  }
-
-  const options = question.options.map((option) => option.trim().toLowerCase());
-  const hasTrue = options.includes('true');
-  const hasFalse = options.includes('false');
-
-  return hasTrue && hasFalse;
+function normalizeChapter(ch: any, index: number): Chapter {
+  const s = ch || {};
+  const theme = COLOR_POOL[index % COLOR_POOL.length];
+  const title = ps(s.title, `Chapter ${index + 1}`);
+  const key = ps(s.id, title);
+  const quests = pa(s.quests, [])
+    .map((q: any, i: number) => normalizeQuest(q, i, key))
+    .sort((a: Quest, b: Quest) => a.order - b.order);
+  return {
+    id: pn(s.id, index + 1),
+    key,
+    title,
+    iconKey: resolveIcon(title, MODULE_ICONS[index % MODULE_ICONS.length]),
+    color: ps(s.color, theme.color),
+    darkColor: ps(s.darkColor, theme.dark),
+    tagline: ps(s.tagline, "Level up your skills"),
+    xpTotal: quests.reduce((a: number, q: Quest) => a + q.xp, 0),
+    quests,
+  };
 }
 
-const FLASHCARD_GAP = 12;
-const FLASHCARD_FLIP_DURATION = 420;
+function normalizeFlow(payload: any) {
+  const s = payload || {};
+  const chapters = pa(s.chapters, []).map(normalizeChapter);
+  const progress = pa(s.progress, []).map((item: any) => {
+    let lid = item?.lessonId;
+    if (lid && typeof lid === "object") lid = lid._id || lid.id;
+    return { ...item, lessonId: lid ? String(lid) : null };
+  });
+  return { chapters, progress, gamification: s.gamification || {} };
+}
 
-const FLASHCARD_THEMES = [
-  {
-    front: ['#1D4ED8', '#0B2A7C'],
-    back: ['#1E3A8A', '#172554'],
-    accent: '#93C5FD',
-  },
-  {
-    front: ['#0F766E', '#134E4A'],
-    back: ['#115E59', '#042F2E'],
-    accent: '#5EEAD4',
-  },
-  {
-    front: ['#7C3AED', '#4C1D95'],
-    back: ['#1E40AF', '#3B0764'],
-    accent: '#C4B5FD',
-  },
-  {
-    front: ['#B45309', '#7C2D12'],
-    back: ['#92400E', '#431407'],
-    accent: '#FDBA74',
-  },
-] as const;
-
-function Flashcard({
-  text,
-  index,
-  cardWidth,
-  scrollX,
+/* -- Icon Component --------------------------------------- */
+function Ico({
+  name,
+  size = 20,
+  color = C.text,
+  style,
 }: {
-  text: string;
-  index: number;
-  cardWidth: number;
-  scrollX: Animated.Value;
+  name?: string;
+  size?: number;
+  color?: string;
+  style?: any;
 }) {
-  const theme = FLASHCARD_THEMES[index % FLASHCARD_THEMES.length];
-  const [isFlipped, setIsFlipped] = useState(false);
-  const flipAnim = useRef(new Animated.Value(0)).current;
+  if (!name) return null;
+  const safeName = name.replace(/^mdi:/, "") as IconName;
+  return <MaterialCommunityIcons name={safeName} size={size} color={color} style={style} />;
+}
 
-  const inputRange = [
-    (index - 1) * (cardWidth + FLASHCARD_GAP),
-    index * (cardWidth + FLASHCARD_GAP),
-    (index + 1) * (cardWidth + FLASHCARD_GAP),
+/* -- Stat Pill -------------------------------------------- */
+function StatPill({
+  icon,
+  value,
+  tint,
+  bg,
+  border,
+}: {
+  icon: string;
+  value: number | string;
+  tint: string;
+  bg: string;
+  border: string;
+}) {
+  return (
+    <View style={[s.statPill, { backgroundColor: bg, borderColor: border }]}>
+      <Ico name={icon} size={15} color={tint} />
+      <Text style={[s.statValue, { color: tint }]}>{value}</Text>
+    </View>
+  );
+}
+/* -- Top Navbar ------------------------------------------- */
+function TopNav({
+  gs,
+  completedCount,
+  totalQuests,
+  totalStars,
+  activeTab,
+  onTabChange,
+}: {
+  gs: GameState;
+  completedCount: number;
+  totalQuests: number;
+  totalStars: number;
+  activeTab: string;
+  onTabChange: (tab: string) => void;
+}) {
+  const progressPct = totalQuests > 0 ? (completedCount / totalQuests) * 100 : 0;
+  const tabs = [
+    { id: "learn", icon: "mdi:book-open-page-variant", label: "Learn" },
+    { id: "badges", icon: "mdi:medal", label: "Badges" },
+    { id: "profile", icon: "mdi:account-circle", label: "Profile" },
   ];
-  const opacity = scrollX.interpolate({
-    inputRange,
-    outputRange: [0.65, 1, 0.65],
-    extrapolate: 'clamp',
-  });
-  const scale = scrollX.interpolate({
-    inputRange,
-    outputRange: [0.95, 1, 0.95],
-    extrapolate: 'clamp',
-  });
-  const translateY = scrollX.interpolate({
-    inputRange,
-    outputRange: [8, 0, 8],
-    extrapolate: 'clamp',
-  });
 
-  const frontRotate = flipAnim.interpolate({
-    inputRange: [0, 180],
-    outputRange: ['0deg', '180deg'],
-  });
-  const backRotate = flipAnim.interpolate({
-    inputRange: [0, 180],
-    outputRange: ['180deg', '360deg'],
-  });
-  const frontOpacity = flipAnim.interpolate({
-    inputRange: [0, 88, 92, 180],
-    outputRange: [1, 1, 0, 0],
-  });
-  const backOpacity = flipAnim.interpolate({
-    inputRange: [0, 88, 92, 180],
-    outputRange: [0, 0, 1, 1],
-  });
+  return (
+    <LinearGradient
+      colors={["#0A2D5C", "#0B3B78"]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={s.topNav}
+    >
+      <View style={s.navBrand}>
+        <HeaderBar tint="dark" rightSlot={<TopRightMenu theme="dark" />} />
+      </View>
 
-  const toggleFlip = () => {
-    Animated.timing(flipAnim, {
-      toValue: isFlipped ? 0 : 180,
-      duration: FLASHCARD_FLIP_DURATION,
-      useNativeDriver: true,
-    }).start();
-    setIsFlipped((prev) => !prev);
+      <View style={s.statsRow}>
+        <StatPill icon="mdi:fire" value={gs.streak} tint="#FB923C" bg="rgba(251,146,60,0.18)" border="rgba(251,146,60,0.35)" />
+        <StatPill icon="mdi:heart" value={gs.hearts} tint="#FB7185" bg="rgba(251,113,133,0.18)" border="rgba(251,113,133,0.35)" />
+        <StatPill icon="mdi:star" value={totalStars} tint="#FACC15" bg="rgba(250,204,21,0.18)" border="rgba(250,204,21,0.35)" />
+        <StatPill icon="mdi:lightning-bolt" value={gs.xp} tint="#A5B4FC" bg="rgba(129,140,248,0.22)" border="rgba(129,140,248,0.4)" />
+      </View>
+
+      <View style={s.progressRow}>
+        <Text style={s.progressLabel}>Overall Progress</Text>
+        <Text style={s.progressCount}>
+          {completedCount}/{totalQuests} quests
+        </Text>
+      </View>
+      <View style={s.progressBar}>
+        <View style={[s.progressFill, { width: `${progressPct}%` as any }]} />
+      </View>
+
+      <View style={s.tabBar}>
+        {tabs.map((tab) => (
+          <Pressable key={tab.id} style={s.tabBtn} onPress={() => onTabChange(tab.id)}>
+            {activeTab === tab.id && <View style={s.tabIndicator} />}
+            <Ico name={tab.icon} size={22} color={activeTab === tab.id ? "#F8FAFC" : "#CBD5E1"} />
+            <Text style={[s.tabLabel, activeTab === tab.id && s.tabLabelActive]}>
+              {tab.label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+    </LinearGradient>
+  );
+}
+
+/* -- Chapter Header --------------------------------------- */
+function ChapterHeader({
+  chapter,
+  completedCount,
+  totalCount,
+}: {
+  chapter: Chapter;
+  completedCount: number;
+  totalCount: number;
+}) {
+  const pct = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
+  return (
+    <View style={[s.chapterHeader, { borderColor: chapter.color + "33", backgroundColor: chapter.color + "12" }]}> 
+      <View style={s.chapterTop}>
+        <View style={{ flex: 1 }}>
+          <Text style={[s.chapterLabel, { color: chapter.color }]}>CHAPTER {chapter.id}</Text>
+          <Text style={s.chapterTitle}>
+            <Ico name={chapter.iconKey} size={16} color={chapter.color} /> {chapter.title}
+          </Text>
+          <Text style={s.chapterTagline}>{chapter.tagline}</Text>
+        </View>
+        <View style={[s.chapterBadge, { backgroundColor: chapter.color + "22" }]}> 
+          <Text style={[s.chapterBadgeNum, { color: chapter.color }]}>
+            {completedCount}/{totalCount}
+          </Text>
+          <Text style={s.chapterBadgeSub}>done</Text>
+        </View>
+      </View>
+      <View style={[s.chapterProgressBg, { backgroundColor: chapter.color + "22" }]}> 
+        <View style={[s.chapterProgressFill, { width: `${pct}%` as any, backgroundColor: chapter.color }]} />
+      </View>
+    </View>
+  );
+}
+
+/* -- Quest Bubble ----------------------------------------- */
+function QuestBubble({
+  quest,
+  chapter,
+  isLocked,
+  isDone,
+  stars,
+  offset,
+  onOpen,
+}: {
+  quest: Quest;
+  chapter: Chapter;
+  isLocked: boolean;
+  isDone: boolean;
+  stars: number;
+  offset: number;
+  onOpen: (q: Quest) => void;
+}) {
+  const anim = useRef(new Animated.Value(1)).current;
+  const isVault = quest.type === "vault";
+  const nodeColor = isVault ? C.purple : chapter.color;
+  const showCrown = !isLocked && !isDone && !isVault;
+
+  const handlePress = () => {
+    if (isLocked) return;
+    Animated.sequence([
+      Animated.timing(anim, {
+        toValue: 0.9,
+        duration: 80,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.ease),
+      }),
+      Animated.spring(anim, { toValue: 1, useNativeDriver: true }),
+    ]).start();
+    onOpen(quest);
   };
 
   return (
-    <Animated.View
-      style={[
-        styles.flashcardItemShell,
-        {
-          width: cardWidth,
-          opacity,
-          transform: [{ scale }, { translateY }],
-        },
-      ]}
-    >
-      <TouchableOpacity style={styles.flashcardTouch} activeOpacity={1} onPress={toggleFlip}>
-        <View style={styles.flashcardPerspective}>
-          <Animated.View
-            style={[
-              styles.flashcardFaceWrap,
-              {
-                opacity: frontOpacity,
-                transform: [{ perspective: 1200 }, { rotateY: frontRotate }],
-              },
-            ]}
-          >
-            <LinearGradient colors={theme.front} style={styles.flashcardFace}>
-              <View style={[styles.flashcardAccentBar, { backgroundColor: theme.accent }]} />
-              <Text style={styles.flashcardLabel}>Concept Card</Text>
-              <Text style={styles.flashcardText}>{text}</Text>
-              <Text style={styles.flashcardHint}>Tap to flip</Text>
-              <View style={styles.flashcardShine} />
-            </LinearGradient>
-          </Animated.View>
-
-          <Animated.View
-            style={[
-              styles.flashcardFaceWrap,
-              {
-                opacity: backOpacity,
-                transform: [{ perspective: 1200 }, { rotateY: backRotate }],
-              },
-            ]}
-          >
-            <LinearGradient colors={theme.back} style={styles.flashcardFace}>
-              <View style={[styles.flashcardAccentBar, { backgroundColor: theme.accent }]} />
-              <Text style={styles.flashcardBackTitle}>Quick Recall</Text>
-              <Text style={styles.flashcardBackText}>
-                Explain this point in your own words before moving to the next card.
-              </Text>
-              <Text style={styles.flashcardHint}>Tap to return</Text>
-            </LinearGradient>
-          </Animated.View>
+    <View style={[s.bubbleWrap, { transform: [{ translateX: offset }] }]}> 
+      {showCrown && (
+        <View style={s.crown}>
+          <Ico name="mdi:crown" size={18} color={C.gold} />
         </View>
-      </TouchableOpacity>
-    </Animated.View>
+      )}
+      <Pressable onPress={handlePress} disabled={isLocked}>
+        <Animated.View
+          style={[
+            s.bubble,
+            {
+              backgroundColor: nodeColor,
+              borderColor: isLocked ? C.border : nodeColor,
+              opacity: isLocked ? 0.35 : 1,
+              shadowColor: nodeColor,
+              transform: [{ scale: anim }],
+            },
+          ]}
+        >
+          <Ico name={isLocked ? "mdi:lock" : quest.iconKey} size={28} color={isLocked ? "#94A3B8" : "#fff"} />
+        </Animated.View>
+      </Pressable>
+      <View style={s.starRow}>
+        {[1, 2, 3].map((i) => (
+          <View
+            key={i}
+            style={[
+              s.starDot,
+              {
+                backgroundColor: i <= stars ? C.gold : C.border,
+                opacity: i <= stars ? 1 : 0.3,
+              },
+            ]}
+          />
+        ))}
+      </View>
+      <Text style={[s.bubbleTitle, { color: isLocked ? C.muted : C.text, opacity: isLocked ? 0.45 : 1 }]}> 
+        {isVault ? "Mind Vault" : quest.title}
+      </Text>
+      {!isLocked && (
+        <View style={s.bubbleMeta}>
+          <View style={[s.xpTag, { backgroundColor: nodeColor + "22" }]}> 
+            <Text style={[s.xpText, { color: nodeColor }]}>{isDone ? "Done " : "+"}{quest.xp} XP</Text>
+          </View>
+          <Text style={s.bubbleSubtitle}>
+            {quest.type === "lesson"
+              ? `${quest.flashcards.length} cards - ${quest.quiz.length} Qs`
+              : "Secrets inside"}
+          </Text>
+        </View>
+      )}
+    </View>
   );
 }
 
-function FlashcardCarousel({
-  cards,
-  onCardViewed,
+/* -- Quest Path ------------------------------------------- */
+function QuestPath({
+  chapter,
+  completedQuests,
+  questStars,
+  onOpenQuest,
 }: {
-  cards: string[];
-  onCardViewed?: (count: number) => void;
+  chapter: Chapter;
+  completedQuests: Set<string>;
+  questStars: Record<string, number>;
+  onOpenQuest: (q: Quest) => void;
 }) {
-  const cardWidth = Math.max(300, Dimensions.get('window').width - 40);
-  const scrollX = useRef(new Animated.Value(0)).current;
-  const seenCardsRef = useRef<Set<number>>(new Set());
-
-  const markCardSeen = useCallback(
-    (index: number) => {
-      if (index < 0 || index >= cards.length) {
-        return;
-      }
-      if (seenCardsRef.current.has(index)) {
-        return;
-      }
-      seenCardsRef.current.add(index);
-      onCardViewed?.(1);
-    },
-    [cards.length, onCardViewed],
-  );
-
-  useEffect(() => {
-    seenCardsRef.current.clear();
-    if (cards.length > 0) {
-      markCardSeen(0);
-    }
-  }, [cards, markCardSeen]);
-
-  if (cards.length === 0) {
-    return null;
-  }
+  const quests = chapter.quests;
+  const offsets = [0, 44, -44, 20, -20];
+  const completedCount = quests.filter((q) => completedQuests.has(q.id)).length;
 
   return (
-    <View style={styles.flashcardsSection}>
-      <View style={styles.sectionHeadingRow}>
-        <Text style={styles.flashcardsTitle}>Concept Flashcards</Text>
-        <Text style={styles.swipeHint}>Swipe and tap</Text>
-      </View>
-      <Animated.FlatList
-        data={cards}
-        horizontal
-        keyExtractor={(_, index) => `flashcard-${index}`}
-        showsHorizontalScrollIndicator={false}
-        decelerationRate="fast"
-        disableIntervalMomentum
-        snapToInterval={cardWidth + FLASHCARD_GAP}
-        snapToAlignment="start"
-        contentContainerStyle={styles.flashcardList}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-          { useNativeDriver: true },
-        )}
-        onMomentumScrollEnd={(event) => {
-          const x = event.nativeEvent.contentOffset.x;
-          const index = Math.round(x / (cardWidth + FLASHCARD_GAP));
-          markCardSeen(index);
-        }}
-        scrollEventThrottle={16}
-        renderItem={({ item, index }) => {
-          return <Flashcard text={item} index={index} cardWidth={cardWidth} scrollX={scrollX} />;
-        }}
-      />
-      <View style={styles.flashDotRow}>
-        {cards.map((_, index) => {
-          const dotOpacity = scrollX.interpolate({
-            inputRange: [
-              (index - 1) * (cardWidth + FLASHCARD_GAP),
-              index * (cardWidth + FLASHCARD_GAP),
-              (index + 1) * (cardWidth + FLASHCARD_GAP),
-            ],
-            outputRange: [0.3, 1, 0.3],
-            extrapolate: 'clamp',
-          });
-          const dotScale = scrollX.interpolate({
-            inputRange: [
-              (index - 1) * (cardWidth + FLASHCARD_GAP),
-              index * (cardWidth + FLASHCARD_GAP),
-              (index + 1) * (cardWidth + FLASHCARD_GAP),
-            ],
-            outputRange: [1, 1.25, 1],
-            extrapolate: 'clamp',
-          });
+    <View style={{ marginBottom: 28 }}>
+      <ChapterHeader chapter={chapter} completedCount={completedCount} totalCount={quests.length} />
+      <View style={{ alignItems: "center" }}>
+        {quests.map((quest, index) => {
+          const done = completedQuests.has(quest.id);
+          const locked = index > 0 && !completedQuests.has(quests[index - 1].id);
+          const stars = questStars[quest.id] || 0;
+          const offset = offsets[index % offsets.length];
+          const prevOffset = index > 0 ? offsets[(index - 1) % offsets.length] : offset;
+          const dotOffset = Math.round((prevOffset + offset) / 2);
+          const nodeColor = quest.type === "vault" ? C.purple : chapter.color;
 
           return (
-            <Animated.View
-              key={`flash-dot-${index}`}
+            <View key={quest.id} style={{ alignItems: "center", width: "100%" }}>
+              {index > 0 && (
+                <View style={{ alignItems: "center", gap: 5, marginVertical: 4, transform: [{ translateX: dotOffset }] }}>
+                  {[0, 1, 2, 3].map((d) => (
+                    <View
+                      key={d}
+                      style={{
+                        width: 5,
+                        height: 5,
+                        borderRadius: 3,
+                        backgroundColor: !locked ? nodeColor + "50" : C.border + "60",
+                      }}
+                    />
+                  ))}
+                </View>
+              )}
+              <QuestBubble
+                quest={quest}
+                chapter={chapter}
+                isLocked={locked}
+                isDone={done}
+                stars={stars}
+                offset={offset}
+                onOpen={onOpenQuest}
+              />
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+/* -- Learn Tab -------------------------------------------- */
+function LearnTab({
+  chapters,
+  gs,
+  onOpenQuest,
+  loadError,
+}: {
+  chapters: Chapter[];
+  gs: GameState;
+  onOpenQuest: (q: Quest) => void;
+  loadError: string;
+}) {
+  if (chapters.length === 0) {
+    return (
+      <View style={s.placeholderTab}>
+        <Ico name="mdi:book-education-outline" size={48} color={C.muted} />
+        <Text style={s.placeholderTitle}>No Lessons Yet</Text>
+        <Text style={s.placeholderSub}>Lessons will appear here once published</Text>
+      </View>
+    );
+  }
+  return (
+    <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+      {!!loadError && (
+        <View style={s.errorBanner}>
+          <Text style={s.errorText}>{loadError}</Text>
+        </View>
+      )}
+      {chapters.map((ch) => (
+        <QuestPath
+          key={ch.key}
+          chapter={ch}
+          completedQuests={gs.completedQuests}
+          questStars={gs.questStars}
+          onOpenQuest={onOpenQuest}
+        />
+      ))}
+    </ScrollView>
+  );
+}
+
+/* -- Profile Tab ------------------------------------------ */
+function ProfileTab({ gs, totalStars }: { gs: GameState; totalStars: number }) {
+  const stats = [
+    { icon: "mdi:fire", label: "Streak", value: `${gs.streak} days`, color: "#FB923C" },
+    { icon: "mdi:lightning-bolt", label: "Total XP", value: String(gs.xp), color: "#A5B4FC" },
+    { icon: "mdi:star", label: "Stars", value: String(totalStars), color: "#FACC15" },
+    { icon: "mdi:heart", label: "Hearts", value: String(gs.hearts), color: "#FB7185" },
+  ];
+  return (
+    <ScrollView contentContainerStyle={{ padding: 20 }}>
+      <View style={[s.profileCard, { borderColor: C.border, backgroundColor: C.card }]}> 
+        <View style={s.avatar}>
+          <Ico name="mdi:account" size={36} color="#fff" />
+        </View>
+        <Text style={s.profileName}>Learner</Text>
+        <Text style={s.profileSub}>Level {gs.level} - {gs.xp} XP</Text>
+      </View>
+      <View style={s.statGrid}>
+        {stats.map((stat) => (
+          <View key={stat.label} style={[s.statCard, { borderColor: C.border, backgroundColor: C.card }]}> 
+            <Ico name={stat.icon} size={28} color={stat.color} />
+            <Text style={[s.statCardValue, { color: stat.color }]}>{stat.value}</Text>
+            <Text style={s.statCardLabel}>{stat.label}</Text>
+          </View>
+        ))}
+      </View>
+    </ScrollView>
+  );
+}
+
+/* -- Badges Tab ------------------------------------------- */
+function BadgesTab({
+  gs,
+  badgeCatalog,
+  badgeSeen,
+}: {
+  gs: GameState;
+  badgeCatalog: BadgeDef[];
+  badgeSeen: Set<string>;
+}) {
+  const earnedCount = badgeCatalog.filter((b) => isBadgeEarned(b, gs)).length;
+  const heatmapWeeks = useMemo(() => {
+    const history = new Map(gs.streakHistory.map((day) => [day.date, day]));
+    const today = new Date();
+    const start = new Date(today);
+    start.setDate(today.getDate() - 90);
+    const startDay = start.getDay();
+    const mondayOffset = startDay === 0 ? -6 : 1 - startDay;
+    start.setDate(start.getDate() + mondayOffset);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(today);
+    end.setHours(0, 0, 0, 0);
+    const dayMs = 24 * 60 * 60 * 1000;
+    const totalDays = Math.ceil((end.getTime() - start.getTime()) / dayMs) + 1;
+    const days: Array<{ dateKey: string; record?: StreakHistoryDay }> = [];
+
+    for (let i = 0; i < totalDays; i += 1) {
+      const date = new Date(start);
+      date.setDate(start.getDate() + i);
+      const dateKey = formatDateKey(date);
+      days.push({ dateKey, record: history.get(dateKey) });
+    }
+
+    const weeks: Array<Array<{ dateKey: string; record?: StreakHistoryDay }>> = [];
+    for (let i = 0; i < days.length; i += 7) {
+      weeks.push(days.slice(i, i + 7));
+    }
+    return weeks;
+  }, [gs.streakHistory]);
+
+  const getHeatLevel = (record?: StreakHistoryDay) => {
+    if (!record || record.xpEarned <= 0) return 0;
+    const requirementMet = record.lessonsCompleted >= 1 && record.quizzesCompleted >= 1;
+    if (requirementMet && record.xpEarned >= 50) return 4;
+    if (requirementMet) return 3;
+    if (record.xpEarned >= 20) return 2;
+    return 1;
+  };
+
+  const heatColors = ["#1E2540", "rgba(245,158,11,0.18)", "rgba(245,158,11,0.35)", "rgba(245,158,11,0.6)", "#F59E0B"];
+
+  return (
+    <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+      <View style={s.streakBanner}>
+        <View>
+          <Text style={s.streakBannerLabel}>Current Streak</Text>
+          <Text style={s.streakBannerNum}>{gs.streak}</Text>
+          <Text style={s.streakBannerSub}>
+            {gs.freezes} freeze{gs.freezes !== 1 ? "s" : ""} available
+          </Text>
+        </View>
+        <View style={{ alignItems: "flex-end" }}>
+          <Text style={s.streakBannerLabel}>Total XP</Text>
+          <Text style={[s.streakBannerNum, { fontSize: 32 }]}>{gs.xp}</Text>
+          <Text style={s.streakBannerSub}>Level {gs.level}</Text>
+        </View>
+      </View>
+      <View style={[s.activityCard, { borderColor: C.border, backgroundColor: C.card }]}> 
+        <Text style={s.activityTitle}>Activity - last 3 months</Text>
+        <View style={s.heatmapGrid}>
+          {heatmapWeeks.map((week, index) => (
+            <View key={index} style={s.heatmapColumn}>
+              {week.map((day) => {
+                const level = getHeatLevel(day.record);
+                return (
+                  <View
+                    key={day.dateKey}
+                    style={[
+                      s.heatmapCell,
+                      {
+                        backgroundColor: heatColors[level],
+                        borderColor: level === 0 ? C.border : "transparent",
+                      },
+                    ]}
+                  />
+                );
+              })}
+            </View>
+          ))}
+        </View>
+      </View>
+      <Text style={[s.placeholderSub, { marginBottom: 12 }]}>Badges - {earnedCount}/{badgeCatalog.length} earned</Text>
+      <View style={s.badgeGrid}>
+        {badgeCatalog.map((b) => {
+          const isEarned = isBadgeEarned(b, gs);
+          const isSeen = badgeSeen.has(b.id);
+          const showGlow = isEarned && isSeen;
+          return (
+            <View
+              key={b.id}
               style={[
-                styles.flashDot,
+                s.badgeCard,
                 {
-                  opacity: dotOpacity,
-                  transform: [{ scale: dotScale }],
+                  borderColor: isEarned ? C.purple + "55" : C.border,
+                  backgroundColor: isEarned ? "#1F1535" : C.card,
+                  opacity: isEarned ? 1 : 0.45,
+                  shadowColor: showGlow ? C.purple : "transparent",
+                  shadowOpacity: showGlow ? 0.45 : 0,
+                  shadowRadius: showGlow ? 16 : 0,
+                  shadowOffset: { width: 0, height: 6 },
+                  elevation: showGlow ? 12 : 0,
                 },
               ]}
-            />
+            >
+              <Ico name={b.icon} size={34} color={isEarned ? "#C4B5FD" : C.muted} />
+              <Text style={[s.badgeTitle, { color: isEarned ? "#E2E8F0" : C.muted }]}>{b.title}</Text>
+              <Text style={s.badgeDesc}>{b.desc}</Text>
+            </View>
           );
         })}
       </View>
-    </View>
+    </ScrollView>
   );
 }
+/* -- Flashcard Modal -------------------------------------- */
+function FlashcardModal({
+  visible,
+  chapter,
+  quest,
+  fcIdx,
+  fcFlipped,
+  hearts,
+  maxHearts,
+  onExit,
+  onFlip,
+  onNext,
+  onStartQuiz,
+}: any) {
+  const flipAnim = useRef(new Animated.Value(0)).current;
 
-// MCQ Quiz Component
-function MCQQuiz({
-  questions,
-  onComplete,
-}: {
-  questions: QuizQuestion[];
-  onComplete: (score: number, answers: number[]) => void;
-}) {
-  const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
-  const [score, setScore] = useState(0);
-  const [answered, setAnswered] = useState(false);
-  const [answers, setAnswers] = useState<number[]>(() => questions.map(() => -1));
+  useEffect(() => {
+    Animated.timing(flipAnim, {
+      toValue: fcFlipped ? 1 : 0,
+      duration: 220,
+      useNativeDriver: true,
+    }).start();
+  }, [fcFlipped, flipAnim]);
 
-  const scoreRef = useRef(0);
-
-  const handleAnswer = (index: number) => {
-    if (answered) return;
-
-    setSelectedAnswer(index);
-    setAnswered(true);
-    setAnswers((prev) => {
-      const next = [...prev];
-      next[currentQuestion] = index;
-      return next;
-    });
-
-    if (index === questions[currentQuestion].correctAnswer) {
-      scoreRef.current += 1;
-      setScore((prevScore) => prevScore + 1);
-    }
+  const handleFlip = () => {
+    Animated.spring(flipAnim, { toValue: fcFlipped ? 0 : 1, useNativeDriver: true }).start();
+    onFlip();
   };
 
-  const handleNext = () => {
-    if (currentQuestion < questions.length - 1) {
-      setCurrentQuestion((prevIndex) => prevIndex + 1);
-      setSelectedAnswer(null);
-      setAnswered(false);
-      return;
-    }
+  const cards = quest?.flashcards || [];
+  const card = cards[fcIdx];
+  const pct = cards.length > 0 ? (fcIdx / cards.length) * 100 : 0;
+  const hasQuiz = quest?.quiz?.length > 0;
 
-    onComplete(scoreRef.current, answers);
-  };
+  const frontInterp = flipAnim.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "180deg"] });
+  const backInterp = flipAnim.interpolate({ inputRange: [0, 1], outputRange: ["180deg", "360deg"] });
 
-  if (currentQuestion >= questions.length) {
-    return null;
-  }
-
-  const question = questions[currentQuestion];
-  const completionPercent = Math.round((currentQuestion / questions.length) * 100);
+  if (!visible || !quest || !chapter) return null;
 
   return (
-    <View style={styles.quizContainer}>
-      <View style={styles.quizTopProgress}>
-        <View style={styles.quizTopProgressTextWrap}>
-          <Text style={styles.quizTopProgressLabel}>Easy practice quiz for beginners</Text>
-          <View style={styles.quizTopProgressBarBg}>
-            <View style={[styles.quizTopProgressBarFill, { width: `${completionPercent}%` }]} />
+    <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
+      <View style={[s.fullScreen, { backgroundColor: C.bg }]}>
+        <View style={[s.modalHeader, { backgroundColor: C.surface, borderBottomColor: C.border }]}>
+          <Pressable onPress={onExit} style={s.closeBtn}>
+            <Text style={s.closeText}>X</Text>
+          </Pressable>
+          <View style={s.progressBarWrap}>
+            <View style={[s.progressBar2, { backgroundColor: C.border }]}> 
+              <View
+                style={[
+                  s.progressFill2,
+                  { width: `${pct}%` as any, backgroundColor: chapter.color, shadowColor: chapter.color },
+                ]}
+              />
+            </View>
+          </View>
+          <View style={s.heartsRow}>
+            {Array.from({ length: maxHearts }).map((_, i) => (
+              <Ico key={i} name={i < hearts ? "mdi:heart" : "mdi:heart-outline"} size={14} color={i < hearts ? "#FB7185" : "#374151"} />
+            ))}
           </View>
         </View>
-        <View style={styles.quizTopProgressBadge}>
-          <Text style={styles.quizTopProgressBadgeText}>{completionPercent}%</Text>
+        <View style={[s.subHeader, { borderBottomColor: C.border }]}> 
+          <Text style={[s.questTitle, { color: C.text }]}> 
+            <Ico name={quest.iconKey} size={14} color={chapter.color} /> {quest.title}
+          </Text>
+          <View style={[s.cardBadge, { backgroundColor: chapter.color + "22", borderColor: chapter.color + "44" }]}> 
+            <Text style={[s.cardBadgeText, { color: chapter.color }]}> 
+              {cards.length > 0 ? `${fcIdx + 1} / ${cards.length}` : "No cards"}
+            </Text>
+          </View>
         </View>
-      </View>
 
-      <View style={styles.quizPanel}>
-        <Text style={styles.questionCount}>
-          Question {currentQuestion + 1} of {questions.length} | Score: {score}/{questions.length}
-        </Text>
-        <Text style={styles.questionText}>{question.question}</Text>
-
-        {question.options.map((option: string, index: number) => {
-          const isSelected = selectedAnswer === index;
-          const isCorrectOption = index === question.correctAnswer;
-          const showCorrect = answered && isCorrectOption;
-          const showIncorrect = answered && isSelected && !isCorrectOption;
-
-          return (
-            <TouchableOpacity
-              key={`quiz-option-${currentQuestion}-${index}`}
-              style={[
-                styles.option,
-                showCorrect && styles.optionCorrect,
-                showIncorrect && styles.optionIncorrect,
-              ]}
-              onPress={() => handleAnswer(index)}
-              disabled={answered}
-            >
-              <Text
+        <View style={s.cardArea}>
+          {cards.length === 0 ? (
+            <View style={[s.emptyCard, { backgroundColor: C.card, borderColor: C.border }]}>
+              <Ico name="mdi:cards-outline" size={40} color={C.muted} />
+              <Text style={s.emptyCardTitle}>No Flashcards Yet</Text>
+              <Text style={s.emptyCardSub}>Content coming soon</Text>
+              {hasQuiz && (
+                <Pressable onPress={onStartQuiz} style={[s.primaryBtn, { backgroundColor: chapter.color, marginTop: 16 }]}> 
+                  <Text style={s.primaryBtnText}>Start Quiz {"->"}</Text>
+                </Pressable>
+              )}
+            </View>
+          ) : (
+            <View style={{ perspective: 1200 } as any}>
+              <Animated.View
                 style={[
-                  styles.optionText,
-                  showCorrect && styles.optionTextCorrect,
-                  showIncorrect && styles.optionTextIncorrect,
+                  s.flashcard,
+                  {
+                    backgroundColor: chapter.color + "18",
+                    borderColor: chapter.color + "44",
+                    shadowColor: chapter.color,
+                    backfaceVisibility: "hidden",
+                    transform: [{ rotateY: frontInterp }],
+                    position: fcFlipped ? "absolute" : "relative",
+                  },
                 ]}
               >
-                {option}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
+                <Text style={[s.cardLabel, { color: chapter.color }]}>THINK ABOUT THIS...</Text>
+                <Text style={s.cardPrompt}>{card.prompt}</Text>
+                <Text style={s.cardHint}>Tap flip to reveal answer</Text>
+              </Animated.View>
+              <Animated.View
+                style={[
+                  s.flashcard,
+                  {
+                    backgroundColor: chapter.color + "22",
+                    borderColor: chapter.color,
+                    shadowColor: chapter.color,
+                    backfaceVisibility: "hidden",
+                    transform: [{ rotateY: backInterp }],
+                    position: fcFlipped ? "relative" : "absolute",
+                    top: 0,
+                  },
+                ]}
+              >
+                <Text style={[s.cardLabel, { color: chapter.color }]}>ANSWER</Text>
+                <Text style={s.cardAnswer}>{card.answer}</Text>
+              </Animated.View>
+            </View>
+          )}
+        </View>
 
-        {answered && (
-          <View style={styles.answerBox}>
-            <Text style={styles.answerText}>
-              Correct answer: {question.options[question.correctAnswer]}
+        <View style={s.cardActions}>
+          <Pressable onPress={handleFlip} style={[s.flipBtn, { backgroundColor: chapter.color + "18", borderColor: chapter.color + "44" }]}> 
+            <Text style={[s.flipBtnText, { color: chapter.color }]}>Flip</Text>
+          </Pressable>
+          <Pressable onPress={onNext} style={[s.nextBtn, { backgroundColor: chapter.color }]}> 
+            <Text style={s.nextBtnText}>
+              {cards.length > 0 && fcIdx < cards.length - 1 ? "Next Card ->" : hasQuiz ? "Start Quiz ->" : "Finish Lesson"}
             </Text>
-            {question.explanation ? (
-              <Text style={styles.answerSubtext}>{question.explanation}</Text>
-            ) : null}
-          </View>
-        )}
-
-        {answered && (
-          <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
-            <Text style={styles.nextButtonText}>
-              {currentQuestion === questions.length - 1 ? 'Finish Quiz' : 'Next Question'}
-            </Text>
-          </TouchableOpacity>
-        )}
+          </Pressable>
+        </View>
       </View>
-    </View>
+    </Modal>
   );
 }
 
-// Detailed Lesson View Component
-function LessonDetailView({
-  lesson,
-  onClose,
-  onComplete,
-  isCompleted,
-  nextLessonTitle,
-  onGamificationUpdate,
-}: {
-  lesson: Lesson;
-  onClose: () => void;
-  onComplete: (lessonId: string) => Promise<LessonCompletionResult | void> | LessonCompletionResult | void;
-  isCompleted: boolean;
-  nextLessonTitle?: string | null;
-  onGamificationUpdate?: (summary: GamificationSummary) => void;
-}) {
-  const { accessToken } = useAuth();
-  const [showQuiz, setShowQuiz] = useState(false);
-  const [quizScore, setQuizScore] = useState<number | null>(null);
-  const [quizCompleted, setQuizCompleted] = useState(false);
-  const [showVideo, setShowVideo] = useState(false);
-  const [submittingQuiz, setSubmittingQuiz] = useState(false);
-  const [quizXpAwarded, setQuizXpAwarded] = useState(0);
-  const [reward, setReward] = useState<LessonCompletionResult | null>(null);
-
-  const conceptCards = useMemo(() => splitLessonIntoCards(lesson.content), [lesson.content]);
-  const recapPoints = useMemo(() => conceptCards.slice(0, 5), [conceptCards]);
-  const miniAssessmentCount = useMemo(
-    () => lesson.mcqs.filter(isMiniAssessmentQuestion).length,
-    [lesson.mcqs],
-  );
-  const lessonIntro = useMemo(() => {
-    if (conceptCards.length > 0) {
-      return conceptCards.slice(0, 2).join(' ');
-    }
-    return lesson.content;
-  }, [conceptCards, lesson.content]);
-
-  const handleWatchVideo = () => {
-    setShowVideo(true);
-  };
-
-  const handleCloseVideo = () => {
-    setShowVideo(false);
-  };
-
-  const embedUrl = getYouTubeEmbedUrl(lesson.videoUrl);
-
-  const handleQuizComplete = async (score: number, answers: number[]) => {
-    setQuizScore(score);
-    setQuizCompleted(true);
-    if (!accessToken) {
-      if (score === lesson.mcqs.length) {
-        await onComplete(lesson.id);
-      }
-      return;
-    }
-
-    try {
-      setSubmittingQuiz(true);
-      const result = await apiFetch<{
-        passed: boolean;
-        scorePercent: number;
-        bestScore: number;
-        xpAwarded?: number;
-        gamification?: GamificationSummary;
-      }>(`/progress/quiz/${lesson.id}`, {
-        method: 'POST',
-        body: JSON.stringify({ answers }),
-      }, accessToken);
-
-      setQuizXpAwarded(result.xpAwarded ?? 0);
-      if (result.gamification) {
-        onGamificationUpdate?.(result.gamification);
-      }
-
-      if (result.passed) {
-        const completionResult = await onComplete(lesson.id);
-        if (completionResult) {
-          setReward(completionResult);
-          if (completionResult.gamification) {
-            onGamificationUpdate?.(completionResult.gamification);
-          }
-        }
-      }
-    } catch (error: any) {
-      Alert.alert('Quiz Error', error?.message || 'Unable to submit quiz.');
-    } finally {
-      setSubmittingQuiz(false);
-    }
-  };
-
-  const handleStartQuiz = () => {
-    if (lesson.mcqs.length === 0) {
-      Alert.alert('Quiz Not Available', 'This lesson does not have quiz questions yet.');
-      return;
-    }
-    setShowQuiz(true);
-    setQuizScore(null);
-    setQuizCompleted(false);
-    setQuizXpAwarded(0);
-  };
-
+/* -- Quiz Modal ------------------------------------------- */
+function QuizModal({
+  visible,
+  chapter,
+  quest,
+  quizIdx,
+  quizAns,
+  quizScore,
+  quizDone,
+  quizStars,
+  hearts,
+  maxHearts,
+  onExit,
+  onAnswer,
+  onNext,
+}: any) {
+  if (!visible || !quest || !chapter) return null;
+  if (quizDone) {
+    const total = quest.quiz.length;
+    const pct = total > 0 ? Math.round((quizScore / total) * 100) : 0;
+    const msgs =
+      quizStars === 3
+        ? ["Legendary!", "Perfect score!"]
+        : quizStars >= 2
+          ? ["Great Work!", "Almost perfect!"]
+          : ["Keep Going!", "Every lesson counts!"];
+    return (
+      <Modal visible={visible} animationType="fade" presentationStyle="fullScreen">
+        <View style={[s.fullScreen, s.resultScreen, { backgroundColor: C.bg }]}> 
+          <Ico name={quizStars === 3 ? "mdi:trophy" : quizStars >= 2 ? "mdi:star-circle" : "mdi:thumb-up"} size={70} color={quizStars === 3 ? C.gold : C.accent} />
+          <View style={s.starRow2}>
+            {[1, 2, 3].map((i) => (
+              <Ico key={i} name="mdi:star" size={26} color={i <= quizStars ? C.gold : C.border} />
+            ))}
+          </View>
+          <Text style={s.resultTitle}>{msgs[0]}</Text>
+          <Text style={s.resultSub}>{msgs[1]}</Text>
+          <Text style={s.resultScore}>
+            {quizScore}/{total} correct - {pct}%
+          </Text>
+          <View style={[s.xpBox, { borderColor: C.gold + "44" }]}> 
+            <Text style={s.xpBoxLabel}>XP EARNED</Text>
+            <Text style={s.xpBoxValue}>+{quest.xp}</Text>
+          </View>
+          <Pressable
+            onPress={onExit}
+            style={[s.primaryBtn, { backgroundColor: chapter.color, borderBottomWidth: 4, borderBottomColor: chapter.darkColor, width: "100%" }]}
+          >
+            <Text style={s.primaryBtnText}>Back to Path</Text>
+          </Pressable>
+        </View>
+      </Modal>
+    );
+  }
+  const q = quest.quiz[quizIdx];
   return (
-    <Modal visible={true} animationType="slide" presentationStyle="formSheet">
-      <View style={styles.modalContainer}>
-        {/* Compact Header */}
-        <View style={styles.modalHeaderCompact}>
-          <View style={styles.modalHeaderTop}>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Text style={styles.closeButtonText}>✕</Text>
-            </TouchableOpacity>
-            <View style={[styles.modalIconBoxCompact, { backgroundColor: lesson.color + '20' }]}>
-              {React.createElement(lesson.icon, { color: '#fff', size: 20 })}
+    <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
+      <View style={[s.fullScreen, { backgroundColor: C.bg }]}> 
+        <View style={[s.modalHeader, { backgroundColor: C.surface, borderBottomColor: C.border }]}> 
+          <Pressable onPress={onExit} style={s.closeBtn}>
+            <Text style={s.closeText}>X</Text>
+          </Pressable>
+          <View style={s.progressBarWrap}>
+            <View style={[s.progressBar2, { backgroundColor: C.border }]}> 
+              <View
+                style={[
+                  s.progressFill2,
+                  { width: `${(quizIdx / quest.quiz.length) * 100}%` as any, backgroundColor: chapter.color },
+                ]}
+              />
             </View>
-            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text style={styles.modalTitleCompact}>{lesson.title}</Text>
-              {isCompleted && (
-                <View style={styles.completedBadgeHeader}>
-                  <CheckCircle size={16} color="#5B8DEF" />
-                  <Text style={styles.completedBadgeText}>Completed</Text>
-                </View>
-              )}
-            </View>
+          </View>
+          <View style={s.heartsRow}>
+            {Array.from({ length: maxHearts }).map((_, i) => (
+              <Ico key={i} name={i < hearts ? "mdi:heart" : "mdi:heart-outline"} size={14} color={i < hearts ? "#FB7185" : "#374151"} />
+            ))}
           </View>
         </View>
-
-        <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
-          {/* Video Section */}
-          <View style={styles.videoSection}>
-            {!showVideo ? (
-              <>
-                <TouchableOpacity 
-                  style={styles.videoPlaceholder}
-                  onPress={handleWatchVideo}
-                  activeOpacity={0.8}
-                >
-                  <Play size={32} color="#fff" />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.watchVideoButton} onPress={handleWatchVideo}>
-                  <Play size={16} color="#fff" />
-                  <Text style={styles.watchVideoText}>Watch Video</Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <View style={styles.videoContainer}>
-                <TouchableOpacity 
-                  style={styles.closeVideoButton}
-                  onPress={handleCloseVideo}
-                >
-                  <X size={20} color="#fff" />
-                </TouchableOpacity>
-            {Platform.OS !== 'web' && embedUrl && (
-                  <WebView
-                    source={{ uri: embedUrl }}
-                    style={styles.videoPlayer}
-                    allowsFullscreenVideo
-                    mediaPlaybackRequiresUserAction={false}
-                    javaScriptEnabled
-                    domStorageEnabled
-                  />
-                )}
-                {Platform.OS === 'web' && (
-                  <Text style={{ color: '#fff', textAlign: 'center', marginTop: 80 }}>
-                    Video player not available on web
-                  </Text>
-                )}
-              </View>
-            )}
+        <View style={[s.subHeader, { borderBottomColor: C.border }]}> 
+          <Text style={[s.questTitle, { color: chapter.color }]}>Question {quizIdx + 1} of {quest.quiz.length}</Text>
+        </View>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }}>
+          <View style={[s.questionBox, { backgroundColor: C.card, borderColor: chapter.color + "30" }]}> 
+            <Text style={[s.questionLabel, { color: chapter.color }]}>QUESTION</Text>
+            <Text style={s.questionText}>{q.q}</Text>
           </View>
-
-          <View style={styles.topicCard}>
-            <Text style={styles.topicLabel}>Lesson Topic</Text>
-            <Text style={styles.topicTitle}>{lesson.title}</Text>
-            <Text style={styles.topicMeta}>
-              {lesson.module} • {lesson.duration}
-            </Text>
-          </View>
-
-          {/* Content Section */}
-          <View style={styles.contentSection}>
-            <Text style={styles.contentTitle}>Lesson Content</Text>
-            <Text style={styles.contentText}>{lessonIntro}</Text>
-          </View>
-
-          <FlashcardCarousel
-            cards={conceptCards}
-            onCardViewed={async (count) => {
-              if (!accessToken) {
-                return;
+          {q.opts.map((opt: string, i: number) => {
+            let bg = C.card,
+              border = C.border,
+              col = C.text;
+            if (quizAns !== null) {
+              if (i === q.ans) {
+                bg = "#10B98118";
+                border = C.green;
+                col = C.green;
+              } else if (i === quizAns) {
+                bg = "#EF444418";
+                border = C.red;
+                col = C.red;
               }
-
-              try {
-                const result = await apiFetch<{ gamification?: GamificationSummary }>(
-                  `/progress/flashcard/${lesson.id}`,
-                  {
-                    method: 'POST',
-                    body: JSON.stringify({ count }),
-                  },
-                  accessToken,
-                );
-                if (result.gamification) {
-                  onGamificationUpdate?.(result.gamification);
-                }
-              } catch (error) {
-                console.warn('Unable to record flashcard view', error);
-              }
-            }}
-          />
-
-          {recapPoints.length > 0 && (
-            <View style={styles.recapBlock}>
-              <Text style={styles.blockTitle}>Quick Recap</Text>
-              {recapPoints.map((point, index) => (
-                <View key={`${lesson.id}-recap-${index}`} style={styles.recapRow}>
-                  <View style={styles.recapDot} />
-                  <Text style={styles.recapText}>{point}</Text>
+            }
+            return (
+              <Pressable key={i} onPress={() => onAnswer(i)} disabled={quizAns !== null} style={[s.optionBtn, { backgroundColor: bg, borderColor: border }]}> 
+                <View style={[s.optionLetter, { backgroundColor: chapter.color + "22" }]}> 
+                  <Text style={[s.optionLetterText, { color: chapter.color }]}>{String.fromCharCode(65 + i)}</Text>
                 </View>
-              ))}
+                <Text style={[s.optionText, { color: col }]}>{opt}</Text>
+              </Pressable>
+            );
+          })}
+          {quizAns !== null && (
+            <View style={[s.explanationBox, { backgroundColor: quizAns === q.ans ? "#10B98118" : "#EF444418", borderColor: quizAns === q.ans ? C.green + "55" : C.red + "55" }]}> 
+              <Text style={[s.explanationHead, { color: quizAns === q.ans ? C.green : C.red }]}>
+                {quizAns === q.ans ? "Correct!" : "Not quite -"}
+              </Text>
+              <Text style={s.explanationText}>{q.exp}</Text>
             </View>
           )}
-
-          {/* Quiz Section */}
-          {!showQuiz && !quizCompleted && (
-            <View style={styles.quizSection}>
-              <View style={styles.quizSectionHeader}>
-                <HelpCircle size={18} color={lesson.color} />
-                <Text style={styles.quizSectionTitle}>Test Your Knowledge</Text>
-              </View>
-              <Text style={styles.quizSectionDesc}>
-                Finish this lesson with {lesson.mcqs.length} MCQs.
-              </Text>
-              {miniAssessmentCount > 0 && (
-                <Text style={styles.quizSectionSubText}>
-                  Includes {miniAssessmentCount} mini assessment checks.
-                </Text>
-              )}
-              {lesson.mcqs.length === 0 ? (
-                <View style={styles.noQuizHint}>
-                  <Info size={14} color="#1D4ED8" />
-                  <Text style={styles.noQuizHintText}>
-                    Quiz questions are not added for this lesson yet.
-                  </Text>
-                </View>
-              ) : (
-                <TouchableOpacity style={styles.startQuizButton} onPress={handleStartQuiz}>
-                  <HelpCircle size={14} color="#fff" />
-                  <Text style={styles.startQuizButtonText}>Start Quiz</Text>
-                </TouchableOpacity>
-              )}
-            </View>
+          {quizAns !== null && (
+            <Pressable onPress={onNext} style={[s.primaryBtn, { backgroundColor: chapter.color, marginTop: 14 }]}> 
+              <Text style={s.primaryBtnText}>{quizIdx < quest.quiz.length - 1 ? "Next Question ->" : "See Results"}</Text>
+            </Pressable>
           )}
-
-          {/* Quiz Component */}
-          {showQuiz && !quizCompleted && lesson.mcqs.length > 0 && (
-            <MCQQuiz questions={lesson.mcqs} onComplete={handleQuizComplete} />
-          )}
-
-          {/* Quiz Results */}
-          {quizCompleted && quizScore !== null && (
-            <View style={styles.quizResults}>
-              <Award size={48} color={quizScore === lesson.mcqs.length ? "#5B8DEF" : "#D4A574"} />
-              <Text style={styles.resultsTitle}>
-                {quizScore === lesson.mcqs.length ? "Perfect Score!" : "Quiz Completed!"}
-              </Text>
-              <Text style={styles.resultsScore}>
-                You scored {quizScore} out of {lesson.mcqs.length}
-              </Text>
-              <Text style={styles.resultsPercentage}>
-                {Math.round((quizScore / lesson.mcqs.length) * 100)}%
-              </Text>
-              {quizScore === lesson.mcqs.length && (
-                <Text style={styles.congratsText}>Great job! You have mastered this lesson.</Text>
-              )}
-              {Math.round((quizScore / lesson.mcqs.length) * 100) >= PASSING_SCORE_PERCENT && (
-                <View style={styles.badgeUnlockRow}>
-                  <Award size={14} color="#fff" />
-                  <Text style={styles.badgeUnlockText}>Beginner Investor Badge Unlocked</Text>
-                </View>
-              )}
-              {Math.round((quizScore / lesson.mcqs.length) * 100) >= PASSING_SCORE_PERCENT && nextLessonTitle && (
-                <Text style={styles.unlockHintText}>
-                  Next lesson unlocked: {nextLessonTitle}
-                </Text>
-              )}
-              {submittingQuiz && (
-                <Text style={styles.resultsScore}>Saving quiz results...</Text>
-              )}
-              {quizXpAwarded > 0 && (
-                <Text style={styles.congratsText}>+{quizXpAwarded} XP from quiz performance</Text>
-              )}
-              <TouchableOpacity style={styles.retakeButton} onPress={handleStartQuiz}>
-                <Text style={styles.retakeButtonText}>Retake Quiz</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {reward && (
-            <View style={styles.rewardCard}>
-              <Text style={styles.rewardTitle}>Lesson Completed!</Text>
-              <Text style={styles.rewardXp}>+{reward.xpAwarded} XP</Text>
-              <Text style={styles.rewardMeta}>Streak: {reward.gamification?.streakDays ?? 0} days</Text>
-              <Text style={styles.rewardMeta}>
-                Badge Earned: {reward.newBadges[0] ?? 'Keep going to unlock badges'}
-              </Text>
-            </View>
-          )}
-
-          <View style={styles.completeSection}>
-            <TouchableOpacity
-              style={styles.completeButton}
-              onPress={async () => {
-                const completionResult = await onComplete(lesson.id);
-                if (completionResult) {
-                  setReward(completionResult);
-                  if (completionResult.gamification) {
-                    onGamificationUpdate?.(completionResult.gamification);
-                  }
-                }
-                Alert.alert('Lesson Completed!', 'Great job! You\'ve completed this lesson.', [
-                  {
-                    text: 'OK',
-                    onPress: () => {
-                      onClose();
-                    },
-                  },
-                ]);
-              }}
-            >
-              <CheckCircle size={18} color="#fff" />
-              <Text style={styles.completeButtonText}>Mark as Complete</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.retakeButton, { marginTop: 12 }]}
-              onPress={onClose}
-            >
-              <Text style={styles.retakeButtonText}>Back to Lessons</Text>
-            </TouchableOpacity>
-            <Text style={styles.completeNote}>
-              Click to mark this lesson as completed
-            </Text>
-          </View>
         </ScrollView>
       </View>
     </Modal>
   );
 }
 
+/* -- Vault Modal ------------------------------------------ */
+function VaultModal({ visible, chapter, quest, onExit, onComplete }: any) {
+  if (!visible || !quest || !chapter) return null;
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
+      <View style={[s.fullScreen, { backgroundColor: "#080C1A" }]}> 
+        <View style={[s.modalHeader, { backgroundColor: "#0A0520", borderBottomColor: "#7C3AED33" }]}> 
+          <Pressable onPress={onExit} style={s.closeBtn}>
+            <Text style={[s.closeText, { fontSize: 18 }]}>&lt;</Text>
+          </Pressable>
+          <View style={{ flex: 1, marginLeft: 8 }}>
+            <Text style={[s.questTitle, { color: C.text }]}>Mind Vault</Text>
+            <Text style={[s.cardHint, { marginTop: 0 }]}>Secret knowledge unlocked</Text>
+          </View>
+        </View>
+        <ScrollView contentContainerStyle={{ padding: 20 }}>
+          <View style={s.vaultIntro}>
+            <Text style={s.vaultTitle}> <Ico name="mdi:safe" size={20} color="#C4B5FD" /> {quest.title}</Text>
+            <Text style={s.vaultSub}>Insights economists rarely put in textbooks -- but should.</Text>
+          </View>
+          {quest.facts.map((fact: Fact, i: number) => (
+            <View key={i} style={s.factCard}>
+              <Ico name={fact.iconKey} size={30} color="#C4B5FD" />
+              <Text style={s.factTitle}>{fact.title}</Text>
+              <Text style={s.factBody}>{fact.body}</Text>
+            </View>
+          ))}
+          {quest.facts.length === 0 && <Text style={[s.cardHint, { textAlign: "center", marginTop: 40 }]}>No facts yet.</Text>}
+          <Text style={s.vaultXp}>+{quest.xp} XP earned!</Text>
+          <Pressable onPress={onComplete} style={[s.primaryBtn, { backgroundColor: C.purple, marginTop: 8 }]}> 
+            <Text style={[s.primaryBtnText, { color: "#fff" }]}>Collect XP {"->"}</Text>
+          </Pressable>
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+}
+
+/* -- Streak Celebration ----------------------------------- */
+function StreakCelebrationModal({
+  celebration,
+  onContinue,
+}: {
+  celebration: StreakCelebration | null;
+  onContinue: () => void;
+}) {
+  const visible = !!celebration;
+  const pulse = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!visible) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 900,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 0,
+          duration: 900,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => {
+      loop.stop();
+      pulse.setValue(0);
+    };
+  }, [visible, pulse]);
+
+  if (!celebration) return null;
+
+  const scale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.08] });
+  const glow = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.35, 0.85] });
+
+  return (
+    <Modal visible={visible} transparent animationType="fade">
+      <View style={s.celebrationOverlay}>
+        <View style={s.celebrationCard}>
+          <Animated.View style={[s.flameWrap, { transform: [{ scale }] }]}>
+            <Animated.View style={[s.flameGlow, { opacity: glow }]} />
+            <Ico name="mdi:fire" size={72} color={C.gold} />
+          </Animated.View>
+          <Text style={s.celebrationTitle}>Streak Secured!</Text>
+          <Text style={s.celebrationSub}>+{celebration.xpEarned} XP today</Text>
+          <View style={s.celebrationStat}>
+            <Text style={s.celebrationStatLabel}>Current streak</Text>
+            <Text style={s.celebrationStatValue}>{celebration.streakCount} days</Text>
+          </View>
+          <Pressable onPress={onContinue} style={[s.primaryBtn, { backgroundColor: C.gold }]}>
+            <Text style={s.primaryBtnText}>Continue</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+/* -- Badge Celebration ------------------------------------ */
+function BadgeCelebrationModal({
+  badge,
+  onAccept,
+  onShare,
+  onDownload,
+}: {
+  badge: BadgeDef | null;
+  onAccept: () => void;
+  onShare: () => void;
+  onDownload: () => void;
+}) {
+  const visible = !!badge;
+  const bounce = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!visible) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(bounce, {
+          toValue: 1,
+          duration: 800,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(bounce, {
+          toValue: 0,
+          duration: 800,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => {
+      loop.stop();
+      bounce.setValue(0);
+    };
+  }, [visible, bounce]);
+
+  if (!badge) return null;
+
+  const scale = bounce.interpolate({ inputRange: [0, 1], outputRange: [1, 1.05] });
+  const glow = bounce.interpolate({ inputRange: [0, 1], outputRange: [0.3, 0.7] });
+
+  return (
+    <Modal visible={visible} transparent animationType="fade">
+      <View style={s.celebrationOverlay}>
+        <View style={s.celebrationCard}>
+          <Animated.View style={[s.badgeStickerWrap, { transform: [{ scale }] }]}>
+            <Animated.View style={[s.badgeStickerGlow, { opacity: glow }]} />
+            <View style={s.badgeSticker}>
+              <Ico name={badge.icon} size={54} color="#C4B5FD" />
+            </View>
+          </Animated.View>
+          <Text style={s.celebrationTitle}>{badge.title}</Text>
+          <Text style={s.celebrationSub}>{badge.desc}</Text>
+          <View style={s.badgeActionRow}>
+            <Pressable onPress={onDownload} style={s.secondaryBtn}>
+              <Text style={s.secondaryBtnText}>Download</Text>
+            </Pressable>
+            <Pressable onPress={onShare} style={s.secondaryBtn}>
+              <Text style={s.secondaryBtnText}>Share</Text>
+            </Pressable>
+          </View>
+          <Pressable onPress={onAccept} style={[s.primaryBtn, { backgroundColor: C.purple }]}>
+            <Text style={[s.primaryBtnText, { color: "#fff" }]}>Accept</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+/* -- Main Screen ------------------------------------------ */
 export default function LearnScreen() {
-  const { accessToken, isAuthenticated } = useAuth();
-  const [lessons, setLessons] = useState<Lesson[]>([]);
-  const [completedLessons, setCompletedLessons] = useState<string[]>([]);
-  const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
-  const [gamification, setGamification] = useState<GamificationSummary | null>(null);
-  const [loadingLessons, setLoadingLessons] = useState(false);
-  const [lessonsError, setLessonsError] = useState<string | null>(null);
-  const [activeSection, setActiveSection] = useState<LearningSection>('lessons');
-  const [annualIncomeInput, setAnnualIncomeInput] = useState('');
-  const [investmentProfitInput, setInvestmentProfitInput] = useState('');
+  const { accessToken } = useAuth();
+  const [chapters, setChapters] = useState<Chapter[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [activeTab, setActiveTab] = useState("learn");
 
-  const loadLessons = useCallback(async () => {
-    if (!accessToken) return;
-    try {
-      setLoadingLessons(true);
-      setLessonsError(null);
-      const data = await apiFetch<ApiLesson[]>('/lessons', {}, accessToken);
-      setLessons(data.map(mapLesson));
-    } catch (error: any) {
-      setLessonsError(error?.message || 'Unable to load lessons.');
-    } finally {
-      setLoadingLessons(false);
+  const [activeChapter, setActiveChapter] = useState<Chapter | null>(null);
+  const [activeQuest, setActiveQuest] = useState<Quest | null>(null);
+  const [questScreen, setQuestScreen] = useState<"none" | "flashcard" | "quiz" | "vault">("none");
+
+  const [fcIdx, setFcIdx] = useState(0);
+  const [fcFlipped, setFcFlipped] = useState(false);
+
+  const [quizIdx, setQuizIdx] = useState(0);
+  const [quizAns, setQuizAns] = useState<number | null>(null);
+  const [quizScore, setQuizScore] = useState(0);
+  const [quizDone, setQuizDone] = useState(false);
+  const [quizStars, setQuizStars] = useState(0);
+  const [quizAnswers, setQuizAnswers] = useState<number[]>([]);
+
+  const [streakCelebration, setStreakCelebration] = useState<StreakCelebration | null>(null);
+  const [badgeSeenIds, setBadgeSeenIds] = useState<Set<string>>(new Set());
+  const [badgeSeenReady, setBadgeSeenReady] = useState(false);
+  const [badgeQueue, setBadgeQueue] = useState<BadgeDef[]>([]);
+  const [activeBadge, setActiveBadge] = useState<BadgeDef | null>(null);
+  const badgeSeenMigratedRef = useRef(false);
+  const flashcardViewedRef = useRef(new Set<string>());
+
+  const [gs, setGs] = useState<GameState>({
+    xp: 0,
+    level: 1,
+    streak: 0,
+    freezes: 0,
+    hearts: 5,
+    maxHearts: 5,
+    completedQuests: new Set(),
+    questStars: {},
+    perfectQuizzes: 0,
+    totalFlips: 0,
+    vaultsOpened: 0,
+    badges: [],
+    streakHistory: [],
+    weeklyProgress: [],
+  });
+
+  const badgeCatalog = useMemo(() => {
+    const chapterBadges: BadgeDef[] = chapters.map((ch) => ({
+      id: `unit_${ch.key}`,
+      icon: "mdi:trophy",
+      title: `${ch.title} Champ`,
+      desc: `Complete ${ch.title}`,
+      backendMatch: [`Chapter Badge: ${ch.title}`, `Unit Completed: ${ch.title}`],
+      condition: (s) => ch.quests.every((q) => s.completedQuests.has(q.id)),
+    }));
+    return [...BADGES, ...chapterBadges];
+  }, [chapters]);
+
+  function applyGamification(snap: any) {
+    if (!snap) return;
+    setGs((prev) => ({
+      ...prev,
+      xp: pn(snap.xp, prev.xp),
+      level: pn(snap.level, prev.level),
+      streak: pn(snap.streakDays, prev.streak),
+      freezes: pn(snap.streakFreezes, prev.freezes),
+      hearts: pn(snap.hearts, prev.hearts),
+      maxHearts: pn(snap.maxHearts, prev.maxHearts),
+      badges: pa(snap.badges, prev.badges),
+      streakHistory: pa(snap.streakHistory, prev.streakHistory),
+      weeklyProgress: pa(snap.weeklyProgress, prev.weeklyProgress),
+    }));
+
+    if (Array.isArray(snap.badgeSeen)) {
+      setBadgeSeenIds(new Set(snap.badgeSeen));
+      setBadgeSeenReady(true);
     }
+  }
+
+  const addSeenBadges = useCallback((ids: string[]) => {
+    if (!ids.length) return;
+    setBadgeSeenIds((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => next.add(id));
+      return next;
+    });
+  }, []);
+
+  const markBadgesSeen = useCallback(async (ids: string[]) => {
+    if (!ids.length || !accessToken) return;
+    try {
+      const result = await apiFetch<{ badgeSeen?: string[] }>(
+        "/progress/badges/seen",
+        { method: "POST", body: JSON.stringify({ badges: ids }) },
+        accessToken,
+      );
+      if (Array.isArray(result?.badgeSeen)) {
+        setBadgeSeenIds(new Set(result.badgeSeen));
+        setBadgeSeenReady(true);
+      }
+    } catch {}
   }, [accessToken]);
 
-  const loadProgress = useCallback(async () => {
-    if (!accessToken) return;
-    try {
-      const data = await apiFetch<ApiProgress[]>('/progress/me', {}, accessToken);
-      const completed = data
-        .filter((item) => item.completed)
-        .map((item) => (typeof item.lessonId === 'string' ? item.lessonId : item.lessonId._id));
-      setCompletedLessons(completed);
-    } catch (error) {
-      console.warn('Unable to load progress', error);
-    }
-  }, [accessToken]);
+  function hydrateProgress(progress: any[], gamification: any) {
+    const completed = progress.filter((p) => p.completed).map((p) => String(p.lessonId));
+    const backendStars = progress.reduce((acc: Record<string, number>, p: any) => {
+      if (p.bestScore > 0 && p.lessonId) acc[String(p.lessonId)] = calcStars(p.bestScore);
+      return acc;
+    }, {});
+    setGs((prev) => ({
+      ...prev,
+      completedQuests: new Set([...prev.completedQuests, ...completed]),
+      perfectQuizzes: Math.max(prev.perfectQuizzes, progress.filter((p) => p.bestScore >= 100).length),
+      questStars: { ...prev.questStars, ...backendStars },
+    }));
+    applyGamification(gamification);
+  }
 
-  const loadGamification = useCallback(async () => {
-    if (!accessToken) return;
-    try {
-      const data = await apiFetch<GamificationSummary>('/progress/gamification', {}, accessToken);
-      setGamification(data);
-    } catch (error) {
-      console.warn('Unable to load gamification summary', error);
-    }
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    apiFetch("/learn/flow", {}, accessToken)
+      .then((payload: any) => {
+        if (!active) return;
+        const { chapters: chs, progress, gamification } = normalizeFlow(payload);
+        setChapters(chs);
+        hydrateProgress(progress, gamification);
+      })
+      .catch((err: any) => {
+        if (!active) return;
+        setLoadError(err?.message || "Failed to load lessons");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, [accessToken]);
 
   useEffect(() => {
-    if (!accessToken) return;
-    loadLessons();
-    loadProgress();
-    loadGamification();
-  }, [accessToken, loadLessons, loadProgress, loadGamification]);
+    if (!badgeSeenReady || badgeSeenMigratedRef.current) return;
+    if (badgeSeenIds.size > 0) {
+      badgeSeenMigratedRef.current = true;
+      return;
+    }
+    const earnedIds = badgeCatalog.filter((b) => isBadgeEarned(b, gs)).map((b) => b.id);
+    if (!earnedIds.length) {
+      badgeSeenMigratedRef.current = true;
+      return;
+    }
+    badgeSeenMigratedRef.current = true;
+    addSeenBadges(earnedIds);
+    markBadgesSeen(earnedIds);
+  }, [badgeSeenReady, badgeSeenIds, badgeCatalog, gs, addSeenBadges, markBadgesSeen]);
 
-  const toggleLesson = async (lesson: Lesson) => {
-    setSelectedLesson(lesson);
-    if (!accessToken) return;
+  useEffect(() => {
+    if (!badgeSeenReady) return;
+    const unseen = badgeCatalog.filter((b) => isBadgeEarned(b, gs) && !badgeSeenIds.has(b.id));
+    if (!unseen.length) return;
+    setBadgeQueue((prev) => {
+      const existing = new Set(prev.map((b) => b.id));
+      const next = unseen.filter((b) => !existing.has(b.id) && b.id !== activeBadge?.id);
+      if (!next.length) return prev;
+      return [...prev, ...next];
+    });
+  }, [badgeCatalog, gs, badgeSeenIds, badgeSeenReady, activeBadge]);
+
+  useEffect(() => {
+    if (!activeBadge && badgeQueue.length && !streakCelebration) {
+      setActiveBadge(badgeQueue[0]);
+      setBadgeQueue((prev) => prev.slice(1));
+    }
+  }, [badgeQueue, activeBadge, streakCelebration]);
+
+  useEffect(() => {
+    if (questScreen !== "flashcard" || !activeQuest) return;
+    const key = `${activeQuest.id}:${fcIdx}`;
+    if (flashcardViewedRef.current.has(key)) return;
+    flashcardViewedRef.current.add(key);
+    apiFetch(`/progress/flashcard/${activeQuest.id}`, { method: "POST", body: JSON.stringify({ count: 1 }) }, accessToken)
+      .then((p: any) => {
+        if (p?.gamification) applyGamification(p.gamification);
+      })
+      .catch(() => {});
+  }, [questScreen, activeQuest, fcIdx, accessToken]);
+
+  const totalStars = Object.values(gs.questStars).reduce((a, s) => a + s, 0);
+  const totalQuests = chapters.reduce((a, ch) => a + ch.quests.length, 0);
+  const completedCount = chapters.reduce(
+    (a, ch) => a + ch.quests.filter((q) => gs.completedQuests.has(q.id)).length,
+    0,
+  );
+
+  function resetQuestState() {
+    setFcIdx(0);
+    setFcFlipped(false);
+    setQuizIdx(0);
+    setQuizAns(null);
+    setQuizScore(0);
+    setQuizDone(false);
+    setQuizAnswers([]);
+    setQuizStars(0);
+  }
+
+  function closeQuest() {
+    resetQuestState();
+    setQuestScreen("none");
+  }
+
+  async function openQuest(quest: Quest) {
+    const ch = chapters.find((c) => c.quests.some((q) => q.id === quest.id)) || null;
+    setActiveChapter(ch);
+    setActiveQuest(quest);
+    if (quest.type === "vault") {
+      setQuestScreen("vault");
+      return;
+    }
+    resetQuestState();
     try {
-      await apiFetch(`/progress/start/${lesson.id}`, { method: 'POST' }, accessToken);
-    } catch (error) {
-      console.warn('Unable to start lesson', error);
+      await apiFetch(`/progress/start/${quest.id}`, { method: "POST" }, accessToken);
+    } catch {}
+    setQuestScreen("flashcard");
+  }
+
+  function flipCard() {
+    setFcFlipped((f) => !f);
+    setGs((prev) => ({ ...prev, totalFlips: prev.totalFlips + 1 }));
+  }
+
+  function startQuiz() {
+    setQuizIdx(0);
+    setQuizAns(null);
+    setQuizScore(0);
+    setQuizDone(false);
+    if (activeQuest) setQuizAnswers(Array(activeQuest.quiz.length).fill(-1));
+    setQuestScreen("quiz");
+  }
+
+  async function nextCard() {
+    const cards = activeQuest?.flashcards || [];
+    if (cards.length > 0 && fcIdx < cards.length - 1) {
+      setFcIdx(fcIdx + 1);
+      setFcFlipped(false);
+      return;
     }
-  };
+    if (activeQuest?.quiz?.length) {
+      startQuiz();
+      return;
+    }
+    try {
+      const result: any = await apiFetch(
+        `/progress/complete/${activeQuest!.id}`,
+        { method: "POST" },
+        accessToken,
+      );
+      if (result?.gamification) applyGamification(result.gamification);
+      if (result?.streakCelebration) setStreakCelebration(result.streakCelebration);
+    } catch {}
+    setGs((prev) => ({ ...prev, completedQuests: new Set([...prev.completedQuests, activeQuest!.id]) }));
+    closeQuest();
+  }
 
-  const handleLessonComplete = async (lessonId: string): Promise<LessonCompletionResult> => {
-    let completionResult: LessonCompletionResult = {
-      xpAwarded: 20,
-      newBadges: [],
-    };
+  function answerQuiz(idx: number) {
+    if (quizAns !== null || !activeQuest) return;
+    setQuizAns(idx);
+    const correct = idx === activeQuest.quiz[quizIdx].ans;
+    if (correct) setQuizScore((s) => s + 1);
+    else setGs((prev) => ({ ...prev, hearts: Math.max(0, prev.hearts - 1) }));
+    setQuizAnswers((prev) => {
+      const n = [...prev];
+      n[quizIdx] = idx;
+      return n;
+    });
+  }
 
-    if (accessToken) {
-      try {
-        const result = await apiFetch<LessonCompletionResult>(`/progress/complete/${lessonId}`, { method: 'POST' }, accessToken);
-        completionResult = result;
-        if (result.gamification) {
-          setGamification(result.gamification);
-        }
-      } catch (error) {
-        console.warn('Unable to complete lesson', error);
+  async function nextQuiz() {
+    if (quizAns === null || !activeQuest) return;
+    if (quizIdx < activeQuest.quiz.length - 1) {
+      setQuizIdx(quizIdx + 1);
+      setQuizAns(null);
+      return;
+    }
+    const localScore = quizScore + (quizAns === activeQuest.quiz[quizIdx].ans ? 1 : 0);
+    const answers = quizAnswers.map((a, i) => (i === quizIdx ? quizAns : a));
+    try {
+      const result: any = await apiFetch(
+        `/progress/quiz/${activeQuest.id}`,
+        { method: "POST", body: JSON.stringify({ answers }) },
+        accessToken,
+      );
+      const pct =
+        typeof result.scorePercent === "number"
+          ? result.scorePercent
+          : Math.round((localScore / activeQuest.quiz.length) * 100);
+      const stars = calcStars(pct);
+      setQuizStars(stars);
+      setQuizScore(localScore);
+      setQuizDone(true);
+      setGs((prev) => ({
+        ...prev,
+        questStars: { ...prev.questStars, [activeQuest.id]: Math.max(stars, prev.questStars[activeQuest.id] || 0) },
+        perfectQuizzes: prev.perfectQuizzes + (pct === 100 ? 1 : 0),
+      }));
+      applyGamification(result.gamification);
+      if (result?.streakCelebration) setStreakCelebration(result.streakCelebration);
+      if (result.passed) {
+        try {
+          const completion: any = await apiFetch(
+            `/progress/complete/${activeQuest.id}`,
+            { method: "POST" },
+            accessToken,
+          );
+          if (completion?.gamification) applyGamification(completion.gamification);
+          if (completion?.streakCelebration) setStreakCelebration(completion.streakCelebration);
+        } catch {}
+        setGs((prev) => ({ ...prev, completedQuests: new Set([...prev.completedQuests, activeQuest.id]) }));
       }
+    } catch {
+      setQuizStars(1);
+      setQuizDone(true);
     }
+  }
 
-    setCompletedLessons((prev) => (prev.includes(lessonId) ? prev : [...prev, lessonId]));
-    return completionResult;
-  };
+  function handleVaultComplete() {
+    if (!activeQuest) return;
+    setGs((prev) => ({
+      ...prev,
+      completedQuests: new Set([...prev.completedQuests, activeQuest.id]),
+      vaultsOpened: prev.vaultsOpened + 1,
+      questStars: { ...prev.questStars, [activeQuest.id]: 3 },
+      xp: prev.xp + activeQuest.xp,
+    }));
+    closeQuest();
+  }
 
-  const progress = lessons.length > 0 ? (completedLessons.length / lessons.length) * 100 : 0;
-  const sortedLessons = useMemo(
-    () => [...lessons].sort((a, b) => a.order - b.order),
-    [lessons],
-  );
-  const completedLessonCards = useMemo(
-    () => sortedLessons.filter((lesson) => completedLessons.includes(lesson.id)),
-    [sortedLessons, completedLessons],
-  );
-  const pendingLessonCards = useMemo(
-    () => sortedLessons.filter((lesson) => !completedLessons.includes(lesson.id)),
-    [sortedLessons, completedLessons],
-  );
-  const unlockedPendingLessonId = pendingLessonCards[0]?.id ?? null;
-  const continueLesson = useMemo(() => {
-    if (!sortedLessons.length) {
-      return null;
-    }
+  if (loading && chapters.length === 0) {
+    return (
+      <View style={[s.fullScreen, s.center, { backgroundColor: C.bg }]}> 
+        <ActivityIndicator size="large" color={C.accent} />
+        <Text style={s.loadingText}>Loading your learning path...</Text>
+        <Text style={s.loadingSubText}>Fetching lessons and progress</Text>
+      </View>
+    );
+  }
 
-    if (gamification?.nextLessonId) {
-      return sortedLessons.find((item) => item.id === gamification.nextLessonId) ?? null;
-    }
-
-    if (unlockedPendingLessonId) {
-      return sortedLessons.find((item) => item.id === unlockedPendingLessonId) ?? null;
-    }
-
-    return sortedLessons[0] ?? null;
-  }, [gamification?.nextLessonId, sortedLessons, unlockedPendingLessonId]);
-
-  const nextLessonTitle = useMemo(() => {
-    if (!selectedLesson) {
-      return null;
-    }
-    const lessonIndex = sortedLessons.findIndex((item) => item.id === selectedLesson.id);
-    if (lessonIndex < 0) {
-      return null;
-    }
-    return sortedLessons[lessonIndex + 1]?.title ?? null;
-  }, [selectedLesson, sortedLessons]);
-
-  const taxSummary = useMemo(() => {
-    const annualIncome = parseNumericInput(annualIncomeInput);
-    const investmentProfit = parseNumericInput(investmentProfitInput);
-
-    const incomeTax = calculateIncomeTaxFromSlab(annualIncome);
-    const capitalGainsTax = investmentProfit * (TAX_REFERENCE_RATES.capitalGainsPercent / 100);
-    const dividendTax = investmentProfit * (TAX_REFERENCE_RATES.dividendPercent / 100);
-    const estimatedTax = incomeTax + capitalGainsTax + dividendTax;
-    const taxableBase = annualIncome + investmentProfit;
-    const effectiveRate = taxableBase > 0 ? (estimatedTax / taxableBase) * 100 : 0;
-
-    return {
-      annualIncome,
-      investmentProfit,
-      incomeTax,
-      capitalGainsTax,
-      dividendTax,
-      estimatedTax,
-      effectiveRate,
-    };
-  }, [annualIncomeInput, investmentProfitInput]);
-
-  const handleOpenURL = (url: string) => {
-    Linking.openURL(url).catch((err: any) => console.error("Couldn't load page", err));
-  };
+  if (loadError && chapters.length === 0) {
+    return (
+      <View style={[s.fullScreen, s.center, { backgroundColor: C.bg, padding: 24 }]}> 
+        <Ico name="mdi:alert-circle-outline" size={44} color="#FCA5A5" />
+        <Text style={s.errorTitle}>Unable to load lessons</Text>
+        <Text style={s.errorText}>{loadError}</Text>
+      </View>
+    );
+  }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.sparkleBg}>
-        <View style={[styles.sparkleDot, { top: 90, left: 28 }]} />
-        <View style={[styles.sparkleDotSmall, { top: 170, left: 240 }]} />
-        <View style={[styles.sparkleDotSmall, { top: 320, left: 90 }]} />
-        <View style={[styles.sparkleDot, { top: 520, left: 278 }]} />
-      </View>
-      {/* Dark Blue Header */}
-      <LinearGradient
-        colors={["#041B38", "#0A3269"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.blueHeader}
-      >
-        <View style={styles.blueHeaderTop}>
-          <HeaderBar
-            tint="dark"
-            rightSlot={isAuthenticated ? <TopRightMenu theme="dark" /> : <GuestAuthActions />}
-          />
-        </View>
-        <Text style={styles.headerTitle}>Beginners Guide</Text>
-        <Text style={styles.headerSubtitle}>Micro lessons, instant feedback, rewards, and streaks</Text>
-      </LinearGradient>
+    <View style={[s.fullScreen, { backgroundColor: C.bg }]}> 
+      <TopNav gs={gs} completedCount={completedCount} totalQuests={totalQuests} totalStars={totalStars} activeTab={activeTab} onTabChange={setActiveTab} />
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {!isAuthenticated && (
-          <View style={styles.tipCard}>
-            <Text style={styles.tipTitle}>Login Required</Text>
-            <Text style={styles.tipText}>
-              Please log in to load lessons, track progress, and save quiz scores.
-            </Text>
-          </View>
-        )}
-        <View style={styles.sectionTabsWrap}>
-          <TouchableOpacity
-            onPress={() => setActiveSection('lessons')}
-            style={[
-              styles.sectionTab,
-              activeSection === 'lessons' && styles.sectionTabActive,
-            ]}
-          >
-            <BookOpen size={14} color={activeSection === 'lessons' ? '#fff' : '#475569'} />
-            <Text
-              style={[
-                styles.sectionTabText,
-                activeSection === 'lessons' && styles.sectionTabTextActive,
-              ]}
-            >
-              Lessons
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => setActiveSection('tax')}
-            style={[
-              styles.sectionTab,
-              activeSection === 'tax' && styles.sectionTabActive,
-            ]}
-          >
-            <PieChart size={14} color={activeSection === 'tax' ? '#fff' : '#475569'} />
-            <Text
-              style={[
-                styles.sectionTabText,
-                activeSection === 'tax' && styles.sectionTabTextActive,
-              ]}
-            >
-              Tax Hub
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {activeSection === 'lessons' ? (
-          <>
-            <View style={styles.learningDashboardCard}>
-              <View style={styles.learningDashboardRow}>
-                <Text style={styles.dashboardChip}>🔥 {gamification?.streakDays ?? 0} Day Streak</Text>
-                <Text style={styles.dashboardChip}>XP: {gamification?.xp ?? 0}</Text>
-                <Text style={styles.dashboardChip}>Level: {gamification?.level ?? 1}</Text>
-              </View>
-              <TouchableOpacity
-                style={styles.continueButton}
-                onPress={() => continueLesson && toggleLesson(continueLesson)}
-                disabled={!continueLesson}
-              >
-                <Text style={styles.continueButtonText}>
-                  Continue Learning {continueLesson ? `- ${continueLesson.title}` : ''}
-                </Text>
-                <ChevronRight size={16} color="#DBEAFE" />
-              </TouchableOpacity>
-            </View>
-
-            {/* Progress Card */}
-            <View style={styles.progressCard}>
-              <View style={styles.progressTextContainer}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <Text style={styles.cardTitle}>Your Progress</Text>
-                  <Text style={styles.progressStat}>{completedLessonCards.length}/{sortedLessons.length}</Text>
-                </View>
-                <View style={styles.progressBarBg}>
-                  <View style={[styles.progressBarFill, { width: `${progress}%` }]} />
-                </View>
-                {progress >= 100 && sortedLessons.length > 0 && (
-                  <Text style={styles.levelCompleteText}>Financial Literacy Level 1 Completed</Text>
-                )}
-              </View>
-            </View>
-
-            {sortedLessons.length > 0 && (
-              <View style={styles.pathCard}>
-                <Text style={styles.pathTitle}>Lesson Path</Text>
-                {sortedLessons.map((lesson, index) => {
-                  const isComplete = completedLessons.includes(lesson.id);
-                  const isPendingUnlocked = unlockedPendingLessonId === lesson.id;
-                  const isLocked = !isComplete && !isPendingUnlocked;
-                  return (
-                    <View key={`path-${lesson.id}`} style={styles.pathRow}>
-                      <View
-                        style={[
-                          styles.pathBubble,
-                          isComplete && styles.pathBubbleComplete,
-                          isPendingUnlocked && styles.pathBubbleActive,
-                          isLocked && styles.pathBubbleLocked,
-                        ]}
-                      >
-                        {isComplete ? <CheckCircle size={14} color="#E2E8F0" /> : isLocked ? <Lock size={14} color="#94A3B8" /> : <Play size={14} color="#DBEAFE" />}
-                      </View>
-                      <Text style={[styles.pathLessonText, isLocked && styles.pathLessonTextLocked]}>
-                        Lesson {index + 1}: {lesson.title}
-                      </Text>
-                    </View>
-                  );
-                })}
-              </View>
-            )}
-
-            {loadingLessons && (
-              <View style={{ paddingVertical: 20, alignItems: 'center' }}>
-                <ActivityIndicator color="#5B8DEF" />
-                <Text style={{ marginTop: 8, color: '#64748B' }}>Loading lessons...</Text>
-              </View>
-            )}
-
-            {lessonsError && (
-              <View style={styles.tipCard}>
-                <Text style={styles.tipTitle}>Lesson Load Error</Text>
-                <Text style={styles.tipText}>{lessonsError}</Text>
-                <TouchableOpacity style={[styles.retakeButton, { marginTop: 12 }]} onPress={loadLessons}>
-                  <Text style={styles.retakeButtonText}>Retry</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* Completed Lessons Section */}
-            {completedLessonCards.length > 0 && sortedLessons.length > 0 && (
-              <>
-                <Text style={styles.sectionTitle}>Completed Lessons</Text>
-                {completedLessonCards
-                  .map((lesson) => {
-                    const Icon = lesson.icon;
-                    return (
-                      <TouchableOpacity
-                        key={lesson.id}
-                        onPress={() => toggleLesson(lesson)}
-                        style={styles.completedLessonCard}
-                      >
-                        <View style={styles.lessonHeader}>
-                          <View style={[styles.iconBox, { backgroundColor: lesson.color + '20' }]}>
-                            <Icon color={lesson.color} size={20} />
-                          </View>
-                          <View style={{ flex: 1, marginLeft: 12 }}>
-                            <View style={styles.titleRow}>
-                              <Text style={styles.lessonTitle}>{lesson.title}</Text>
-                              <CheckCircle size={18} color="#5B8DEF" />
-                            </View>
-                            <Text style={styles.lessonContent} numberOfLines={1}>{lesson.content}</Text>
-                          </View>
-                        </View>
-                      </TouchableOpacity>
-                    );
-                  })}
-              </>
-            )}
-
-            {/* Lessons Section */}
-            <Text style={styles.sectionTitle}>Interactive Lessons</Text>
-            {pendingLessonCards
-              .map((lesson) => {
-                const Icon = lesson.icon;
-                const isLocked = unlockedPendingLessonId !== null && lesson.id !== unlockedPendingLessonId;
-                return (
-                  <View key={lesson.id} style={styles.lessonCard}>
-                    <View style={styles.lessonHeader}>
-                      <View style={[styles.iconBox, { backgroundColor: lesson.color + '20' }]}>
-                        <Icon color={lesson.color} size={20} />
-                      </View>
-                      <View style={{ flex: 1, marginLeft: 12 }}>
-                        <View style={styles.titleRow}>
-                          <Text style={styles.lessonTitle}>{lesson.title}</Text>
-                          <Text style={styles.durationText}>{lesson.duration}</Text>
-                        </View>
-                        <Text style={styles.lessonContent} numberOfLines={2}>{lesson.content}</Text>
-                        <View style={styles.lessonFeatures}>
-                          <View style={styles.featureBadge}>
-                            <Play size={12} color={lesson.color} />
-                            <Text style={[styles.featureText, { color: lesson.color }]}>Video</Text>
-                          </View>
-                          <View style={styles.featureBadge}>
-                            <HelpCircle size={12} color={lesson.color} />
-                            <Text style={[styles.featureText, { color: lesson.color }]}>
-                              Quiz
-                            </Text>
-                          </View>
-                          {isLocked && (
-                            <View style={styles.lockPill}>
-                              <Lock size={12} color="#334155" />
-                              <Text style={styles.lockPillText}>Locked</Text>
-                            </View>
-                          )}
-                        </View>
-                      </View>
-                    </View>
-
-                    <TouchableOpacity
-                      onPress={() => toggleLesson(lesson)}
-                      disabled={isLocked}
-                      style={[styles.buttonIncomplete, isLocked && styles.buttonLocked]}
-                    >
-                      <Text style={styles.buttonTextIncomplete}>
-                        {isLocked ? 'Complete Previous Lesson to Unlock' : 'Start Learning'}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                );
-              })}
-
-            {/* Verified Resources Section */}
-            <Text style={styles.sectionTitle}>Verified Resources</Text>
-            {externalResources.map((resource, index) => (
-              <TouchableOpacity
-                key={index}
-                style={styles.resourceCard}
-                onPress={() => handleOpenURL(resource.url)}
-              >
-                <View style={styles.resourceIconBox}>
-                  <ExternalLink size={18} color="#5B8DEF" />
-                </View>
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={styles.resourceTitle}>{resource.title}</Text>
-                  <Text style={styles.resourceDesc}>{resource.description}</Text>
-                </View>
-                <ChevronRight size={18} color="#CBD5E1" />
-              </TouchableOpacity>
-            ))}
-
-            {/* Study Tip Section */}
-            <View style={styles.tipCard}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                <Info size={16} color="#1E40AF" />
-                <Text style={styles.tipTitle}>Study Tip</Text>
-              </View>
-              <Text style={styles.tipText}>
-                Watch the video first, read the content, then take the quiz to test your knowledge. Complete all lessons to master stock market basics!
-              </Text>
-            </View>
-          </>
-        ) : (
-          <>
-            <Text style={styles.sectionTitle}>Tax Hub</Text>
-            <View style={styles.taxHubCard}>
-              <Text style={styles.taxHubTitle}>Tax Basics</Text>
-              <Text style={styles.taxHubSubtitle}>
-                Quick overview of key tax types and common rates.
-              </Text>
-              {TAX_BASICS.map((item) => (
-                <View key={item.title} style={styles.taxBasicRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.taxBasicTitle}>{item.title}</Text>
-                    <Text style={styles.taxBasicSubtitle}>{item.subtitle}</Text>
-                  </View>
-                  <View style={styles.taxRatePill}>
-                    <Text style={styles.taxRateText}>{item.value}</Text>
-                  </View>
-                </View>
-              ))}
-            </View>
-
-            <View style={styles.taxHubCard}>
-              <Text style={styles.taxHubTitle}>Tax Slab Calculator</Text>
-              <Text style={styles.taxHubSubtitle}>
-                Enter yearly income and investment profit to estimate tax impact.
-              </Text>
-              <Text style={styles.taxInputLabel}>Annual Income (NPR)</Text>
-              <TextInput
-                value={annualIncomeInput}
-                onChangeText={setAnnualIncomeInput}
-                style={styles.taxInput}
-                placeholder="e.g. 850000"
-                placeholderTextColor="#94A3B8"
-                keyboardType="numeric"
-              />
-              <Text style={styles.taxInputLabel}>Investment Profit (NPR)</Text>
-              <TextInput
-                value={investmentProfitInput}
-                onChangeText={setInvestmentProfitInput}
-                style={styles.taxInput}
-                placeholder="e.g. 120000"
-                placeholderTextColor="#94A3B8"
-                keyboardType="numeric"
-              />
-
-              <View style={styles.taxResultCard}>
-                <View style={styles.taxResultRow}>
-                  <Text style={styles.taxResultLabel}>Estimated Tax</Text>
-                  <Text style={styles.taxResultValue}>{formatCurrency(taxSummary.estimatedTax)}</Text>
-                </View>
-                <View style={styles.taxResultRow}>
-                  <Text style={styles.taxResultLabel}>Effective Tax Rate</Text>
-                  <Text style={styles.taxResultValue}>{taxSummary.effectiveRate.toFixed(2)}%</Text>
-                </View>
-                <View style={styles.taxDivider} />
-                <View style={styles.taxResultRow}>
-                  <Text style={styles.taxBreakdownLabel}>Income Tax</Text>
-                  <Text style={styles.taxBreakdownValue}>{formatCurrency(taxSummary.incomeTax)}</Text>
-                </View>
-                <View style={styles.taxResultRow}>
-                  <Text style={styles.taxBreakdownLabel}>Capital Gains Tax</Text>
-                  <Text style={styles.taxBreakdownValue}>{formatCurrency(taxSummary.capitalGainsTax)}</Text>
-                </View>
-                <View style={styles.taxResultRow}>
-                  <Text style={styles.taxBreakdownLabel}>Dividend Tax</Text>
-                  <Text style={styles.taxBreakdownValue}>{formatCurrency(taxSummary.dividendTax)}</Text>
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.taxDisclaimerCard}>
-              <Info size={14} color="#1E40AF" />
-              <Text style={styles.taxDisclaimerText}>
-                Tax Hub values are for educational estimation only. Always verify with current official tax notices and a licensed tax advisor.
-              </Text>
-            </View>
-          </>
-        )}
-
-        <View style={{ height: 50 }} />
-      </ScrollView>
-
-      {/* Lesson Detail Modal */}
-      {selectedLesson && (
-        <LessonDetailView
-          lesson={selectedLesson}
-          onClose={() => setSelectedLesson(null)}
-          onComplete={handleLessonComplete}
-          isCompleted={completedLessons.includes(selectedLesson.id)}
-          nextLessonTitle={nextLessonTitle}
-          onGamificationUpdate={setGamification}
-        />
+      {activeTab === "learn" && (
+        <LearnTab chapters={chapters} gs={gs} onOpenQuest={openQuest} loadError={loadError} />
       )}
+      {activeTab === "badges" && (
+        <BadgesTab gs={gs} badgeCatalog={badgeCatalog} badgeSeen={badgeSeenIds} />
+      )}
+      {activeTab === "profile" && <ProfileTab gs={gs} totalStars={totalStars} />}
+
+      <FlashcardModal
+        visible={questScreen === "flashcard"}
+        chapter={activeChapter}
+        quest={activeQuest}
+        fcIdx={fcIdx}
+        fcFlipped={fcFlipped}
+        hearts={gs.hearts}
+        maxHearts={gs.maxHearts}
+        onExit={closeQuest}
+        onFlip={flipCard}
+        onNext={nextCard}
+        onStartQuiz={startQuiz}
+      />
+      <QuizModal
+        visible={questScreen === "quiz"}
+        chapter={activeChapter}
+        quest={activeQuest}
+        quizIdx={quizIdx}
+        quizAns={quizAns}
+        quizScore={quizScore}
+        quizDone={quizDone}
+        quizStars={quizStars}
+        hearts={gs.hearts}
+        maxHearts={gs.maxHearts}
+        onExit={closeQuest}
+        onAnswer={answerQuiz}
+        onNext={nextQuiz}
+      />
+      <VaultModal
+        visible={questScreen === "vault"}
+        chapter={activeChapter}
+        quest={activeQuest}
+        onExit={closeQuest}
+        onComplete={handleVaultComplete}
+      />
+
+      <StreakCelebrationModal
+        celebration={streakCelebration}
+        onContinue={() => setStreakCelebration(null)}
+      />
+      <BadgeCelebrationModal
+        badge={streakCelebration ? null : activeBadge}
+        onDownload={() => {
+          if (!activeBadge) return;
+          Share.share({
+            title: `${activeBadge.title} badge`,
+            message: `I just earned the "${activeBadge.title}" badge! ${activeBadge.desc}`,
+          }).catch(() => {});
+        }}
+        onShare={() => {
+          if (!activeBadge) return;
+          Share.share({
+            title: `${activeBadge.title} badge`,
+            message: `I just earned the "${activeBadge.title}" badge! ${activeBadge.desc}`,
+          }).catch(() => {});
+        }}
+        onAccept={() => {
+          if (!activeBadge) return;
+          const id = activeBadge.id;
+          addSeenBadges([id]);
+          markBadgesSeen([id]);
+          setActiveBadge(null);
+        }}
+      />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#020B18', overflow: "visible" },
-  sparkleBg: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 0,
-  },
-  sparkleDot: {
-    position: 'absolute',
-    width: 10,
-    height: 10,
-    borderRadius: 999,
-    backgroundColor: 'rgba(148, 197, 255, 0.25)',
-  },
-  sparkleDotSmall: {
-    position: 'absolute',
-    width: 6,
-    height: 6,
-    borderRadius: 999,
-    backgroundColor: 'rgba(125, 211, 252, 0.22)',
-  },
-  blueHeader: {
-    paddingTop: 64,
-    paddingHorizontal: 20,
-    paddingBottom: 28,
+/* -- Styles ------------------------------------------------ */
+const s = StyleSheet.create({
+  fullScreen: { flex: 1 },
+  center: { alignItems: "center", justifyContent: "center" },
+
+  // Top Nav
+  topNav: {
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.15)",
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
-    position: "relative",
-    zIndex: 20,
+    paddingBottom: 10,
+    width: "100%",
+    alignSelf: "stretch",
   },
-  blueHeaderTop: { marginBottom: 16 },
-  scrollView: { flex: 1, paddingHorizontal: 20, zIndex: 2 },
-  header: { marginBottom: 20 },
-  headerTitle: { color: '#fff', fontSize: 26, fontWeight: '800', lineHeight: 32 },
-  headerSubtitle: { color: '#CBD5E1', fontSize: 14, lineHeight: 20, marginTop: 10 },
-  sectionTabsWrap: {
-    marginTop: 16,
-    marginBottom: 18,
-    backgroundColor: '#E2E8F0',
-    borderRadius: 14,
-    padding: 4,
-    flexDirection: 'row',
-    gap: 6,
+  navBrand: {
+    paddingTop: 64,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
   },
-  sectionTab: {
+  statsRow: { flexDirection: "row", gap: 10, paddingHorizontal: 20, paddingBottom: 14 },
+  statPill: {
     flex: 1,
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-  },
-  sectionTabActive: {
-    backgroundColor: '#0B3B78',
-  },
-  sectionTabText: {
-    color: '#334155',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  sectionTabTextActive: {
-    color: '#fff',
-  },
-
-  taxHubCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    justifyContent: "center",
+  },
+  statValue: { fontWeight: "800", fontSize: 15 },
+  progressRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    marginBottom: 6,
+  },
+  progressLabel: { fontSize: 12, color: "#CBD5E1" },
+  progressCount: { fontSize: 12, color: "#E2E8F0", fontWeight: "700" },
+  progressBar: {
+    height: 6,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    borderRadius: 99,
+    overflow: "hidden",
+    marginHorizontal: 20,
     marginBottom: 14,
   },
-  taxHubTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#1E293B',
+  progressFill: { height: "100%", borderRadius: 99, backgroundColor: "#93C5FD" },
+  tabBar: { flexDirection: "row", borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.15)" },
+  tabBtn: { flex: 1, alignItems: "center", paddingVertical: 10, paddingBottom: 12, position: "relative" },
+  tabIndicator: {
+    position: "absolute",
+    top: 0,
+    left: "20%",
+    right: "20%",
+    height: 3,
+    backgroundColor: "#F8FAFC",
+    borderBottomLeftRadius: 2,
+    borderBottomRightRadius: 2,
   },
-  taxHubSubtitle: {
-    fontSize: 13,
-    color: '#64748B',
-    marginTop: 6,
-    marginBottom: 12,
-    lineHeight: 18,
-  },
-  taxBasicRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-  },
-  taxBasicTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  taxBasicSubtitle: {
-    marginTop: 3,
-    fontSize: 12,
-    color: '#64748B',
-    lineHeight: 17,
-  },
-  taxRatePill: {
-    backgroundColor: '#E0ECFF',
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  taxRateText: {
-    color: '#1D4ED8',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  taxInputLabel: {
-    fontSize: 12,
-    color: '#334155',
-    fontWeight: '700',
-    marginBottom: 6,
-    marginTop: 6,
-  },
-  taxInput: {
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    color: '#1E293B',
-    marginBottom: 10,
-  },
-  taxResultCard: {
-    marginTop: 6,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 12,
-    padding: 12,
-  },
-  taxResultRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  taxResultLabel: {
-    color: '#334155',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  taxResultValue: {
-    color: '#0B3B78',
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  taxDivider: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    marginVertical: 8,
-  },
-  taxBreakdownLabel: {
-    color: '#64748B',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  taxBreakdownValue: {
-    color: '#1E293B',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  taxDisclaimerCard: {
-    backgroundColor: '#E0ECFF',
-    borderWidth: 1,
-    borderColor: '#93C5FD',
-    borderRadius: 14,
-    padding: 12,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-  },
-  taxDisclaimerText: {
-    flex: 1,
-    color: '#1E40AF',
-    fontSize: 12,
-    lineHeight: 18,
-    fontWeight: '600',
-  },
+  tabLabel: { fontSize: 10, fontWeight: "600", color: "#CBD5E1", marginTop: 4 },
+  tabLabelActive: { color: "#F8FAFC", fontWeight: "800" },
 
-  learningDashboardCard: {
-    backgroundColor: '#07172C',
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: '#1E3A5F',
-    padding: 14,
-    marginBottom: 12,
-  },
-  learningDashboardRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 12,
-  },
-  dashboardChip: {
-    flex: 1,
-    textAlign: 'center',
-    color: '#DBEAFE',
-    backgroundColor: '#0B264A',
-    borderRadius: 999,
-    paddingVertical: 8,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  continueButton: {
-    backgroundColor: '#0E315E',
-    borderWidth: 1,
-    borderColor: '#1D4ED8',
-    borderRadius: 12,
-    paddingVertical: 11,
-    paddingHorizontal: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  continueButtonText: {
-    color: '#DBEAFE',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  progressCard: {
-    backgroundColor: '#07172C',
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 24,
-    elevation: 2,
-    boxShadow: '0px 2px 10px rgba(0, 0, 0, 0.05)',
-    borderWidth: 1,
-    borderColor: '#1E3A5F',
-  },
-  progressTextContainer: { flex: 1 },
-  cardTitle: { fontSize: 15, fontWeight: '600', color: '#E2E8F0' },
-  progressStat: { fontSize: 14, fontWeight: '700', color: '#60A5FA' },
-  progressBarBg: { backgroundColor: '#0B264A', height: 10, borderRadius: 5 },
-  progressBarFill: { backgroundColor: '#3B82F6', height: 10, borderRadius: 5 },
-  levelCompleteText: {
-    marginTop: 10,
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#93C5FD',
-  },
+  // Chapter
+  chapterHeader: { borderRadius: 20, padding: 18, marginBottom: 20, borderWidth: 1 },
+  chapterTop: { flexDirection: "row", alignItems: "center", gap: 12 },
+  chapterLabel: { fontSize: 10, letterSpacing: 3, textTransform: "uppercase", marginBottom: 3, fontWeight: "700" },
+  chapterTitle: { fontSize: 18, fontWeight: "800", color: "#F0F4FF" },
+  chapterTagline: { fontSize: 12, color: "#4B5680", marginTop: 3 },
+  chapterBadge: { borderRadius: 12, padding: 10, alignItems: "center" },
+  chapterBadgeNum: { fontSize: 18, fontWeight: "900" },
+  chapterBadgeSub: { fontSize: 9, color: "#4B5680", marginTop: 1 },
+  chapterProgressBg: { height: 4, borderRadius: 99, marginTop: 12, overflow: "hidden" },
+  chapterProgressFill: { height: "100%", borderRadius: 99 },
 
-  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#DBEAFE', marginBottom: 16, marginTop: 8 },
-  pathCard: {
-    backgroundColor: '#07172C',
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: '#1E3A5F',
-    padding: 14,
-    marginBottom: 16,
-  },
-  pathTitle: {
-    color: '#DBEAFE',
-    fontSize: 15,
-    fontWeight: '800',
-    marginBottom: 10,
-  },
-  pathRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-    gap: 10,
-  },
-  pathBubble: {
-    width: 30,
-    height: 30,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#1E3A5F',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#0B264A',
-  },
-  pathBubbleComplete: {
-    backgroundColor: '#2563EB',
-    borderColor: '#60A5FA',
-  },
-  pathBubbleActive: {
-    backgroundColor: '#1D4ED8',
-    borderColor: '#93C5FD',
-  },
-  pathBubbleLocked: {
-    backgroundColor: '#111827',
-    borderColor: '#334155',
-  },
-  pathLessonText: {
-    color: '#BFDBFE',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  pathLessonTextLocked: {
-    color: '#94A3B8',
-  },
-
-  lessonCard: {
-    backgroundColor: '#FAFAF5',
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#E8E8E3'
-  },
-  lessonCardCompleted: { borderColor: '#5B8DEF', backgroundColor: '#E8F1FF' },
-  completedLessonCard: {
-    backgroundColor: '#E8F1FF',
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 2,
-    borderColor: '#5B8DEF',
-  },
-  lessonHeader: { flexDirection: 'row', marginBottom: 16 },
-  iconBox: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  lessonTitle: { fontSize: 16, fontWeight: '700', color: '#1E293B' },
-  durationText: { fontSize: 11, color: '#94A3B8', fontWeight: '600' },
-  lessonContent: { fontSize: 14, color: '#64748B', lineHeight: 20, marginBottom: 8 },
-  lessonFeatures: { flexDirection: 'row', gap: 8, marginTop: 4 },
-  featureBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#F1F5F9', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  featureText: { fontSize: 11, fontWeight: '600' },
-  lockPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#E2E8F0',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  lockPillText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#334155',
-  },
-
-  button: { paddingVertical: 12, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' },
-  buttonIncomplete: {
-    backgroundColor: '#0B3B78',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    elevation: 2,
-    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  buttonLocked: {
-    opacity: 0.55,
-  },
-  buttonCompleted: { backgroundColor: '#E0EDD8' },
-  buttonText: { fontWeight: '700', fontSize: 15 },
-  buttonTextIncomplete: { color: '#fff', fontSize: 15 },
-  buttonTextCompleted: { color: '#3F6DD8' },
-
-  resourceCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    padding: 14,
-    borderRadius: 16,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#E2E8F0'
-  },
-  resourceIconBox: { backgroundColor: '#E8F1FF', padding: 8, borderRadius: 10 },
-  resourceTitle: { fontSize: 15, fontWeight: '700', color: '#1E293B' },
-  resourceDesc: { fontSize: 12, color: '#64748B' },
-
-  tipCard: { backgroundColor: '#E0ECFF', padding: 16, borderRadius: 16, marginTop: 10, borderWidth: 1, borderColor: '#93C5FD' },
-  tipTitle: { fontSize: 14, fontWeight: '700', color: '#1E40AF', marginLeft: 8 },
-  tipText: { fontSize: 13, color: '#1E40AF', lineHeight: 18, marginTop: 4 },
-
-  // Modal Styles
-  modalContainer: { flex: 1, backgroundColor: '#082349' },
-  modalContent: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-  modalHeader: { marginTop: 40, marginBottom: 20, alignItems: 'center' },
-  modalHeaderCompact: {
-    backgroundColor: '#031D44',
-    paddingTop: 50,
-    paddingBottom: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#1E3A5F',
-  },
-  modalHeaderTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  closeButton: { padding: 4 },
-  closeButtonText: { fontSize: 22, color: '#fff', fontWeight: '600' },
-  modalIconBox: { width: 60, height: 60, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
-  modalIconBoxCompact: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center'
-  },
-  modalTitle: { fontSize: 24, fontWeight: '800', color: '#1E293B', textAlign: 'center' },
-  modalTitleCompact: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  completedBadgeHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#E8F1FF',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#5B8DEF',
-  },
-  completedBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#3F6DD8',
-  },
-
-  topicCard: {
-    backgroundColor: '#DCE9FF',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#B5C8E6',
-    padding: 14,
-    marginBottom: 12,
-  },
-  topicLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#1E3A8A',
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-  },
-  topicTitle: {
-    marginTop: 4,
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#123B77',
-    lineHeight: 24,
-  },
-  topicMeta: {
-    marginTop: 6,
-    fontSize: 12,
-    color: '#415A80',
-    fontWeight: '600',
-  },
-
-  // Video Section
-  videoSection: { marginTop: 16, marginBottom: 20 },
-  videoPlaceholder: {
-    width: '100%',
-    height: 200,
-    backgroundColor: '#1E293B',
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12
-  },
-  videoContainer: {
-    width: '100%',
-    height: 200,
-    borderRadius: 12,
-    overflow: 'hidden',
-    backgroundColor: '#000',
-    position: 'relative',
-    marginBottom: 12
-  },
-  videoPlayer: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: '#000'
-  },
-  closeVideoButton: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    zIndex: 10,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    borderRadius: 20,
-    width: 32,
-    height: 32,
-    justifyContent: 'center',
-    alignItems: 'center'
-  },
-  watchVideoButton: {
-    backgroundColor: '#5B8DEF',
-    padding: 12,
-    borderRadius: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6
-  },
-  watchVideoText: { color: '#fff', fontWeight: '700', fontSize: 14 },
-
-  // Content Section
-  contentSection: {
-    marginBottom: 12,
-    backgroundColor: '#E9F2FF',
-    padding: 16,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#B5C8E6',
-  },
-  contentTitle: { fontSize: 16, fontWeight: '700', color: '#1E3660', marginBottom: 10 },
-  contentText: { fontSize: 14, color: '#23395D', lineHeight: 22 },
-  flashcardsSection: {
-    marginBottom: 12,
-  },
-  sectionHeadingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  swipeHint: {
-    fontSize: 12,
-    color: '#C4B5FD',
-    fontWeight: '700',
-  },
-  flashcardList: {
-    paddingRight: 12,
-    paddingBottom: 4,
-  },
-  flashcardItemShell: {
-    marginRight: FLASHCARD_GAP,
-    minHeight: 228,
-  },
-  flashcardTouch: {
-    flex: 1,
-  },
-  flashcardPerspective: {
-    flex: 1,
-    position: 'relative',
-  },
-  flashcardFaceWrap: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 22,
-    overflow: 'hidden',
-    backfaceVisibility: 'hidden',
-    shadowColor: '#020617',
+  // Quest bubble
+  bubbleWrap: { alignItems: "center", marginBottom: 4 },
+  crown: { marginBottom: -4 },
+  bubble: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 4,
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 14,
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
     elevation: 8,
   },
-  flashcardFace: {
-    flex: 1,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.18)',
-    paddingHorizontal: 20,
-    paddingVertical: 18,
-    justifyContent: 'space-between',
-  },
-  flashcardAccentBar: {
-    width: 60,
-    height: 5,
-    borderRadius: 999,
-    marginBottom: 10,
-  },
-  flashcardLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#E2E8F0',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    marginBottom: 8,
-  },
-  flashcardText: {
-    fontSize: 17,
-    color: '#F8FAFC',
-    lineHeight: 26,
-    fontWeight: '600',
-    flex: 1,
-  },
-  flashcardBackTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#F8FAFC',
-    marginBottom: 10,
-    letterSpacing: 0.2,
-  },
-  flashcardBackText: {
-    fontSize: 16,
-    lineHeight: 24,
-    color: '#DBEAFE',
-    fontWeight: '600',
-    flex: 1,
-  },
-  flashcardHint: {
-    marginTop: 10,
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#BFDBFE',
-  },
-  flashcardShine: {
-    position: 'absolute',
-    top: 0,
-    right: -20,
-    width: 120,
-    height: 80,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    borderBottomLeftRadius: 90,
-  },
-  flashDotRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 10,
-    gap: 8,
-  },
-  flashDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: '#2563EB',
-  },
-  flashcardsTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#F8FAFC',
-    marginBottom: 8,
-  },
-  blockTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#123B77',
-    marginBottom: 8,
-  },
-  recapBlock: {
-    marginTop: 2,
-    backgroundColor: '#E9F2FF',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#B5C8E6',
-    padding: 14,
-    marginBottom: 14,
-  },
-  recapRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    marginBottom: 7,
-  },
-  recapDot: {
-    marginTop: 6,
-    width: 6,
-    height: 6,
-    borderRadius: 4,
-    backgroundColor: '#1E3A8A',
-  },
-  recapText: {
-    flex: 1,
-    color: '#23395D',
-    fontSize: 13,
-    lineHeight: 19,
-  },
+  starRow: { flexDirection: "row", gap: 4, marginTop: 7, alignItems: "center" },
+  starDot: { width: 8, height: 8, borderRadius: 4 },
+  bubbleTitle: { fontSize: 12, fontWeight: "700", marginTop: 5, textAlign: "center", maxWidth: 90, lineHeight: 15 },
+  bubbleMeta: { alignItems: "center", marginTop: 5, gap: 3 },
+  xpTag: { borderRadius: 99, paddingHorizontal: 10, paddingVertical: 2 },
+  xpText: { fontSize: 10, fontWeight: "800" },
+  bubbleSubtitle: { fontSize: 9, color: "#4B5680" },
 
-  // Quiz Section
-  quizSection: {
-    backgroundColor: '#E9F2FF',
-    padding: 14,
-    borderRadius: 14,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#B5C8E6'
-  },
-  quizSectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
-  quizSectionTitle: { fontSize: 16, fontWeight: '800', color: '#123B77' },
-  quizSectionDesc: { fontSize: 13, color: '#415A80', marginBottom: 8, lineHeight: 18 },
-  quizSectionSubText: { fontSize: 12, color: '#1E3A8A', marginBottom: 10, fontWeight: '600' },
-  noQuizHint: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    backgroundColor: '#DBEAFE',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
-    paddingHorizontal: 10,
-    paddingVertical: 9,
-  },
-  noQuizHintText: {
-    flex: 1,
-    color: '#1E3A8A',
-    fontSize: 12,
-    lineHeight: 17,
-    fontWeight: '600',
-  },
-  startQuizButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: '#1D4ED8',
-  },
-  startQuizButtonText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  // Flashcard Modal
+  modalHeader: { flexDirection: "row", alignItems: "center", gap: 12, padding: 16, paddingTop: Platform.OS === "ios" ? 56 : 16, borderBottomWidth: 1 },
+  closeBtn: { padding: 4 },
+  closeText: { color: "#4B5680", fontSize: 20, fontWeight: "600" },
+  progressBarWrap: { flex: 1 },
+  progressBar2: { height: 10, borderRadius: 99, overflow: "hidden" },
+  progressFill2: { height: "100%", borderRadius: 99, shadowOffset: { width: 0, height: 0 }, shadowRadius: 6, shadowOpacity: 0.7 },
+  heartsRow: { flexDirection: "row", gap: 3 },
+  subHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 10, borderBottomWidth: 1 },
+  questTitle: { fontSize: 13, fontWeight: "700", color: "#F0F4FF" },
+  cardBadge: { borderRadius: 99, paddingHorizontal: 10, paddingVertical: 2, borderWidth: 1 },
+  cardBadgeText: { fontSize: 11, fontWeight: "700" },
+  cardArea: { flex: 1, justifyContent: "center", padding: 24 },
+  emptyCard: { borderRadius: 20, padding: 28, alignItems: "center", borderWidth: 1 },
+  emptyCardTitle: { fontSize: 17, fontWeight: "800", color: "#F0F4FF", marginBottom: 6 },
+  emptyCardSub: { fontSize: 12, color: "#4B5680" },
+  flashcard: { borderRadius: 22, padding: 28, borderWidth: 2, shadowOffset: { width: 0, height: 20 }, shadowOpacity: 0.3, shadowRadius: 24, elevation: 12, minHeight: 220, justifyContent: "flex-start" },
+  cardLabel: { fontSize: 10, letterSpacing: 3, textTransform: "uppercase", marginBottom: 14, fontWeight: "700" },
+  cardPrompt: { fontSize: 18, fontWeight: "800", lineHeight: 28, color: "#F0F4FF" },
+  cardHint: { fontSize: 11, color: "#4B5680", marginTop: 20 },
+  cardAnswer: { fontSize: 15, fontWeight: "600", lineHeight: 26, color: "#F0F4FF" },
+  cardActions: { flexDirection: "row", gap: 12, padding: 20, paddingBottom: Platform.OS === "ios" ? 36 : 20 },
+  flipBtn: { flex: 1, borderRadius: 16, padding: 16, alignItems: "center", borderWidth: 1 },
+  flipBtnText: { fontWeight: "800", fontSize: 14 },
+  nextBtn: { flex: 2, borderRadius: 16, padding: 16, alignItems: "center" },
+  nextBtnText: { color: "#000", fontWeight: "900", fontSize: 14 },
 
-  // MCQ Quiz Styles
-  quizContainer: {
-    marginBottom: 24,
-  },
-  quizTopProgress: {
-    backgroundColor: '#DCE9FF',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#B5C8E6',
-    padding: 14,
-    marginBottom: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  quizTopProgressTextWrap: {
-    flex: 1,
-  },
-  quizTopProgressLabel: {
-    color: '#23395D',
-    fontSize: 12,
-    fontWeight: '700',
-    marginBottom: 10,
-  },
-  quizTopProgressBarBg: {
-    width: '100%',
-    height: 10,
-    backgroundColor: '#B8C4D9',
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  quizTopProgressBarFill: {
-    height: '100%',
-    backgroundColor: '#6EE7D6',
-    borderRadius: 8,
-  },
-  quizTopProgressBadge: {
-    width: 62,
-    height: 62,
-    borderRadius: 32,
-    backgroundColor: '#7C2DDB',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  quizTopProgressBadgeText: {
-    color: '#fff',
-    fontWeight: '800',
-    fontSize: 14,
-  },
-  quizPanel: {
-    backgroundColor: '#E9F2FF',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#B5C8E6',
-    padding: 18,
-    marginBottom: 24,
-  },
-  questionCount: {
-    fontSize: 12,
-    color: '#415A80',
-    fontWeight: '700',
-    marginBottom: 12,
-  },
-  questionText: {
-    fontSize: 29,
-    fontWeight: '800',
-    color: '#0F2549',
-    marginBottom: 16,
-    lineHeight: 36,
-  },
-  option: {
-    backgroundColor: '#F4F8FF',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    borderWidth: 2,
-    borderColor: '#2563EB',
-  },
-  optionCorrect: { backgroundColor: '#D1FAE5', borderColor: '#10B981' },
-  optionIncorrect: { backgroundColor: '#FEF2F2', borderColor: '#EF4444' },
-  optionText: { fontSize: 17, color: '#111827', fontWeight: '600' },
-  optionTextCorrect: { color: '#065F46', fontWeight: '700' },
-  optionTextIncorrect: { color: '#991B1B', fontWeight: '700' },
-  answerBox: {
-    backgroundColor: '#E8F1FF',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 8,
-    marginTop: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: '#2563EB',
-  },
-  answerText: {
-    fontSize: 14,
-    color: '#1F2937',
-    fontWeight: '600',
-  },
-  answerSubtext: {
-    fontSize: 13,
-    color: '#334155',
-    lineHeight: 19,
-    marginTop: 6,
-  },
-  nextButton: {
-    alignSelf: 'center',
-    backgroundColor: '#1D4ED8',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    marginTop: 16,
-  },
-  nextButtonText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  // Quiz
+  questionBox: { borderRadius: 20, padding: 20, marginBottom: 16, borderWidth: 2 },
+  questionLabel: { fontSize: 10, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10, fontWeight: "700" },
+  questionText: { fontSize: 17, fontWeight: "800", lineHeight: 26, color: "#F0F4FF" },
+  optionBtn: { borderRadius: 14, padding: 14, borderWidth: 2, flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 },
+  optionLetter: { width: 26, height: 26, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  optionLetterText: { fontWeight: "900", fontSize: 12 },
+  optionText: { flex: 1, fontSize: 14, fontWeight: "600" },
+  explanationBox: { borderRadius: 14, padding: 14, borderWidth: 1, marginBottom: 2 },
+  explanationHead: { fontSize: 12, fontWeight: "700", marginBottom: 4 },
+  explanationText: { fontSize: 13, color: "#4B5680", lineHeight: 20 },
 
-  // Quiz Results
-  quizResults: {
-    backgroundColor: '#FAFAF5',
-    padding: 32,
-    borderRadius: 16,
-    marginBottom: 24,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E8E8E3'
-  },
-  resultsTitle: { fontSize: 24, fontWeight: '800', color: '#1E293B', marginTop: 16, marginBottom: 8 },
-  resultsScore: { fontSize: 16, color: '#64748B', marginBottom: 8 },
-  resultsPercentage: { fontSize: 48, fontWeight: '800', color: '#5B8DEF', marginBottom: 8 },
-  congratsText: { fontSize: 14, color: '#3F6DD8', fontWeight: '600', marginTop: 8, textAlign: 'center' },
-  badgeUnlockRow: {
-    marginTop: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#166534',
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-  },
-  badgeUnlockText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  unlockHintText: {
-    marginTop: 10,
-    color: '#1D4ED8',
-    fontSize: 12,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  retakeButton: {
-    backgroundColor: '#F1F5F9',
-    padding: 14,
-    borderRadius: 12,
-    marginTop: 20,
-    paddingHorizontal: 24
-  },
-  retakeButtonText: { color: '#64748B', fontWeight: '700', fontSize: 14 },
+  // Result screen
+  resultScreen: { alignItems: "center", justifyContent: "center", padding: 28 },
+  starRow2: { flexDirection: "row", gap: 10, marginBottom: 14, marginTop: 10 },
+  resultTitle: { fontSize: 26, fontWeight: "900", color: "#F0F4FF", marginBottom: 6 },
+  resultSub: { fontSize: 13, color: "#4B5680", marginBottom: 6 },
+  resultScore: { fontSize: 12, color: "#4B5680", marginBottom: 28 },
+  xpBox: { backgroundColor: "#F59E0B18", borderRadius: 22, padding: 20, marginBottom: 16, alignItems: "center", width: "100%", borderWidth: 2 },
+  xpBoxLabel: { fontSize: 11, color: "#4B5680", marginBottom: 4, letterSpacing: 2, textTransform: "uppercase" },
+  xpBoxValue: { fontSize: 44, fontWeight: "900", color: "#F59E0B" },
 
-  // Complete Section
-  completeSection: {
-    marginTop: 20,
-    marginBottom: 20,
-    paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-  },
-  completeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 14,
-    borderRadius: 10,
-    gap: 8,
-    elevation: 2,
-    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
-    backgroundColor: '#04395E',
-  },
-  completeButtonText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 15,
-  },
-  completeNote: {
-    fontSize: 11,
-    color: '#94A3B8',
-    textAlign: 'center',
-    marginTop: 6,
-  },
-  rewardCard: {
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#1D4ED8',
-    backgroundColor: '#0B264A',
-    padding: 14,
-    marginBottom: 10,
-    alignItems: 'center',
-    gap: 4,
-  },
-  rewardTitle: {
-    color: '#DBEAFE',
-    fontWeight: '800',
-    fontSize: 19,
-  },
-  rewardXp: {
-    color: '#7DD3FC',
-    fontWeight: '800',
-    fontSize: 24,
-  },
-  rewardMeta: {
-    color: '#BFDBFE',
-    fontSize: 13,
-    fontWeight: '600',
-  },
+  // Primary button
+  primaryBtn: { borderRadius: 18, padding: 18, alignItems: "center", width: "100%" },
+  primaryBtnText: { color: "#000", fontWeight: "900", fontSize: 16 },
+
+  // Vault
+  vaultIntro: { backgroundColor: "#1E1B4B", borderRadius: 20, padding: 20, marginBottom: 18, borderWidth: 1, borderColor: "#7C3AED55" },
+  vaultTitle: { fontSize: 20, fontWeight: "900", color: "#F0F4FF", marginBottom: 6 },
+  vaultSub: { fontSize: 14, fontWeight: "600", lineHeight: 22, color: "#E2E8F0" },
+  factCard: { backgroundColor: "rgba(124,58,237,0.08)", borderRadius: 18, padding: 18, marginBottom: 14, borderWidth: 1, borderColor: "rgba(124,58,237,0.2)", gap: 6 },
+  factTitle: { fontSize: 16, fontWeight: "900", color: "#C4B5FD", marginBottom: 4 },
+  factBody: { fontSize: 14, color: "#CBD5E1", lineHeight: 26 },
+  vaultXp: { fontSize: 18, fontWeight: "900", color: "#F59E0B", textAlign: "center", marginTop: 20, marginBottom: 12 },
+
+  // Badges
+  streakBanner: { backgroundColor: "#F59E0B", borderRadius: 20, padding: 20, flexDirection: "row", justifyContent: "space-between", marginBottom: 16 },
+  streakBannerLabel: { fontSize: 12, fontWeight: "700", color: "#00000099" },
+  streakBannerNum: { fontSize: 44, fontWeight: "900", color: "#000", lineHeight: 52 },
+  streakBannerSub: { fontSize: 11, color: "#00000066" },
+  activityCard: { borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1 },
+  activityTitle: { fontSize: 12, color: "#4B5680", marginBottom: 10 },
+  heatmapGrid: { flexDirection: "row", gap: 6 },
+  heatmapColumn: { gap: 6 },
+  heatmapCell: { width: 16, height: 16, borderRadius: 4, borderWidth: 1 },
+  badgeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  badgeCard: { width: "47%", borderRadius: 16, padding: 16, alignItems: "center", borderWidth: 1, gap: 6 },
+  badgeTitle: { fontSize: 13, fontWeight: "800", marginBottom: 3 },
+  badgeDesc: { fontSize: 10, color: "#4B5680", lineHeight: 14, textAlign: "center" },
+
+  // Profile
+  profileCard: { borderRadius: 20, padding: 24, alignItems: "center", marginBottom: 16, borderWidth: 1 },
+  avatar: { width: 72, height: 72, borderRadius: 36, backgroundColor: "#6366F1", alignItems: "center", justifyContent: "center", marginBottom: 12 },
+  profileName: { fontSize: 18, fontWeight: "800", color: "#F0F4FF", marginBottom: 4 },
+  profileSub: { fontSize: 12, color: "#4B5680" },
+  statGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  statCard: { width: "47%", borderRadius: 16, padding: 16, alignItems: "center", borderWidth: 1, gap: 6 },
+  statCardValue: { fontSize: 22, fontWeight: "800" },
+  statCardLabel: { fontSize: 11, color: "#4B5680" },
+
+  // Misc
+  placeholderTab: { flex: 1, alignItems: "center", justifyContent: "center", padding: 28, gap: 8 },
+  placeholderTitle: { fontSize: 18, fontWeight: "800", color: "#F0F4FF", marginBottom: 8, textAlign: "center" },
+  placeholderSub: { fontSize: 13, color: "#4B5680", textAlign: "center", lineHeight: 20 },
+  errorBanner: { backgroundColor: "#EF444418", borderWidth: 1, borderColor: "#EF444440", borderRadius: 12, padding: 10, marginBottom: 14 },
+  errorText: { fontSize: 12, color: "#FCA5A5", textAlign: "center" },
+  errorTitle: { fontSize: 16, fontWeight: "800", color: "#F0F4FF", marginTop: 12, marginBottom: 6 },
+  loadingText: { marginTop: 14, fontSize: 15, color: "#F0F4FF", fontWeight: "700" },
+  loadingSubText: { marginTop: 6, fontSize: 12, color: "#4B5680" },
+  celebrationOverlay: { flex: 1, backgroundColor: "rgba(8,12,26,0.85)", alignItems: "center", justifyContent: "center", padding: 24 },
+  celebrationCard: { backgroundColor: C.card, borderRadius: 24, padding: 24, width: "100%", maxWidth: 360, borderWidth: 1, borderColor: C.border, alignItems: "center" },
+  celebrationTitle: { fontSize: 20, fontWeight: "900", color: C.text, marginTop: 10 },
+  celebrationSub: { fontSize: 12, color: C.muted, textAlign: "center", marginTop: 6, marginBottom: 16 },
+  celebrationStat: { backgroundColor: "#0B1226", borderRadius: 16, paddingVertical: 12, paddingHorizontal: 18, alignItems: "center", marginBottom: 18, borderWidth: 1, borderColor: C.border },
+  celebrationStatLabel: { fontSize: 10, color: C.muted, letterSpacing: 1, textTransform: "uppercase" },
+  celebrationStatValue: { fontSize: 26, fontWeight: "900", color: C.gold, marginTop: 4 },
+  flameWrap: { width: 120, height: 120, alignItems: "center", justifyContent: "center" },
+  flameGlow: { position: "absolute", width: 120, height: 120, borderRadius: 60, backgroundColor: "#F59E0B", shadowColor: "#F59E0B", shadowOpacity: 0.6, shadowRadius: 24, elevation: 10 },
+  badgeStickerWrap: { width: 120, height: 120, alignItems: "center", justifyContent: "center" },
+  badgeStickerGlow: { position: "absolute", width: 120, height: 120, borderRadius: 60, backgroundColor: "#7C3AED", shadowColor: "#7C3AED", shadowOpacity: 0.5, shadowRadius: 22, elevation: 10 },
+  badgeSticker: { width: 84, height: 84, borderRadius: 42, backgroundColor: "#1F1535", borderWidth: 2, borderColor: "#7C3AED55", alignItems: "center", justifyContent: "center" },
+  badgeActionRow: { flexDirection: "row", gap: 12, marginBottom: 16 },
+  secondaryBtn: { flex: 1, borderRadius: 14, paddingVertical: 12, alignItems: "center", borderWidth: 1, borderColor: C.border, backgroundColor: "#0F1527" },
+  secondaryBtnText: { color: "#E2E8F0", fontWeight: "700", fontSize: 12 },
 });
-
-

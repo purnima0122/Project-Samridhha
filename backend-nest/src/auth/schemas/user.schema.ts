@@ -1,6 +1,29 @@
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 import { Document } from "mongoose";
 
+@Schema({ _id: false })
+export class StreakHistoryDay {
+  @Prop({ required: true })
+  date: string;
+
+  @Prop({ default: 0 })
+  lessonsCompleted: number;
+
+  @Prop({ default: 0 })
+  quizzesCompleted: number;
+
+  @Prop({ default: 0 })
+  xpEarned: number;
+
+  @Prop({ default: 0 })
+  streakCount: number;
+
+  @Prop({ default: false })
+  freezeUsed: boolean;
+}
+
+export const StreakHistoryDaySchema = SchemaFactory.createForClass(StreakHistoryDay);
+
 @Schema()
 export class User extends Document{
   @Prop({ required: true })
@@ -44,6 +67,15 @@ isAdmin: boolean;
 @Prop({ default: 0 })
 xp: number;
 
+@Prop({ default: 5 })
+hearts: number;
+
+@Prop({ default: 5 })
+maxHearts: number;
+
+@Prop()
+lastHeartsRefillAt?: Date;
+
 @Prop({ default: 0 })
 streakDays: number;
 
@@ -53,11 +85,38 @@ lastLearningAt?: Date;
 @Prop({ type: [String], default: [] })
 badges: string[];
 
+@Prop({ type: [String], default: [] })
+badgeSeen: string[];
+
 @Prop({ default: 0 })
 lessonsCompletedCount: number;
 
 @Prop({ default: 0 })
 correctQuizAnswers: number;
+
+@Prop({ default: 3 })
+streakFreezes: number;
+
+@Prop({ default: 3 })
+maxStreakFreezes: number;
+
+@Prop({ default: 0 })
+streakFreezeUsedCount: number;
+
+@Prop({ type: [String], default: [] })
+learningActivityDates: string[];
+
+@Prop({ type: [StreakHistoryDaySchema], default: [] })
+streakHistory: StreakHistoryDay[];
+
+@Prop()
+lastStreakCheckDate?: string;
+
+@Prop()
+lastStreakCelebrationDate?: string;
+
+@Prop()
+timezoneOffsetMinutes?: number;
 
 }
 export const UserSchema= SchemaFactory.createForClass(User);
