@@ -1,0 +1,2710 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>StockLearn</title>
+  <style>
+    html, body, #root { height: 100%; margin: 0; padding: 0; background: #0B0F1E; }
+    body { font-family: "Segoe UI", "Segoe UI Emoji", "Noto Color Emoji", "Apple Color Emoji", system-ui, -apple-system, sans-serif; color: #F8FAFC; }
+    button, input { font-family: inherit; }
+    * { box-sizing: border-box; }
+  </style>
+  <script>
+    (function () {
+      window.__APP_CONFIG__ = window.__APP_CONFIG__ || {};
+      var params = new URLSearchParams(window.location.search);
+      var apiBaseUrl = params.get('apiBaseUrl');
+      var accessToken = params.get('accessToken');
+
+      if (!apiBaseUrl) {
+        try {
+          if (window.parent && window.parent.__APP_CONFIG__) {
+            apiBaseUrl = window.parent.__APP_CONFIG__.apiBaseUrl;
+            if (!accessToken) {
+              accessToken = window.parent.__APP_CONFIG__.accessToken;
+            }
+          }
+        } catch (err) {
+          apiBaseUrl = apiBaseUrl;
+        }
+      }
+
+      if (apiBaseUrl) { window.__APP_CONFIG__.apiBaseUrl = apiBaseUrl; }
+      if (accessToken) { window.__APP_CONFIG__.accessToken = accessToken; }
+    })();
+  </script>
+</head>
+<body>
+  <div id="root"></div>
+  <script>
+    window.onerror = function (message, source, lineno, colno) {
+      if (window.ReactNativeWebView) {
+        window.ReactNativeWebView.postMessage(
+          "error:" + message + " @ " + source + ":" + lineno + ":" + colno
+        );
+      }
+    };
+    window.onunhandledrejection = function (event) {
+      if (window.ReactNativeWebView) {
+        window.ReactNativeWebView.postMessage(
+          "error:" + (event.reason && event.reason.message ? event.reason.message : "Promise rejection")
+        );
+      }
+    };
+  </script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/react@18/umd/react.development.js';"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.development.js';"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js';"></script>
+  <script type="text/babel">
+const { useState, useEffect, useMemo, useRef } = React;
+
+const COLOR_POOL = [
+  { color: "#F59E0B", darkColor: "#B45309" },
+  { color: "#3B82F6", darkColor: "#1D4ED8" },
+  { color: "#10B981", darkColor: "#065F46" },
+  { color: "#8B5CF6", darkColor: "#6D28D9" },
+  { color: "#F97316", darkColor: "#C2410C" },
+];
+
+const ICONIFY_BASE = "https://api.iconify.design";
+
+const MODULE_ICON_KEYS = [
+  "mdi:cash-multiple",
+  "mdi:bank",
+  "mdi:chart-line",
+  "mdi:brain",
+  "mdi:rocket-launch",
+  "mdi:book-open-page-variant",
+];
+
+const ICON_KEYS = {
+  BookOpen: "mdi:book-open-page-variant",
+  TrendingUp: "mdi:chart-line",
+  Shield: "mdi:shield-check",
+  PieChart: "mdi:chart-pie",
+  HelpCircle: "mdi:help-circle",
+};
+
+const BADGES = [
+  {
+    id: "first_lesson",
+    icon: "mdi:sprout",
+    title: "First Steps",
+    desc: "Complete your first lesson",
+    backendMatch: ["First Lesson Completed"],
+    condition: (s) => s.completedQuests.size >= 1,
+  },
+  {
+    id: "lessons_5",
+    icon: "mdi:run-fast",
+    title: "Momentum",
+    desc: "Complete 5 lessons",
+    backendMatch: ["5 Lessons Completed"],
+    condition: (s) => s.completedQuests.size >= 5,
+  },
+  {
+    id: "streak_3",
+    icon: "mdi:fire",
+    title: "On Fire",
+    desc: "Maintain a 3-day streak",
+    condition: (s) => s.streak >= 3,
+  },
+  {
+    id: "streak_7",
+    icon: "mdi:lightning-bolt",
+    title: "Lightning",
+    desc: "7-day streak",
+    backendMatch: ["7 Day Streak"],
+    condition: (s) => s.streak >= 7,
+  },
+  {
+    id: "streak_30",
+    icon: "mdi:shield-check",
+    title: "Unbreakable",
+    desc: "30-day streak",
+    backendMatch: ["30 Day Streak"],
+    condition: (s) => s.streak >= 30,
+  },
+  {
+    id: "xp_100",
+    icon: "mdi:star-circle",
+    title: "Rising Star",
+    desc: "Earn 100 XP",
+    condition: (s) => s.xp >= 100,
+  },
+  {
+    id: "xp_300",
+    icon: "mdi:school",
+    title: "Scholar",
+    desc: "Earn 300 XP",
+    condition: (s) => s.xp >= 300,
+  },
+  {
+    id: "quiz_perfect",
+    icon: "mdi:target",
+    title: "Sharpshooter",
+    desc: "Get 100% on a quiz",
+    condition: (s) => s.perfectQuizzes >= 1,
+  },
+  {
+    id: "flashcard_flip",
+    icon: "mdi:cards-playing-outline",
+    title: "Card Shark",
+    desc: "Flip 20 flashcards",
+    condition: (s) => s.totalFlips >= 20,
+  },
+  {
+    id: "vault_open",
+    icon: "mdi:safe",
+    title: "Vault Hunter",
+    desc: "Open your first vault",
+    condition: (s) => s.vaultsOpened >= 1,
+  },
+  {
+    id: "course_complete",
+    icon: "mdi:flag-checkered",
+    title: "Course Complete",
+    desc: "Finish every lesson",
+    backendMatch: ["Course Completed"],
+  },
+];
+
+const C = {
+  bg: "#0B0C1E",
+  surface: "#13142B",
+  card: "#1A1D3A",
+  border: "#252847",
+  text: "#F0F2FF",
+  muted: "#6B7280",
+  accent: "#6366F1",
+  gold: "#F59E0B",
+  green: "#10B981",
+  red: "#EF4444",
+  purple: "#7C3AED",
+};
+
+const APP_CONFIG = typeof window !== "undefined" ? window.__APP_CONFIG__ || {} : {};
+const API_BASE_URL = APP_CONFIG.apiBaseUrl || "";
+const ACCESS_TOKEN = APP_CONFIG.accessToken || "";
+
+async function apiFetch(path, options) {
+  if (!API_BASE_URL) {
+    throw new Error("API base URL not configured");
+  }
+
+  const headers = {
+    "Content-Type": "application/json",
+    "ngrok-skip-browser-warning": "true",
+  };
+
+  if (options && options.headers) {
+    Object.assign(headers, options.headers);
+  }
+
+  if (ACCESS_TOKEN) {
+    headers.Authorization = "Bearer " + ACCESS_TOKEN;
+  }
+
+  const response = await fetch(API_BASE_URL + path, {
+    ...(options || {}),
+    headers,
+  });
+
+  let payload = null;
+  try {
+    payload = await response.json();
+  } catch (err) {
+    payload = null;
+  }
+
+  if (!response.ok) {
+    const message =
+      payload && (payload.message || payload.error)
+        ? payload.message || payload.error
+        : "Request failed";
+    throw new Error(message);
+  }
+
+  return payload;
+}
+
+function pickNumber(value, fallback) {
+  return typeof value === "number" && !Number.isNaN(value) ? value : fallback;
+}
+
+function pickArray(value, fallback) {
+  return Array.isArray(value) ? value : fallback;
+}
+
+function pickString(value, fallback) {
+  return typeof value === "string" && value.trim().length > 0 ? value : fallback;
+}
+
+function iconPath(name) {
+  if (!name) return "";
+  return name.indexOf(":") >= 0 ? name.replace(":", "/") : name;
+}
+
+function iconUrl(name, color, size) {
+  if (!name) return "";
+  const path = iconPath(name);
+  const params = [];
+  if (size) params.push(`height=${encodeURIComponent(size)}`);
+  if (color) params.push(`color=${encodeURIComponent(color)}`);
+  return `${ICONIFY_BASE}/${path}.svg${params.length ? "?" + params.join("&") : ""}`;
+}
+
+function isIconSafe(value) {
+  if (!value || typeof value !== "string") return false;
+  return value.indexOf("?") === -1 && value.indexOf("�") === -1;
+}
+
+function Icon({ name, size = 20, color = "#F8FAFC", style = {} }) {
+  if (!name) return null;
+  const src = iconUrl(name, color, size);
+  return (
+    <img
+      src={src}
+      alt=""
+      width={size}
+      height={size}
+      style={{ display: "block", width: size, height: size, ...style }}
+      loading="lazy"
+    />
+  );
+}
+
+const KEYWORD_ICON_MAP = [
+  { keywords: ["bank", "banking"], icon: "mdi:bank" },
+  { keywords: ["loan", "emi", "interest", "debt"], icon: "mdi:bank-transfer" },
+  { keywords: ["budget", "expense", "saving", "wallet"], icon: "mdi:wallet" },
+  { keywords: ["money", "cash", "income", "salary", "finance"], icon: "mdi:cash-multiple" },
+  { keywords: ["stock", "market", "nepse", "share", "invest", "trading"], icon: "mdi:chart-line" },
+  { keywords: ["insurance", "risk", "protect", "shield"], icon: "mdi:shield-check" },
+  { keywords: ["vault", "secret", "facts"], icon: "mdi:safe" },
+  { keywords: ["intro", "basic", "guide", "learn"], icon: "mdi:book-open-page-variant" },
+];
+
+const FACT_ICON_KEYS = ["mdi:lightbulb-on", "mdi:star-four-points", "mdi:brain"];
+
+function resolveIconByKeyword(title, fallback) {
+  if (!title || typeof title !== "string") return fallback;
+  const lower = title.toLowerCase();
+  for (const entry of KEYWORD_ICON_MAP) {
+    if (entry.keywords.some((word) => lower.includes(word))) {
+      return entry.icon;
+    }
+  }
+  return fallback;
+}
+
+function resolveQuestIconKey(title, type, iconName) {
+  if (type === "vault") return "mdi:safe";
+  if (iconName && ICON_KEYS[iconName]) return ICON_KEYS[iconName];
+  return resolveIconByKeyword(title, "mdi:book-open-page-variant");
+}
+
+function resolveChapterIconKey(title, index, iconName) {
+  if (iconName && ICON_KEYS[iconName]) return ICON_KEYS[iconName];
+  const fromTitle = resolveIconByKeyword(title, "");
+  if (fromTitle) return fromTitle;
+  return MODULE_ICON_KEYS[index % MODULE_ICON_KEYS.length];
+}
+
+function calculateStars(score) {
+  if (!score || score <= 0) return 0;
+  if (score >= 90) return 3;
+  if (score >= 70) return 2;
+  return 1;
+}
+
+function normalizeProgress(progress) {
+  if (!Array.isArray(progress)) return [];
+  return progress.map((item) => {
+    const safe = item && typeof item === "object" ? item : {};
+    let lessonId = safe.lessonId;
+    if (lessonId && typeof lessonId === "object") {
+      lessonId = lessonId._id || lessonId.id || lessonId.lessonId;
+    }
+    if (lessonId) {
+      lessonId = String(lessonId);
+    }
+    return { ...safe, lessonId };
+  });
+}
+
+function normalizeQuest(quest, index, chapterKey) {
+  const safe = quest && typeof quest === "object" ? quest : {};
+  const type = safe.type === "vault" ? "vault" : "lesson";
+  const fallbackId = chapterKey + "-" + (index + 1);
+  const id = safe.id || safe._id || fallbackId;
+  const title = pickString(
+    safe.title,
+    type === "vault" ? "Mind Vault" : "Lesson " + (index + 1),
+  );
+  const iconName = typeof safe.icon === "string" ? safe.icon : "";
+  const iconKey = resolveQuestIconKey(title, type, iconName);
+  const order = pickNumber(safe.order, index);
+  const xp = pickNumber(safe.xp, type === "vault" ? 20 : 50);
+
+  const rawFlashcards = type === "lesson" ? pickArray(safe.flashcards, []) : [];
+  const rawQuiz = type === "lesson" ? pickArray(safe.quiz, []) : [];
+  const rawFacts = type === "vault" ? pickArray(safe.facts, []) : [];
+
+  const flashcards = rawFlashcards
+    .map((card, idx) => {
+      const safeCard = card && typeof card === "object" ? card : {};
+      const prompt = pickString(safeCard.prompt, "");
+      const answer = pickString(safeCard.answer, "");
+      return {
+        id: pickNumber(safeCard.id, idx + 1),
+        prompt,
+        answer,
+        tag: pickString(safeCard.tag, "Concept " + (idx + 1)),
+      };
+    })
+    .filter((card) => card.prompt.length > 0);
+
+  const quiz = rawQuiz
+    .map((item) => {
+      const safeQuiz = item && typeof item === "object" ? item : {};
+      let answerIndex = 0;
+      if (typeof safeQuiz.ans === "number") {
+        answerIndex = safeQuiz.ans;
+      } else if (typeof safeQuiz.correctOptionIndex === "number") {
+        answerIndex = safeQuiz.correctOptionIndex;
+      }
+
+      const opts = pickArray(
+        safeQuiz.opts,
+        pickArray(safeQuiz.options, []),
+      );
+
+      return {
+        q: pickString(safeQuiz.q, pickString(safeQuiz.prompt, "")),
+        opts,
+        ans: answerIndex,
+        exp: pickString(
+          safeQuiz.exp,
+          pickString(safeQuiz.explanation, "Keep learning"),
+        ),
+      };
+    })
+    .filter((item) => item.q.length > 0 && item.opts.length > 0);
+
+  const facts = rawFacts
+    .map((fact, idx) => {
+      const safeFact = fact && typeof fact === "object" ? fact : {};
+      const factIconName = typeof safeFact.icon === "string" ? safeFact.icon : "";
+      const factIconKey = factIconName.indexOf(":") >= 0
+        ? factIconName
+        : FACT_ICON_KEYS[idx % FACT_ICON_KEYS.length];
+      return {
+        iconKey: factIconKey,
+        title: pickString(safeFact.title, "Key Insight " + (idx + 1)),
+        body: pickString(safeFact.body, ""),
+      };
+    })
+    .filter((fact) => fact.body.length > 0);
+
+  return {
+    id: String(id),
+    title,
+    iconKey,
+    type,
+    order,
+    xp,
+    flashcards,
+    quiz,
+    facts,
+  };
+}
+
+function normalizeChapter(chapter, index) {
+  const safe = chapter && typeof chapter === "object" ? chapter : {};
+  const theme = COLOR_POOL[index % COLOR_POOL.length];
+  const title = pickString(safe.title, "Chapter " + (index + 1));
+  const key = pickString(safe.id, title);
+  const quests = pickArray(safe.quests, []);
+
+  const normalizedQuests = quests
+    .map((quest, questIndex) => normalizeQuest(quest, questIndex, key))
+    .sort((a, b) => pickNumber(a.order, 0) - pickNumber(b.order, 0));
+
+  const color = pickString(safe.color, theme.color);
+  const darkColor = pickString(safe.darkColor, theme.darkColor);
+  const iconName = typeof safe.icon === "string" ? safe.icon : "";
+  const iconKey = resolveChapterIconKey(title, index, iconName);
+  const tagline = pickString(safe.tagline, "Level up your money skills");
+  const xpTotal = normalizedQuests.reduce(
+    (sum, quest) => sum + pickNumber(quest.xp, 0),
+    0,
+  );
+
+  return {
+    id: typeof safe.id === "number" ? safe.id : index + 1,
+    key,
+    title,
+    iconKey,
+    color,
+    darkColor,
+    tagline,
+    xpTotal,
+    quests: normalizedQuests,
+  };
+}
+
+function normalizeFlow(payload) {
+  const safe = payload && typeof payload === "object" ? payload : {};
+  const chapters = pickArray(safe.chapters, []).map(normalizeChapter);
+  const progress = normalizeProgress(safe.progress);
+  const gamification = safe.gamification && typeof safe.gamification === "object"
+    ? safe.gamification
+    : {};
+  return { chapters, progress, gamification };
+}
+
+function GlobalStyles() {
+  return (
+    <style>{`
+      @keyframes duoCrown {
+        0%, 100% { transform: translateY(0) rotate(-5deg); }
+        50% { transform: translateY(-7px) rotate(5deg); }
+      }
+      @keyframes slideDown {
+        from { transform: translateX(-50%) translateY(-20px); opacity: 0; }
+        to { transform: translateX(-50%) translateY(0); opacity: 1; }
+      }
+      @keyframes resultPop {
+        0% { transform: scale(0.6); opacity: 0; }
+        100% { transform: scale(1); opacity: 1; }
+      }
+      @keyframes starReveal {
+        0% { transform: scale(0) rotate(-30deg); opacity: 0; }
+        70% { transform: scale(1.25) rotate(8deg); }
+        100% { transform: scale(1) rotate(0); opacity: 1; }
+      }
+      @keyframes shake {
+        0% { transform: translateX(0); }
+        25% { transform: translateX(-6px); }
+        50% { transform: translateX(6px); }
+        75% { transform: translateX(-4px); }
+        100% { transform: translateX(0); }
+      }
+      @keyframes burst {
+        0% { transform: scale(0); opacity: 0.9; }
+        100% { transform: scale(2.2); opacity: 0; }
+      }
+    `}</style>
+  );
+}
+
+function EmojiText({ value, style }) {
+  const size = style && style.fontSize ? style.fontSize : 18;
+  const color = style && style.color ? style.color : "#F8FAFC";
+  return <Icon name={value} size={size} color={color} style={style || {}} />;
+}
+
+function StatPill({ icon, value, tint, bg, border }) {
+  return (
+    <div
+      style={{
+        background: bg,
+        border: `1px solid ${border}`,
+        borderRadius: 12,
+        padding: "7px 10px",
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        justifyContent: "center",
+      }}
+    >
+      <EmojiText value={icon} style={{ fontSize: 14, color: tint }} />
+      <span style={{ fontWeight: 900, fontSize: 13, color: tint }}>{value}</span>
+    </div>
+  );
+}
+
+function HeaderAction({ icon }) {
+  return (
+    <div
+      style={{
+        width: 34,
+        height: 34,
+        borderRadius: 12,
+        background: "rgba(255,255,255,0.18)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        border: "1px solid rgba(255,255,255,0.2)",
+      }}
+    >
+      <Icon name={icon} size={18} color="#F8FAFC" />
+    </div>
+  );
+}
+
+function TopNav({ gs, completedCount, totalQuests, totalStars }) {
+  const progressPct = totalQuests > 0 ? (completedCount / totalQuests) * 100 : 0;
+  return (
+    <div
+      style={{
+        position: "sticky",
+        top: 0,
+        zIndex: 50,
+        background: "linear-gradient(135deg, #0A2D5C, #0B3B78)",
+        borderBottom: `1px solid rgba(15,23,42,0.4)`,
+        padding: "16px 20px 14px",
+        borderBottomLeftRadius: 24,
+        borderBottomRightRadius: 24,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: 12,
+              background: "rgba(255,255,255,0.18)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Icon name="mdi:trending-up" size={18} color="#F8FAFC" />
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 800, color: "#F8FAFC" }}>
+            StockLearn
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <HeaderAction icon="mdi:bell-outline" />
+          <HeaderAction icon="mdi:account-circle" />
+        </div>
+      </div>
+      <div
+        style={{
+          marginTop: 14,
+          display: "grid",
+          gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+          gap: 8,
+        }}
+      >
+        <StatPill
+          icon="mdi:fire"
+          value={gs.streak}
+          tint="#FDBA74"
+          bg="rgba(253,186,116,0.14)"
+          border="rgba(253,186,116,0.4)"
+        />
+        <StatPill
+          icon="mdi:heart"
+          value={gs.hearts}
+          tint="#FDA4AF"
+          bg="rgba(248,113,113,0.16)"
+          border="rgba(248,113,113,0.4)"
+        />
+        <StatPill
+          icon="mdi:star"
+          value={totalStars}
+          tint="#FACC15"
+          bg="rgba(250,204,21,0.14)"
+          border="rgba(250,204,21,0.35)"
+        />
+        <StatPill
+          icon="mdi:lightning-bolt"
+          value={gs.xp}
+          tint="#A5B4FC"
+          bg="rgba(99,102,241,0.2)"
+          border="rgba(99,102,241,0.4)"
+        />
+      </div>
+      <div
+        style={{
+          marginTop: 12,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <span style={{ fontSize: 11, color: C.muted }}>Overall Progress</span>
+        <span style={{ fontSize: 11, color: C.accent }}>
+          {completedCount}/{totalQuests} quests
+        </span>
+      </div>
+      <div
+        style={{
+          background: C.border,
+          borderRadius: 99,
+          height: 6,
+          overflow: "hidden",
+          marginTop: 6,
+        }}
+      >
+        <div
+          style={{
+            background: "linear-gradient(90deg, #6366F1, #F59E0B)",
+            height: "100%",
+            width: `${progressPct}%`,
+            borderRadius: 99,
+            transition: "width 0.6s cubic-bezier(.4,0,.2,1)",
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function ChapterHeader({ chapter, completedCount, totalCount }) {
+  const progressPct = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
+  return (
+    <div
+      style={{
+        background: `linear-gradient(135deg, ${chapter.color}33, ${chapter.color}11)`,
+        border: `1px solid ${chapter.color}44`,
+        borderRadius: 18,
+        padding: "16px 20px",
+        marginBottom: 18,
+        position: "relative",
+        overflow: "hidden",
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          right: -10,
+          top: -10,
+          fontSize: 70,
+          opacity: 0.08,
+        }}
+      >
+        <EmojiText value={chapter.iconKey} style={{ fontSize: 72, color: chapter.color }} />
+      </div>
+      <div
+        style={{
+          position: "absolute",
+          right: 0,
+          top: 0,
+          bottom: 0,
+          width: `${progressPct}%`,
+          background: `${chapter.color}11`,
+          borderRadius: 18,
+          transition: "width 0.5s ease",
+        }}
+      />
+      <div
+        style={{
+          position: "relative",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+        }}
+      >
+        <div>
+          <div
+            style={{
+              fontSize: 10,
+              color: chapter.color,
+              letterSpacing: 3,
+              textTransform: "uppercase",
+              marginBottom: 3,
+            }}
+          >
+            Chapter {chapter.id}
+          </div>
+          <div style={{ fontSize: 20, fontWeight: 900 }}>
+            <EmojiText value={chapter.iconKey} style={{ fontSize: 20, color: chapter.color }} /> {chapter.title}
+          </div>
+          <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
+            {chapter.tagline}
+          </div>
+        </div>
+        <div
+          style={{
+            textAlign: "center",
+            background: `${chapter.color}22`,
+            borderRadius: 12,
+            padding: "6px 12px",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 16,
+              fontWeight: 900,
+              color: chapter.color,
+            }}
+          >
+            {completedCount}/{totalCount}
+          </div>
+          <div style={{ fontSize: 9, color: C.muted }}>done</div>
+        </div>
+      </div>
+      <div
+        style={{
+          marginTop: 10,
+          background: `${chapter.color}22`,
+          borderRadius: 99,
+          height: 4,
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            background: chapter.color,
+            height: "100%",
+            width: `${progressPct}%`,
+            borderRadius: 99,
+            transition: "width 0.5s",
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function QuestBubble({
+  quest,
+  chapter,
+  isLocked,
+  isDone,
+  isVault,
+  stars,
+  offset,
+  onOpen,
+}) {
+  const nodeColor = isVault ? C.purple : chapter.color;
+  const nodeDark = isVault ? "#4C1D95" : chapter.darkColor;
+  const showCrown = !isLocked && !isDone && !isVault;
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        transform: `translateX(${offset}px)`,
+        transition: "transform 0.3s",
+      }}
+    >
+      {showCrown && (
+        <div
+          style={{
+            fontSize: 20,
+            marginBottom: -2,
+            display: "inline-block",
+            animation: "duoCrown 1.2s ease-in-out infinite",
+          }}
+        >
+          <EmojiText value="mdi:crown" style={{ fontSize: 20, color: C.gold }} />
+        </div>
+      )}
+      <div
+        onClick={() => {
+          if (!isLocked) {
+            onOpen(quest);
+          }
+        }}
+        style={{
+          width: 90,
+          height: 90,
+          borderRadius: "50%",
+          background: `radial-gradient(circle at 30% 30%, ${nodeColor}, ${nodeDark})`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 30,
+          cursor: isLocked ? "not-allowed" : "pointer",
+          border: `4px solid ${isLocked ? C.border + "44" : nodeColor + "EE"}`,
+          boxShadow: isLocked
+            ? "none"
+            : `0 10px 0 ${nodeDark}, 0 0 36px ${nodeColor}66`,
+          opacity: isLocked ? 0.38 : 1,
+          transition: "transform 0.15s, box-shadow 0.15s",
+        }}
+        onMouseEnter={(e) => {
+          if (isLocked) return;
+          e.currentTarget.style.transform = "scale(1.1) translateY(-3px)";
+          e.currentTarget.style.boxShadow = `0 10px 0 ${nodeDark}, 0 0 36px ${nodeColor}66`;
+        }}
+        onMouseLeave={(e) => {
+          if (isLocked) return;
+          e.currentTarget.style.transform = "scale(1) translateY(0)";
+          e.currentTarget.style.boxShadow = isDone
+            ? `0 8px 0 ${nodeDark}, 0 0 30px ${nodeColor}66`
+            : `0 10px 0 ${nodeDark}, 0 0 36px ${nodeColor}66`;
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: "42%",
+            background: "rgba(255,255,255,0.18)",
+            borderRadius: "50% 50% 0 0",
+            pointerEvents: "none",
+          }}
+        />
+        {isLocked ? (
+          <EmojiText value="mdi:lock" style={{ fontSize: 28, color: "#E2E8F0" }} />
+        ) : (
+          <EmojiText value={quest.iconKey} style={{ fontSize: 28, color: "#F8FAFC" }} />
+        )}
+      </div>
+      <div
+        style={{
+          display: "flex",
+          gap: 4,
+          marginTop: 6,
+          alignItems: "center",
+        }}
+      >
+        {[1, 2, 3].map((s) => (
+          <div
+            key={s}
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              background: s <= stars ? C.gold : C.border,
+              boxShadow:
+                s <= stars
+                  ? `0 0 10px ${C.gold}AA`
+                  : "inset 0 0 0 1px rgba(255,255,255,0.1)",
+              opacity: s <= stars ? 1 : 0.35,
+              transform: s <= stars ? "scale(1.1)" : "scale(0.9)",
+              transition: "all 0.3s",
+            }}
+          />
+        ))}
+      </div>
+      <div
+        style={{
+          fontSize: 12,
+          fontWeight: 700,
+          color: isLocked ? C.muted : C.text,
+          marginTop: 5,
+          lineHeight: 1.3,
+          opacity: isLocked ? 0.45 : 1,
+          textAlign: "center",
+        }}
+      >
+        {isVault ? "Mind Vault" : quest.title}
+      </div>
+      {!isLocked && (
+        <div
+          style={{
+            marginTop: 6,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 3,
+          }}
+        >
+          <div
+            style={{
+              background: `${nodeColor}22`,
+              borderRadius: 99,
+              padding: "2px 9px",
+              fontSize: 10,
+              color: nodeColor,
+              fontWeight: 800,
+            }}
+          >
+            {isDone ? "✓ " : "+"}
+            {quest.xp} XP
+          </div>
+          <div style={{ fontSize: 9, color: C.muted }}>
+            {quest.type === "lesson"
+              ? `${quest.flashcards.length} cards • ${quest.quiz.length} Qs`
+              : isVault
+                ? "Secret Facts"
+                : ""}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function QuestPath({ chapter, completedQuests, questStars, onOpenQuest }) {
+  const offsets = [0, 38, -38, 16, -16];
+  const quests = chapter.quests || [];
+
+  return (
+    <div style={{ marginBottom: 28 }}>
+      <ChapterHeader
+        chapter={chapter}
+        completedCount={quests.filter((q) => completedQuests.has(q.id)).length}
+        totalCount={quests.length}
+      />
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          width: "100%",
+        }}
+      >
+        {quests.map((quest, index) => {
+          const done = completedQuests.has(quest.id);
+          const prevDone =
+            index === 0 || completedQuests.has(quests[index - 1].id);
+          const locked = !prevDone;
+          const isVault = quest.type === "vault";
+          const stars = questStars[quest.id] || 0;
+          const offset = offsets[index % offsets.length];
+          const prevOffset =
+            index > 0 ? offsets[(index - 1) % offsets.length] : offset;
+          const midOffset = Math.round((prevOffset + offset) / 2);
+          const nodeColor = isVault ? C.purple : chapter.color;
+
+          return (
+            <div
+              key={quest.id}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                width: "100%",
+              }}
+            >
+              {index > 0 && (
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 6,
+                    transform: `translateX(${midOffset}px)`,
+                  }}
+                >
+                  {[0, 1, 2, 3].map((d) => (
+                    <div
+                      key={d}
+                      style={{
+                        width: 5,
+                        height: 5,
+                        borderRadius: "50%",
+                        background:
+                          done || prevDone
+                            ? `${nodeColor}60`
+                            : `${C.border}88`,
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+              <QuestBubble
+                quest={quest}
+                chapter={chapter}
+                isLocked={locked}
+                isDone={done}
+                isVault={isVault}
+                stars={stars}
+                offset={offset}
+                onOpen={onOpenQuest}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function LoadingScreen() {
+  return (
+    <div
+      style={{
+        background: C.bg,
+        minHeight: "100vh",
+        color: C.text,
+        fontFamily: "'Segoe UI', system-ui, sans-serif",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        textAlign: "center",
+        padding: 24,
+      }}
+    >
+      <div>
+        <div style={{ fontSize: 32, marginBottom: 12 }}>
+          <EmojiText value="mdi:clock-outline" style={{ fontSize: 32, color: "#F8FAFC" }} />
+        </div>
+        <div style={{ fontSize: 16, fontWeight: 800 }}>
+          Loading your learning path...
+        </div>
+        <div style={{ fontSize: 12, color: C.muted, marginTop: 6 }}>
+          Fetching lessons and progress
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ErrorScreen({ message }) {
+  return (
+    <div
+      style={{
+        background: C.bg,
+        minHeight: "100vh",
+        color: C.text,
+        fontFamily: "'Segoe UI', system-ui, sans-serif",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        textAlign: "center",
+        padding: 24,
+      }}
+    >
+      <div>
+        <div style={{ fontSize: 32, marginBottom: 12 }}>
+          <EmojiText value="mdi:alert-circle-outline" style={{ fontSize: 32, color: "#FCA5A5" }} />
+        </div>
+        <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 6 }}>
+          Unable to load lessons
+        </div>
+        <div style={{ fontSize: 12, color: C.muted }}>{message}</div>
+      </div>
+    </div>
+  );
+}
+
+function BottomNav({ screen, onNavigate }) {
+  const items = [
+    { label: "Learn", icon: "mdi:book-open-page-variant", screen: "home" },
+    { label: "Badges", icon: "mdi:medal", screen: "badges" },
+  ];
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        bottom: 0,
+        left: "50%",
+        transform: "translateX(-50%)",
+        width: "100%",
+        maxWidth: 430,
+        background: `${C.surface}EE`,
+        backdropFilter: "blur(12px)",
+        borderTop: `1px solid ${C.border}`,
+        padding: "12px 0 16px",
+        display: "flex",
+        justifyContent: "space-around",
+        zIndex: 100,
+      }}
+    >
+      {items.map((item) => (
+        <button
+          key={item.screen}
+          onClick={() => onNavigate(item.screen)}
+          style={{
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 3,
+          }}
+        >
+          <span style={{ fontSize: 22 }}>
+            <EmojiText value={item.icon} />
+          </span>
+          <span
+            style={{
+              fontSize: 10,
+              color: screen === item.screen ? C.accent : C.muted,
+              fontWeight: screen === item.screen ? 800 : 400,
+            }}
+          >
+            {item.label}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function BadgeToast({ badge }) {
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: 80,
+        left: "50%",
+        transform: "translateX(-50%)",
+        background: "linear-gradient(135deg, #1F1535, #0D1128)",
+        border: "1px solid #7C3AED",
+        borderRadius: 18,
+        padding: "14px 22px",
+        zIndex: 999,
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        boxShadow: "0 8px 40px #7C3AED66",
+        animation: "slideDown 0.4s ease",
+        minWidth: 260,
+      }}
+    >
+      <span style={{ fontSize: 32 }}>
+        <EmojiText value={badge.icon} />
+      </span>
+      <div>
+        <div
+          style={{
+            fontSize: 10,
+            color: "#A78BFA",
+            letterSpacing: 2,
+            textTransform: "uppercase",
+          }}
+        >
+          Badge Unlocked!
+        </div>
+        <div style={{ fontSize: 15, fontWeight: 900, color: "#E2E8F0" }}>
+          {badge.title}
+        </div>
+        <div style={{ fontSize: 11, color: C.muted }}>{badge.desc}</div>
+      </div>
+    </div>
+  );
+}
+
+function BadgesScreen({ badgeCatalog, gs, onBack }) {
+  const earnedCount = badgeCatalog.filter((badge) => isBadgeEarned(badge, gs)).length;
+  const weekly = Array.isArray(gs.weeklyProgress) && gs.weeklyProgress.length === 7
+    ? gs.weeklyProgress
+    : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((label, idx) => ({
+        label,
+        completed: idx < gs.streak,
+        status: idx < gs.streak ? "done" : "missed",
+      }));
+
+  return (
+    <div
+      style={{
+        background: C.bg,
+        minHeight: "100vh",
+        color: C.text,
+        fontFamily: "'Segoe UI', system-ui, sans-serif",
+        maxWidth: 430,
+        margin: "0 auto",
+        paddingBottom: 80,
+      }}
+    >
+      <div
+        style={{
+          padding: "20px 20px 16px",
+          borderBottom: `1px solid ${C.border}`,
+          display: "flex",
+          alignItems: "center",
+          gap: 14,
+        }}
+      >
+        <button
+          onClick={onBack}
+          style={{
+            background: "none",
+            border: "none",
+            color: C.muted,
+            cursor: "pointer",
+            fontSize: 20,
+          }}
+        >
+          ?
+        </button>
+        <div>
+          <div style={{ fontSize: 18, fontWeight: 900 }}>Badges</div>
+          <div style={{ fontSize: 12, color: C.muted }}>
+            {earnedCount}/{badgeCatalog.length} earned
+          </div>
+        </div>
+      </div>
+
+      <div
+        style={{
+          margin: "16px",
+          background: "linear-gradient(135deg, #F59E0B, #F97316)",
+          borderRadius: 18,
+          padding: "16px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          color: "#000",
+        }}
+      >
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 700 }}>Current Streak</div>
+          <div style={{ fontSize: 36, fontWeight: 900 }}>{gs.streak}</div>
+          <div style={{ fontSize: 11, color: "#00000077", display: "flex", alignItems: "center", gap: 6 }}>
+            <EmojiText value="mdi:snowflake" style={{ fontSize: 12, color: "#1E3A8A" }} />
+            <span> {gs.freezes} freeze{gs.freezes !== 1 ? "s" : ""} available</span>
+          </div>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontSize: 12, fontWeight: 700 }}>Total XP</div>
+          <div style={{ fontSize: 24, fontWeight: 900 }}>{gs.xp}</div>
+          <div style={{ fontSize: 11, color: "#00000077" }}>
+            Level {gs.level}
+          </div>
+        </div>
+      </div>
+
+      <div
+        style={{
+          margin: "0 16px 16px",
+          background: C.card,
+          border: `1px solid ${C.border}`,
+          borderRadius: 16,
+          padding: "16px",
+        }}
+      >
+        <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>
+          Activity - last 7 days
+        </div>
+        <div style={{ display: "flex", gap: 8, justifyContent: "space-between" }}>
+          {weekly.map((day, i) => (
+            <div
+              key={day.label + i}
+              style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}
+            >
+              <div
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: 6,
+                  background: day.completed ? C.gold : C.border,
+                }}
+              />
+              <div style={{ fontSize: 8, color: C.muted }}>{day.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, 1fr)",
+          gap: 12,
+          padding: "0 16px 24px",
+        }}
+      >
+        {badgeCatalog.map((badge) => {
+          const earned = isBadgeEarned(badge, gs);
+          return (
+            <div
+              key={badge.id}
+              style={{
+                background: earned
+                  ? "linear-gradient(135deg, #1F1535, #0D1128)"
+                  : C.card,
+                border: `1px solid ${earned ? "#7C3AED66" : C.border}`,
+                borderRadius: 16,
+                padding: "16px",
+                textAlign: "center",
+                opacity: earned ? 1 : 0.5,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 36,
+                  marginBottom: 8,
+                  filter: earned ? "none" : "grayscale(100%)",
+                }}
+              >
+                <EmojiText value={badge.icon} />
+              </div>
+              <div
+                style={{
+                  fontSize: 13,
+                  fontWeight: 800,
+                  marginBottom: 4,
+                  color: earned ? "#E2E8F0" : C.muted,
+                }}
+              >
+                {badge.title}
+              </div>
+              <div style={{ fontSize: 10, color: C.muted, lineHeight: 1.4 }}>
+                {badge.desc}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function FlashcardLesson({
+  chapter,
+  quest,
+  fcIdx,
+  fcFlipped,
+  fcAnimating,
+  hearts,
+  maxHearts,
+  onExit,
+  onFlip,
+  onNext,
+  onStartQuiz,
+}) {
+  const cards = quest.flashcards || [];
+  const card = cards[fcIdx];
+  const progressPct = cards.length > 0 ? (fcIdx / cards.length) * 100 : 0;
+  const hasQuiz = quest.quiz && quest.quiz.length > 0;
+
+  return (
+    <div
+      style={{
+        background: C.bg,
+        minHeight: "100vh",
+        color: C.text,
+        fontFamily: "'Segoe UI', system-ui, sans-serif",
+        maxWidth: 430,
+        margin: "0 auto",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      <div style={{ padding: "16px 20px 12px", borderBottom: `1px solid ${C.border}` }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <button
+            onClick={onExit}
+            style={{
+              background: "none",
+              border: "none",
+              color: C.muted,
+              cursor: "pointer",
+              fontSize: 20,
+              padding: 0,
+            }}
+          >
+            ✕
+          </button>
+          <div style={{ flex: 1, background: C.border, borderRadius: 99, height: 10, overflow: "hidden" }}>
+            <div
+              style={{
+                background: `linear-gradient(90deg, ${chapter.color}, ${chapter.color}BB)`,
+                height: "100%",
+                width: `${progressPct}%`,
+                borderRadius: 99,
+                transition: "width 0.4s cubic-bezier(.4,0,.2,1)",
+                boxShadow: `0 0 8px ${chapter.color}88`,
+              }}
+            />
+          </div>
+          <div style={{ display: "flex", gap: 4 }}>
+            {Array.from({ length: maxHearts }).map((_, i) => (
+              <span key={i} style={{ fontSize: 12 }}>
+                <EmojiText value={i < hearts ? "mdi:heart" : "mdi:heart-outline"} style={{ fontSize: 14, color: i < hearts ? "#F87171" : "#475569" }} />
+              </span>
+            ))}
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
+          <div style={{ fontSize: 13, fontWeight: 700 }}>
+            <EmojiText value={quest.iconKey} style={{ fontSize: 16, color: chapter.color }} /> {quest.title}
+          </div>
+          <div
+            style={{
+              background: `${chapter.color}22`,
+              border: `1px solid ${chapter.color}44`,
+              borderRadius: 99,
+              padding: "2px 10px",
+              fontSize: 11,
+              color: chapter.color,
+              fontWeight: 700,
+            }}
+          >
+            {cards.length > 0 ? `Card ${fcIdx + 1} / ${cards.length}` : "No cards"}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", padding: "24px" }}>
+        {cards.length === 0 ? (
+          <div
+            style={{
+              background: C.card,
+              border: `1px solid ${C.border}`,
+              borderRadius: 18,
+              padding: "24px",
+              textAlign: "center",
+            }}
+          >
+            <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 8 }}>No flashcards yet</div>
+            <div style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>
+              This lesson will unlock once content is added
+            </div>
+            {hasQuiz && (
+              <button
+                onClick={onStartQuiz}
+                style={{
+                  width: "100%",
+                  background: `linear-gradient(135deg, ${chapter.color}, ${chapter.color}BB)`,
+                  border: "none",
+                  borderRadius: 16,
+                  padding: "14px",
+                  color: "#000",
+                  fontWeight: 900,
+                  fontSize: 14,
+                  cursor: "pointer",
+                }}
+              >
+                Start Quiz
+              </button>
+            )}
+          </div>
+        ) : (
+          <div
+            style={{
+              perspective: 1200,
+            }}
+          >
+            <div
+              style={{
+                position: "relative",
+                width: "100%",
+                height: 240,
+                transformStyle: "preserve-3d",
+                transition: fcAnimating ? "none" : "transform 0.5s cubic-bezier(.4,0,.2,1)",
+                transform: fcFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
+              }}
+            >
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  background: `${chapter.color}22`,
+                  border: `2px solid ${chapter.color}55`,
+                  borderRadius: 20,
+                  padding: "24px",
+                  backfaceVisibility: "hidden",
+                  boxShadow: `0 20px 60px #00000088, 0 0 40px ${chapter.color}11`,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: chapter.color,
+                    letterSpacing: 3,
+                    textTransform: "uppercase",
+                    marginBottom: 14,
+                  }}
+                >
+                  Think about this...
+                </div>
+                <div style={{ fontSize: 18, fontWeight: 800, lineHeight: 1.5, color: C.text }}>
+                  {card.prompt}
+                </div>
+                <div style={{ marginTop: 24, fontSize: 11, color: C.muted, display: "flex", alignItems: "center", gap: 6 }}>
+                  Tap flip to reveal answer
+                </div>
+              </div>
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  background: `linear-gradient(145deg, ${chapter.color}22, ${chapter.color}08)`,
+                  border: `2px solid ${chapter.color}`,
+                  borderRadius: 20,
+                  padding: "24px",
+                  backfaceVisibility: "hidden",
+                  transform: "rotateY(180deg)",
+                  boxShadow: `0 20px 60px #00000088, 0 0 60px ${chapter.color}33`,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: chapter.color,
+                    letterSpacing: 3,
+                    textTransform: "uppercase",
+                    marginBottom: 14,
+                  }}
+                >
+                  Answer
+                </div>
+                <div style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.7, color: C.text, whiteSpace: "pre-line" }}>
+                  {card.answer}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: "flex", gap: 12, padding: "0 20px 24px" }}>
+        <button
+          onClick={onFlip}
+          style={{
+            flex: 1,
+            background: `${chapter.color}22`,
+            border: `1px solid ${chapter.color}55`,
+            borderRadius: 16,
+            padding: "16px",
+            color: chapter.color,
+            fontWeight: 800,
+            fontSize: 14,
+            cursor: "pointer",
+          }}
+        >
+          Flip
+        </button>
+        <button
+          onClick={onNext}
+          style={{
+            flex: 2,
+            background: `linear-gradient(135deg, ${chapter.color}, ${chapter.color}BB)`,
+            border: "none",
+            borderRadius: 16,
+            padding: "16px",
+            color: "#000",
+            fontWeight: 900,
+            fontSize: 14,
+            cursor: "pointer",
+          }}
+        >
+          {cards.length > 0 && fcIdx < cards.length - 1
+            ? "Next Card →"
+            : hasQuiz
+              ? "Start Quiz"
+              : "Finish Lesson"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function QuizResult({ chapter, quest, quizStars, quizScore, onExit }) {
+  const total = quest.quiz.length;
+  const pct = total > 0 ? Math.round((quizScore / total) * 100) : 0;
+  const resultMsg =
+    quizStars === 3
+      ? ["Legendary!", "Perfect score! You're unstoppable!"]
+      : quizStars === 2
+        ? ["Great Work!", "Solid performance! Almost perfect!"]
+        : ["Keep It Up!", "Every lesson makes you smarter!"];
+
+  return (
+    <div
+      style={{
+        background: C.bg,
+        minHeight: "100vh",
+        color: C.text,
+        fontFamily: "'Segoe UI', system-ui, sans-serif",
+        maxWidth: 430,
+        margin: "0 auto",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 28,
+        textAlign: "center",
+        position: "relative",
+        overflow: "hidden",
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          top: "30%",
+          left: "50%",
+          transform: "translate(-50%,-50%)",
+          width: 300,
+          height: 300,
+          background: `radial-gradient(circle, ${chapter.color}22 0%, transparent 70%)`,
+          pointerEvents: "none",
+        }}
+      />
+      <div
+        style={{
+          fontSize: 90,
+          marginBottom: 12,
+          animation: "resultPop 0.6s cubic-bezier(.34,1.56,.64,1) both",
+        }}
+      >
+        <EmojiText
+          value={quizStars === 3 ? "mdi:trophy" : quizStars === 2 ? "mdi:star-circle" : "mdi:thumb-up"}
+          style={{ fontSize: 90, color: quizStars === 3 ? "#F59E0B" : "#A5B4FC" }}
+        />
+      </div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        {[1, 2, 3].map((s) => (
+          <span
+            key={s}
+            style={{
+              fontSize: 20,
+              filter:
+                s <= quizStars
+                  ? `drop-shadow(0 0 14px #F59E0B) drop-shadow(0 0 6px #F59E0BAA)`
+                  : "grayscale(1) opacity(0.18)",
+              animation:
+                s <= quizStars
+                  ? `starReveal ${0.4 + s * 0.18}s cubic-bezier(.34,1.56,.64,1) both`
+                  : "none",
+            }}
+          >
+            <EmojiText value="mdi:star" style={{ fontSize: 20, color: "#F59E0B" }} />
+          </span>
+        ))}
+      </div>
+      <div style={{ fontSize: 28, fontWeight: 900, marginBottom: 6, animation: "resultPop 0.6s 0.3s both" }}>
+        {resultMsg[0]}
+      </div>
+      <div style={{ fontSize: 14, color: C.muted, marginBottom: 8, animation: "resultPop 0.6s 0.4s both" }}>
+        {resultMsg[1]}
+      </div>
+      <div style={{ fontSize: 13, color: C.muted, marginBottom: 28 }}>
+        {quizScore}/{total} correct • {pct}%
+      </div>
+      <div
+        style={{
+          background: "linear-gradient(135deg, #F59E0B22, #F59E0B08)",
+          border: "2px solid #F59E0B55",
+          borderRadius: 22,
+          padding: "20px 40px",
+          marginBottom: 14,
+          animation: "resultPop 0.6s 0.5s both",
+          width: "100%",
+        }}
+      >
+        <div style={{ fontSize: 12, color: C.muted, marginBottom: 4, letterSpacing: 2, textTransform: "uppercase" }}>
+          XP Earned
+        </div>
+        <div style={{ fontSize: 40, fontWeight: 900, color: C.gold }}>
+          +{quest.xp} <EmojiText value="mdi:lightning-bolt" style={{ fontSize: 28, color: "#F59E0B" }} />
+        </div>
+      </div>
+      <div
+        style={{
+          background: `${chapter.color}18`,
+          border: `1px solid ${chapter.color}44`,
+          borderRadius: 14,
+          padding: "10px 24px",
+          marginBottom: 30,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          animation: "resultPop 0.6s 0.6s both",
+        }}
+      >
+        <span style={{ fontSize: 13, fontWeight: 800, color: chapter.color }}>
+          {quizStars} / 3 Stars Earned
+        </span>
+      </div>
+      <button
+        onClick={onExit}
+        style={{
+          width: "100%",
+          background: `linear-gradient(135deg, ${chapter.color}, ${chapter.color}BB)`,
+          border: "none",
+          borderBottom: `5px solid ${chapter.darkColor}`,
+          borderRadius: 18,
+          padding: "18px",
+          color: "#000",
+          fontWeight: 900,
+          fontSize: 16,
+          cursor: "pointer",
+          animation: "resultPop 0.6s 0.7s both",
+          transition: "transform 0.15s, box-shadow 0.15s",
+          boxShadow: `0 6px 24px ${chapter.color}44`,
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = "translateY(-2px)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = "translateY(0)";
+        }}
+      >
+        Back to Path
+      </button>
+    </div>
+  );
+}
+
+function QuizComponent({
+  chapter,
+  quest,
+  quizIdx,
+  quizAns,
+  quizScore,
+  quizDone,
+  quizStars,
+  quizAnswers,
+  particles,
+  heartAnim,
+  wrongShake,
+  hearts,
+  maxHearts,
+  onExit,
+  onAnswer,
+  onNext,
+}) {
+  if (quizDone) {
+    return (
+      <QuizResult
+        chapter={chapter}
+        quest={quest}
+        quizStars={quizStars}
+        quizScore={quizScore}
+        onExit={onExit}
+      />
+    );
+  }
+
+  const q = quest.quiz[quizIdx];
+
+  return (
+    <div
+      style={{
+        background: C.bg,
+        minHeight: "100vh",
+        color: C.text,
+        fontFamily: "'Segoe UI', system-ui, sans-serif",
+        maxWidth: 430,
+        margin: "0 auto",
+        display: "flex",
+        flexDirection: "column",
+        position: "relative",
+        overflow: "hidden",
+      }}
+    >
+      {particles.map((p) => (
+        <div
+          key={p.id}
+          style={{
+            position: "absolute",
+            left: `${p.x}%`,
+            top: `${p.y}%`,
+            width: 8,
+            height: 8,
+            background: p.color,
+            borderRadius: "50%",
+            animation: "burst 1s ease-out forwards",
+            transform: `rotate(${p.angle}deg)`,
+          }}
+        />
+      ))}
+      <div style={{ padding: "16px 20px 12px", borderBottom: `1px solid ${C.border}` }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <button
+            onClick={onExit}
+            style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 20 }}
+          >
+            ✕
+          </button>
+          <div style={{ flex: 1, background: C.border, borderRadius: 99, height: 10, overflow: "hidden" }}>
+            <div
+              style={{
+                background: `linear-gradient(90deg, ${chapter.color}, #F59E0B)`,
+                height: "100%",
+                width: `${((quizIdx) / quest.quiz.length) * 100}%`,
+                borderRadius: 99,
+                transition: "width 0.4s",
+                boxShadow: `0 0 8px ${chapter.color}88`,
+              }}
+            />
+          </div>
+          <div
+            style={{
+              background: "#EF444422",
+              border: "1px solid #EF444433",
+              borderRadius: 10,
+              padding: "4px 10px",
+              display: "flex",
+              gap: 3,
+              animation: heartAnim ? "shake 0.4s" : "none",
+            }}
+          >
+            {Array.from({ length: maxHearts }).map((_, i) => (
+              <span key={i} style={{ fontSize: 12 }}>
+                <EmojiText value={i < hearts ? "mdi:heart" : "mdi:heart-outline"} style={{ fontSize: 14, color: i < hearts ? "#F87171" : "#475569" }} />
+              </span>
+            ))}
+          </div>
+        </div>
+        <div style={{ fontSize: 11, color: C.muted, marginTop: 8 }}>
+          <EmojiText value={quest.iconKey} style={{ fontSize: 14, color: chapter.color }} /> Question {quizIdx + 1} of {quest.quiz.length}
+        </div>
+        <div style={{ marginTop: 8, display: "flex", gap: 6 }}>
+          {Array.from({ length: quest.quiz.length }).map((_, i) => (
+            <div
+              key={i}
+              style={{
+                width: 20,
+                height: 20,
+                borderRadius: "50%",
+                background:
+                  i < quizIdx
+                    ? i < quizScore
+                      ? "#10B98188"
+                      : "#EF444488"
+                    : i === quizIdx
+                      ? `${chapter.color}66`
+                      : C.border,
+                border: `2px solid ${
+                  i < quizIdx
+                    ? i < quizScore
+                      ? "#10B981"
+                      : "#EF4444"
+                    : i === quizIdx
+                      ? chapter.color
+                      : "transparent"
+                }`,
+                fontSize: 9,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#fff",
+                fontWeight: 900,
+                transition: "all 0.3s",
+              }}
+            >
+              {i < quizIdx ? (i < quizScore ? "?" : "?") : ""}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ padding: "20px" }}>
+        <div
+          style={{
+            background: C.card,
+            border: `2px solid ${chapter.color}33`,
+            borderRadius: 20,
+            padding: "20px",
+            marginBottom: 16,
+            animation: wrongShake ? "shake 0.4s" : "none",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              color: chapter.color,
+              letterSpacing: 2,
+              textTransform: "uppercase",
+              marginBottom: 10,
+            }}
+          >
+            Question
+          </div>
+          <div style={{ fontSize: 17, fontWeight: 800, lineHeight: 1.5 }}>{q.q}</div>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {q.opts.map((opt, i) => {
+            let bg = C.card;
+            let borderColor = C.border;
+            let color = C.text;
+            let icon = null;
+            if (quizAns !== null) {
+              if (i === q.ans) {
+                bg = "#10B98118";
+                borderColor = "#10B981";
+                color = "#10B981";
+                icon = "?";
+              } else if (i === quizAns && i !== q.ans) {
+                bg = "#EF444418";
+                borderColor = "#EF4444";
+                color = "#EF4444";
+                icon = "?";
+              }
+            }
+            return (
+              <div
+                key={i}
+                onClick={() => onAnswer(i)}
+                style={{
+                  background: bg,
+                  border: `2px solid ${borderColor}`,
+                  borderRadius: 16,
+                  padding: "15px 18px",
+                  cursor: quizAns !== null ? "default" : "pointer",
+                  color,
+                  fontWeight: 600,
+                  fontSize: 14,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  transition: "all 0.2s",
+                }}
+                onMouseEnter={(e) => {
+                  if (quizAns === null) {
+                    e.currentTarget.style.border = `2px solid ${chapter.color}88`;
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (quizAns === null) {
+                    e.currentTarget.style.border = `2px solid ${C.border}`;
+                  }
+                }}
+              >
+                <div
+                  style={{
+                    width: 26,
+                    height: 26,
+                    borderRadius: 10,
+                    background: `${chapter.color}22`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontWeight: 900,
+                    color: chapter.color,
+                  }}
+                >
+                  {String.fromCharCode(65 + i)}
+                </div>
+                <div style={{ flex: 1 }}>{opt}</div>
+                {icon && <div style={{ fontWeight: 900 }}>{icon}</div>}
+              </div>
+            );
+          })}
+        </div>
+
+        {quizAns !== null && (
+          <div
+            style={{
+              marginTop: 16,
+              background: quizAns === q.ans ? "#10B98118" : "#EF444418",
+              border: `1px solid ${quizAns === q.ans ? "#10B98166" : "#EF444466"}`,
+              borderRadius: 16,
+              padding: "14px 16px",
+            }}
+          >
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: quizAns === q.ans ? "#10B981" : "#EF4444",
+                marginBottom: 4,
+              }}
+            >
+              {quizAns === q.ans ? "? Correct! Great thinking!" : "? Not quite — here's why:"}
+            </div>
+            <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.6 }}>{q.exp}</div>
+          </div>
+        )}
+
+        {quizAns !== null && (
+          <button
+            onClick={onNext}
+            style={{
+              width: "100%",
+              background: `linear-gradient(135deg, ${chapter.color}, ${chapter.color}BB)`,
+              border: "none",
+              borderRadius: 18,
+              padding: "18px",
+              color: "#000",
+              fontWeight: 900,
+              fontSize: 16,
+              cursor: "pointer",
+              marginTop: 16,
+            }}
+          >
+            {quizIdx < quest.quiz.length - 1 ? "Next Question →" : "See Results"}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function VaultFacts({ chapter, quest, onExit, onComplete }) {
+  return (
+    <div
+      style={{
+        background: "linear-gradient(180deg, #0A0520 0%, #0B0C1E 100%)",
+        minHeight: "100vh",
+        color: C.text,
+        fontFamily: "'Segoe UI', system-ui, sans-serif",
+        maxWidth: 430,
+        margin: "0 auto",
+      }}
+    >
+      <div
+        style={{
+          padding: "16px 20px",
+          borderBottom: `1px solid ${C.border}`,
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+        }}
+      >
+        <button
+          onClick={onExit}
+          style={{
+            background: "none",
+            border: "none",
+            color: C.muted,
+            cursor: "pointer",
+            fontSize: 20,
+          }}
+        >
+          ←
+        </button>
+        <div>
+          <div style={{ fontSize: 16, fontWeight: 800 }}>Mind Vault</div>
+          <div style={{ fontSize: 11, color: C.muted }}>Secret facts unlocked</div>
+        </div>
+      </div>
+
+      <div style={{ padding: "24px 20px" }}>
+        <div
+          style={{
+            background: "linear-gradient(135deg, #1E1B4B, #0F172A)",
+            border: "1px solid #7C3AED66",
+            borderRadius: 20,
+            padding: "20px",
+            marginBottom: 18,
+          }}
+        >
+          <div style={{ fontSize: 22, fontWeight: 900, marginBottom: 6 }}>
+            <EmojiText value={quest.iconKey} style={{ fontSize: 24, color: "#C4B5FD" }} /> {quest.title}
+          </div>
+          <div style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.6, color: "#E2E8F0" }}>
+            These are the stories economists don't usually put in textbooks — but should.
+          </div>
+        </div>
+
+        {quest.facts.map((fact, i) => (
+          <div
+            key={fact.title + i}
+            style={{
+              background: "rgba(124,58,237,0.08)",
+              border: "1px solid rgba(124,58,237,0.2)",
+              borderRadius: 18,
+              padding: "18px",
+              marginBottom: 14,
+            }}
+          >
+            <div style={{ fontSize: 36, marginBottom: 12 }}>
+              <EmojiText value={fact.iconKey} style={{ fontSize: 36, color: "#C4B5FD" }} />
+            </div>
+            <div style={{ fontSize: 17, fontWeight: 900, color: "#C4B5FD", marginBottom: 10 }}>
+              {fact.title}
+            </div>
+            <div style={{ fontSize: 14, color: "#CBD5E1", lineHeight: 1.8 }}>{fact.body}</div>
+          </div>
+        ))}
+
+        <div style={{ textAlign: "center", marginTop: 20 }}>
+          <div style={{ fontSize: 18, fontWeight: 900, color: C.gold, marginBottom: 12 }}>
+            +{quest.xp} XP earned! <EmojiText value="mdi:lightning-bolt" style={{ fontSize: 20, color: C.gold }} />
+          </div>
+          <button
+            onClick={onComplete}
+            style={{
+              width: "100%",
+              background: "linear-gradient(135deg, #7C3AED, #A78BFA)",
+              border: "none",
+              borderRadius: 18,
+              padding: "16px",
+              color: "#fff",
+              fontWeight: 900,
+              fontSize: 15,
+              cursor: "pointer",
+            }}
+          >
+            Collect XP
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function isBadgeEarned(badge, state) {
+  if (badge.backendMatch && badge.backendMatch.length) {
+    const backendEarned = (state.badges || []).some((item) =>
+      badge.backendMatch.includes(item),
+    );
+    if (backendEarned) {
+      return true;
+    }
+  }
+  return badge.condition ? badge.condition(state) : false;
+}
+
+function GamifiedLearning() {
+  const [chapters, setChapters] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [screen, setScreen] = useState("home");
+  const [activeChapter, setActiveChapter] = useState(null);
+  const [activeQuest, setActiveQuest] = useState(null);
+  const [fcIdx, setFcIdx] = useState(0);
+  const [fcFlipped, setFcFlipped] = useState(false);
+  const [fcAnimating, setFcAnimating] = useState(false);
+  const [quizIdx, setQuizIdx] = useState(0);
+  const [quizAns, setQuizAns] = useState(null);
+  const [quizScore, setQuizScore] = useState(0);
+  const [quizDone, setQuizDone] = useState(false);
+  const [quizAnswers, setQuizAnswers] = useState([]);
+  const [quizStars, setQuizStars] = useState(0);
+  const [particles, setParticles] = useState([]);
+  const [heartAnim, setHeartAnim] = useState(false);
+  const [wrongShake, setWrongShake] = useState(false);
+  const [newBadges, setNewBadges] = useState([]);
+  const [showBadgeToast, setShowBadgeToast] = useState(null);
+  const flashcardViewedRef = useRef(new Set());
+
+  const [gs, setGs] = useState(() => ({
+    xp: 0,
+    level: 1,
+    streak: 0,
+    freezes: 0,
+    hearts: 5,
+    maxHearts: 5,
+    completedQuests: new Set(),
+    perfectQuizzes: 0,
+    totalFlips: 0,
+    vaultsOpened: 0,
+    earnedBadges: new Set(),
+    badges: [],
+    questStars: {},
+    weeklyProgress: [],
+    totalLessons: 0,
+    completedLessons: 0,
+    xpToNextLevel: 0,
+    streakMessage: "",
+  }));
+
+  const badgeCatalog = useMemo(() => {
+    const chapterBadges = chapters.map((chapter) => ({
+      id: `unit_${chapter.title}`,
+      icon: "mdi:trophy",
+      title: `${chapter.title} Champ`,
+      desc: `Complete ${chapter.title}`,
+      backendMatch: [
+        `Unit Completed: ${chapter.title}`,
+        `Chapter Badge: ${chapter.title}`,
+      ],
+      condition: (s) =>
+        chapter.quests.every((quest) => s.completedQuests.has(quest.id)),
+    }));
+    return [...BADGES, ...chapterBadges];
+  }, [chapters]);
+
+  const applyGamification = (snapshot) => {
+    if (!snapshot || typeof snapshot !== "object") return;
+    setGs((prev) => ({
+      ...prev,
+      xp: pickNumber(snapshot.xp, prev.xp),
+      level: pickNumber(snapshot.level, prev.level),
+      streak: pickNumber(snapshot.streakDays, prev.streak),
+      freezes: pickNumber(snapshot.streakFreezes, prev.freezes),
+      hearts: pickNumber(snapshot.hearts, prev.hearts),
+      maxHearts: pickNumber(snapshot.maxHearts, prev.maxHearts),
+      badges: pickArray(snapshot.badges, prev.badges),
+      weeklyProgress: pickArray(snapshot.weeklyProgress, prev.weeklyProgress),
+      totalLessons: pickNumber(snapshot.totalLessons, prev.totalLessons),
+      completedLessons: pickNumber(snapshot.completedLessons, prev.completedLessons),
+      xpToNextLevel: pickNumber(snapshot.xpToNextLevel, prev.xpToNextLevel),
+      streakMessage: pickString(snapshot.streakMessage, prev.streakMessage),
+    }));
+  };
+
+  const hydrateProgress = (progressPayload, gamificationPayload) => {
+    const progress = normalizeProgress(progressPayload);
+    const completedLessonIds = progress
+      .filter((item) => item.completed)
+      .map((item) => String(item.lessonId));
+
+    const backendStars = progress.reduce((acc, item) => {
+      if (item.bestScore > 0 && item.lessonId) {
+        acc[String(item.lessonId)] = calculateStars(item.bestScore);
+      }
+      return acc;
+    }, {});
+
+    const perfectQuizzes = progress.filter((item) => item.bestScore >= 100).length;
+
+    setGs((prev) => ({
+      ...prev,
+      completedQuests: new Set([...prev.completedQuests, ...completedLessonIds]),
+      perfectQuizzes: Math.max(prev.perfectQuizzes, perfectQuizzes),
+      questStars: { ...(prev.questStars || {}), ...backendStars },
+    }));
+
+    applyGamification(gamificationPayload);
+  };
+
+  useEffect(() => {
+    let active = true;
+
+    const loadData = async () => {
+      setLoading(true);
+      setLoadError("");
+      try {
+        const payload = await apiFetch("/learn/flow");
+        if (!active) return;
+        const normalized = normalizeFlow(payload);
+        setChapters(normalized.chapters);
+        hydrateProgress(normalized.progress, normalized.gamification);
+      } catch (err) {
+        if (!active) return;
+        setLoadError(err && err.message ? err.message : "Failed to load lessons");
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadData();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const newlyEarned = badgeCatalog.filter(
+      (b) => !gs.earnedBadges.has(b.id) && isBadgeEarned(b, gs),
+    );
+    if (newlyEarned.length > 0) {
+      newlyEarned.forEach((b, i) => {
+        setTimeout(() => {
+          setShowBadgeToast(b);
+          setTimeout(() => setShowBadgeToast(null), 3000);
+        }, i * 3200);
+      });
+      setGs((prev) => ({
+        ...prev,
+        earnedBadges: new Set([
+          ...prev.earnedBadges,
+          ...newlyEarned.map((b) => b.id),
+        ]),
+      }));
+    }
+  }, [
+    badgeCatalog,
+    gs.xp,
+    gs.streak,
+    gs.completedQuests.size,
+    gs.perfectQuizzes,
+    gs.totalFlips,
+    gs.vaultsOpened,
+    gs.badges.length,
+  ]);
+
+  useEffect(() => {
+    if (!newBadges.length) return;
+    newBadges.forEach((badgeName, index) => {
+      const mapped =
+        badgeCatalog.find((badge) => badge.backendMatch && badge.backendMatch.includes(badgeName)) || {
+          icon: "mdi:medal",
+          title: badgeName,
+          desc: "New achievement unlocked",
+        };
+      setTimeout(() => {
+        setShowBadgeToast(mapped);
+        setTimeout(() => setShowBadgeToast(null), 3000);
+      }, index * 3200);
+    });
+    setNewBadges([]);
+  }, [newBadges, badgeCatalog]);
+
+  const spawnParticles = () => {
+    const ps = Array.from({ length: 12 }, (_, i) => ({
+      id: Date.now() + i,
+      x: 40 + Math.random() * 20,
+      y: 40 + Math.random() * 20,
+      angle: (i / 12) * 360,
+      color: ["#F59E0B", "#10B981", "#3B82F6", "#EF4444", "#8B5CF6", "#F97316"][i % 6],
+    }));
+    setParticles(ps);
+    setTimeout(() => setParticles([]), 1200);
+  };
+
+  const recordFlashcardView = async (lessonId, count = 1) => {
+    if (!lessonId) return;
+    try {
+      const payload = await apiFetch(`/progress/flashcard/${lessonId}`, {
+        method: "POST",
+        body: JSON.stringify({ count }),
+      });
+      if (payload && payload.xpAwarded) {
+        applyGamification(payload.gamification);
+        if (payload.newBadges && payload.newBadges.length) {
+          setNewBadges(payload.newBadges);
+        }
+      }
+    } catch (err) {
+      return;
+    }
+  };
+
+  const startLesson = async (lessonId) => {
+    if (!lessonId) return true;
+    try {
+      await apiFetch(`/progress/start/${lessonId}`, { method: "POST" });
+      return true;
+    } catch (err) {
+      setLoadError(err && err.message ? err.message : "Unable to start lesson");
+      return false;
+    }
+  };
+
+  const completeLesson = async (lessonId, starsOverride) => {
+    if (!lessonId) return;
+    try {
+      const payload = await apiFetch(`/progress/complete/${lessonId}`, {
+        method: "POST",
+      });
+      applyGamification(payload.gamification);
+      if (payload.newBadges && payload.newBadges.length) {
+        setNewBadges(payload.newBadges);
+      }
+      if (payload.progress && payload.progress.lessonId) {
+        setGs((prev) => ({
+          ...prev,
+          completedQuests: new Set([
+            ...prev.completedQuests,
+            String(payload.progress.lessonId),
+          ]),
+          questStars: {
+            ...(prev.questStars || {}),
+            [String(payload.progress.lessonId)]: Math.max(
+              starsOverride || 0,
+              (prev.questStars || {})[String(payload.progress.lessonId)] || 0,
+            ),
+          },
+        }));
+      }
+    } catch (err) {
+      return;
+    }
+  };
+
+  const submitQuiz = async (lessonId, answers) => {
+    const payload = await apiFetch(`/progress/quiz/${lessonId}`, {
+      method: "POST",
+      body: JSON.stringify({ answers }),
+    });
+    return payload;
+  };
+
+  const loseHeart = () => {
+    setWrongShake(true);
+    setHeartAnim(true);
+    setGs((prev) => ({ ...prev, hearts: Math.max(0, prev.hearts - 1) }));
+    setTimeout(() => setWrongShake(false), 500);
+    setTimeout(() => setHeartAnim(false), 400);
+  };
+
+  const resetQuestState = () => {
+    setFcIdx(0);
+    setFcFlipped(false);
+    setFcAnimating(false);
+    setQuizIdx(0);
+    setQuizAns(null);
+    setQuizScore(0);
+    setQuizDone(false);
+    setQuizAnswers([]);
+    setQuizStars(0);
+    setParticles([]);
+  };
+
+  const goHome = () => {
+    resetQuestState();
+    setScreen("home");
+  };
+
+  const handleOpenQuest = async (quest) => {
+    const chapter = chapters.find((ch) => ch.quests.some((q) => q.id === quest.id));
+    setActiveChapter(chapter || null);
+    setActiveQuest(quest);
+
+    if (quest.type === "vault") {
+      setScreen("vault");
+      return;
+    }
+
+    resetQuestState();
+    const started = await startLesson(quest.id);
+    if (!started) return;
+
+    setScreen("flashcard");
+  };
+
+  const flipCard = () => {
+    if (fcAnimating) return;
+    setFcAnimating(true);
+    setFcFlipped((prev) => !prev);
+    setTimeout(() => setFcAnimating(false), 520);
+    setGs((prev) => ({ ...prev, totalFlips: prev.totalFlips + 1 }));
+  };
+
+  const startQuiz = () => {
+    setQuizIdx(0);
+    setQuizAns(null);
+    setQuizScore(0);
+    setQuizDone(false);
+    setQuizAnswers(Array(activeQuest.quiz.length).fill(-1));
+    setScreen("quiz");
+  };
+
+  const nextCard = async () => {
+    if (!activeQuest) return;
+    const cards = activeQuest.flashcards || [];
+    if (cards.length > 0 && fcIdx < cards.length - 1) {
+      setFcIdx(fcIdx + 1);
+      setFcFlipped(false);
+      return;
+    }
+
+    if (activeQuest.quiz && activeQuest.quiz.length > 0) {
+      startQuiz();
+      return;
+    }
+
+    await completeLesson(activeQuest.id, 3);
+    goHome();
+  };
+
+  const answerQuiz = (idx) => {
+    if (quizAns !== null) return;
+    setQuizAns(idx);
+    setQuizAnswers((prev) => {
+      const next = prev.slice();
+      next[quizIdx] = idx;
+      return next;
+    });
+
+    const correct = idx === activeQuest.quiz[quizIdx].ans;
+    if (correct) {
+      setQuizScore((prev) => prev + 1);
+      spawnParticles();
+    } else {
+      loseHeart();
+    }
+  };
+
+  const nextQuiz = async () => {
+    if (!activeQuest) return;
+    if (quizAns === null) return;
+
+    if (quizIdx < activeQuest.quiz.length - 1) {
+      setQuizIdx(quizIdx + 1);
+      setQuizAns(null);
+      return;
+    }
+
+    const total = activeQuest.quiz.length;
+    const localScore = quizScore + (quizAns === activeQuest.quiz[quizIdx].ans ? 1 : 0);
+    const answers = quizAnswers.map((item, index) =>
+      index === quizIdx ? quizAns : item,
+    );
+
+    try {
+      const result = await submitQuiz(activeQuest.id, answers);
+      const scorePercent = typeof result.scorePercent === "number"
+        ? result.scorePercent
+        : Math.round((localScore / total) * 100);
+
+      const stars = calculateStars(scorePercent);
+      setQuizStars(stars);
+      setQuizScore(result.correctAnswers ? localScore : localScore);
+      setQuizDone(true);
+      setGs((prev) => ({
+        ...prev,
+        questStars: {
+          ...(prev.questStars || {}),
+          [activeQuest.id]: Math.max(stars, (prev.questStars || {})[activeQuest.id] || 0),
+        },
+        perfectQuizzes: prev.perfectQuizzes + (scorePercent === 100 ? 1 : 0),
+      }));
+      applyGamification(result.gamification);
+      if (result.newBadges && result.newBadges.length) {
+        setNewBadges(result.newBadges);
+      }
+      if (result.passed) {
+        await completeLesson(activeQuest.id, stars);
+      }
+    } catch (err) {
+      setLoadError(err && err.message ? err.message : "Quiz submission failed");
+      setQuizDone(true);
+      setQuizStars(1);
+    }
+  };
+
+  useEffect(() => {
+    if (screen !== "flashcard" || !activeQuest || activeQuest.type !== "lesson") {
+      return;
+    }
+
+    const key = `${activeQuest.id}:${fcIdx}`;
+    if (flashcardViewedRef.current.has(key)) {
+      return;
+    }
+    flashcardViewedRef.current.add(key);
+    recordFlashcardView(activeQuest.id, 1);
+  }, [screen, activeQuest, fcIdx]);
+
+  const handleVaultComplete = () => {
+    if (!activeQuest) return;
+    setGs((prev) => ({
+      ...prev,
+      completedQuests: new Set([...prev.completedQuests, activeQuest.id]),
+      vaultsOpened: prev.vaultsOpened + 1,
+      questStars: { ...(prev.questStars || {}), [activeQuest.id]: 3 },
+      xp: prev.xp + activeQuest.xp,
+    }));
+    goHome();
+  };
+
+  const totalQuests = chapters.reduce((a, ch) => a + ch.quests.length, 0);
+  const completedCount = chapters.reduce(
+    (a, ch) => a + ch.quests.filter((q) => gs.completedQuests.has(q.id)).length,
+    0,
+  );
+  const totalStars = Object.values(gs.questStars || {}).reduce((a, s) => a + s, 0);
+
+  return (
+    <React.Fragment>
+      <GlobalStyles />
+      {screen === "flashcard" && activeQuest && activeChapter ? (
+        <FlashcardLesson
+          chapter={activeChapter}
+          quest={activeQuest}
+          fcIdx={fcIdx}
+          fcFlipped={fcFlipped}
+          fcAnimating={fcAnimating}
+          hearts={gs.hearts}
+          maxHearts={gs.maxHearts}
+          onExit={goHome}
+          onFlip={flipCard}
+          onNext={nextCard}
+          onStartQuiz={startQuiz}
+        />
+      ) : screen === "quiz" && activeQuest && activeChapter ? (
+        <QuizComponent
+          chapter={activeChapter}
+          quest={activeQuest}
+          quizIdx={quizIdx}
+          quizAns={quizAns}
+          quizScore={quizScore}
+          quizDone={quizDone}
+          quizStars={quizStars}
+          quizAnswers={quizAnswers}
+          particles={particles}
+          heartAnim={heartAnim}
+          wrongShake={wrongShake}
+          hearts={gs.hearts}
+          maxHearts={gs.maxHearts}
+          onExit={goHome}
+          onAnswer={answerQuiz}
+          onNext={nextQuiz}
+        />
+      ) : screen === "vault" && activeQuest && activeChapter ? (
+        <VaultFacts
+          chapter={activeChapter}
+          quest={activeQuest}
+          onExit={goHome}
+          onComplete={handleVaultComplete}
+        />
+      ) : screen === "badges" ? (
+        <React.Fragment>
+          <BadgesScreen badgeCatalog={badgeCatalog} gs={gs} onBack={() => setScreen("home")} />
+          <BottomNav screen={screen} onNavigate={setScreen} />
+          {showBadgeToast ? <BadgeToast badge={showBadgeToast} /> : null}
+        </React.Fragment>
+      ) : loading && chapters.length === 0 ? (
+        <LoadingScreen />
+      ) : loadError && chapters.length === 0 ? (
+        <ErrorScreen message={loadError} />
+      ) : (
+        <div
+          style={{
+            background: C.bg,
+            minHeight: "100vh",
+            color: C.text,
+            fontFamily: "'Segoe UI', system-ui, sans-serif",
+            maxWidth: 430,
+            margin: "0 auto",
+            paddingBottom: 100,
+            position: "relative",
+            overflow: "hidden",
+          }}
+        >
+          <TopNav
+            gs={gs}
+            completedCount={completedCount}
+            totalQuests={totalQuests}
+            totalStars={totalStars}
+          />
+
+          {gs.freezes > 0 && (
+            <div
+              style={{
+                margin: "14px 20px",
+                background: "linear-gradient(135deg, #1E293B, #1F2A44)",
+                border: "1px solid #3B82F666",
+                borderRadius: 16,
+                padding: "14px 16px",
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+              }}
+            >
+              <div style={{ fontSize: 22 }}>
+                <EmojiText value="mdi:snowflake" style={{ fontSize: 22, color: "#93C5FD" }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#93C5FD" }}>
+                  Streak Freeze Available ({gs.freezes})
+                </div>
+                <div style={{ fontSize: 11, color: C.muted }}>
+                  Miss a day? Your streak is protected.
+                </div>
+              </div>
+            </div>
+          )}
+
+          {loadError ? (
+            <div style={{ margin: "0 20px 16px", fontSize: 12, color: "#FCA5A5" }}>{loadError}</div>
+          ) : null}
+
+          <div style={{ padding: "0 20px 20px" }}>
+            {chapters.map((chapter) => (
+              <QuestPath
+                key={chapter.key}
+                chapter={chapter}
+                completedQuests={gs.completedQuests}
+                questStars={gs.questStars || {}}
+                onOpenQuest={handleOpenQuest}
+              />
+            ))}
+          </div>
+
+          <BottomNav screen={screen} onNavigate={setScreen} />
+          {showBadgeToast ? <BadgeToast badge={showBadgeToast} /> : null}
+        </div>
+      )}
+    </React.Fragment>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<GamifiedLearning />);
+if (window.ReactNativeWebView) {
+  window.ReactNativeWebView.postMessage("ready");
+}
+  </script>
+</body>
+</html>
+

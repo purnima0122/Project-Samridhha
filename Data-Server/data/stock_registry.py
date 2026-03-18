@@ -22,6 +22,7 @@ _COMPANY_LIST_PATH = os.path.join(_DATA_DIR, "company_list.csv")
 # In-memory caches
 _company_registry: Dict[str, dict] = {}
 _price_cache: Dict[str, pd.DataFrame] = {}
+_history_cache: Dict[str, List[dict]] = {}
 _initialized = False
 
 
@@ -96,11 +97,30 @@ def get_tracked_symbols() -> List[str]:
     These are the stocks actively simulated and monitored by default.
     Users can subscribe to additional stocks as needed.
     """
-    # Default tracked stocks as mentioned in the report
+    # Default tracked stocks
     default_stocks = [
-        "NABIL", "NLIC", "SCB", "UPPER", "HDL", "NHPC",
-        # Additional popular stocks
-        "SBI", "EBL", "HIDCL", "NTC", "CHCL", "SHPC",
+        # Commercial Banks
+        "NABIL", "SCB", "SBI", "EBL", "NMB", "SBL", "KBL", "MBL", "HBL", "CZBIL",
+        # Hydropower
+        "NHPC", "CHCL", "SHPC", "UPPER", "BPCL", "AHPC", "BARUN", "SJCL",
+        # Life Insurance
+        "NLIC", "NLICL", "LICN", "ALICL",
+        # Non-Life Insurance
+        "NICL", "NIL", "SICL",
+        # Development Banks
+        "MDB", "GBBL", "JBBL",
+        # Finance
+        "BFC", "GFCL",
+        # Manufacturing & Processing
+        "HDL", "BNL", "UNL",
+        # Investment
+        "HIDCL", "CHDC",
+        # Hotel & Tourism
+        "SHL", "TRH",
+        # Others
+        "NTC", "NRM",
+        # Microfinance
+        "NUBL",
     ]
     available = set(get_all_symbols())
     return [s for s in default_stocks if s in available]
@@ -146,42 +166,43 @@ def get_historical_data(symbol: str, days: int = 50) -> List[dict]:
     """
     symbol = symbol.upper()
 
-    # Check cache
-    if symbol not in _price_cache:
-        files = _get_available_price_files()
-        if symbol not in files:
-            return []
+    if symbol not in _history_cache:
+        if symbol not in _price_cache:
+            files = _get_available_price_files()
+            if symbol not in files:
+                return []
 
-        try:
-            df = pd.read_csv(files[symbol])
-            _price_cache[symbol] = df
-        except Exception as e:
-            logger.error(f"Error loading price history for {symbol}: {e}")
-            return []
+            try:
+                df = pd.read_csv(files[symbol])
+                _price_cache[symbol] = df
+            except Exception as e:
+                logger.error(f"Error loading price history for {symbol}: {e}")
+                return []
 
-    df = _price_cache[symbol]
+        df = _price_cache[symbol]
 
-    # Parse the data — CSV is in descending order (newest first)
-    records = []
-    for _, row in df.iterrows():
-        try:
-            records.append({
-                "date": str(row.get("Date", "")),
-                "open": _parse_number(str(row.get("Open", 0))),
-                "high": _parse_number(str(row.get("High", 0))),
-                "low": _parse_number(str(row.get("Low", 0))),
-                "close": _parse_number(str(row.get("Ltp", 0))),  # Ltp = Last Traded Price
-                "volume": int(_parse_number(str(row.get("Qty", 0)))),
-                "turnover": _parse_number(str(row.get("Turnover", 0))),
-                "change_pct": _parse_number(str(row.get("% Change", 0))),
-            })
-        except Exception:
-            continue
+        # Parse once per symbol; CSV is descending (newest first).
+        records = []
+        for _, row in df.iterrows():
+            try:
+                records.append({
+                    "date": str(row.get("Date", "")),
+                    "open": _parse_number(str(row.get("Open", 0))),
+                    "high": _parse_number(str(row.get("High", 0))),
+                    "low": _parse_number(str(row.get("Low", 0))),
+                    "close": _parse_number(str(row.get("Ltp", 0))),  # Ltp = Last Traded Price
+                    "volume": int(_parse_number(str(row.get("Qty", 0)))),
+                    "turnover": _parse_number(str(row.get("Turnover", 0))),
+                    "change_pct": _parse_number(str(row.get("% Change", 0))),
+                })
+            except Exception:
+                continue
 
-    # Reverse to chronological order (oldest first) and take last N days
-    records.reverse()
+        records.reverse()
+        _history_cache[symbol] = records
+
+    records = _history_cache[symbol]
     return records[-days:] if days else records
-
 
 def get_latest_close(symbol: str) -> Optional[float]:
     """Get the most recent closing price (LTP) from historical data."""
@@ -221,3 +242,4 @@ def get_volatility(symbol: str, days: int = 20) -> float:
 
     import numpy as np
     return float(np.std(returns))
+

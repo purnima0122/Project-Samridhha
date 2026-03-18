@@ -6,6 +6,7 @@ import {
     ScrollView,
     StyleSheet,
     Text,
+    TouchableOpacity,
     View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
@@ -13,518 +14,777 @@ import { BarChart, PieChart } from "react-native-chart-kit";
 import HeaderBar from "../components/HeaderBar";
 import { apiFetch } from "../lib/api";
 
-const screenWidth = Dimensions.get("window").width;
-const chartWidth = screenWidth - 60; // keep charts comfortably inside card on mobile
+// ─── Dimensions ───────────────────────────────────────────────────────────────
+// Use a slightly narrower chart so value labels never get clipped on small phones
+const { width: SCREEN_W } = Dimensions.get("window");
+const H_PAD = 16; // horizontal page padding
+const CARD_INNER = 14; // card inner padding
+const CHART_W = SCREEN_W - H_PAD * 2 - CARD_INNER * 2; // safe chart width
 
-type WardStat = {
-    wardNumber: number;
-    userCount: number;
-};
-
-type LiteracyTopicStat = {
-    topic: string;
-    avgScore: number; // 0–100
-};
-
+// ─── Types ────────────────────────────────────────────────────────────────────
+type WardStat = { wardNumber: number; userCount: number };
+type LiteracyTopicStat = { topic: string; avgScore: number };
 type WardCoverageResponse = {
     metadata?: {
-        province?: string;
-        district?: string;
-        municipality?: string;
-        from?: string;
-        to?: string;
-        totalUsers?: number;
+        province?: string; district?: string; municipality?: string;
+        from?: string; to?: string; totalUsers?: number; generatedAt?: string;
     };
     wards: WardStat[];
+    literacyTopics?: LiteracyTopicStat[];
 };
 
-const FALLBACK_WARD_DATA: WardStat[] = [
+// ─── Fallback data ────────────────────────────────────────────────────────────
+const FALLBACK_WARDS: WardStat[] = [
     { wardNumber: 1, userCount: 120 },
     { wardNumber: 2, userCount: 80 },
     { wardNumber: 3, userCount: 250 },
     { wardNumber: 4, userCount: 60 },
     { wardNumber: 5, userCount: 90 },
 ];
-
-const PIE_COLORS = [
-    "#2563EB",
-    "#16A34A",
-    "#D97706",
-    "#7C3AED",
-    "#DC2626",
-    "#0EA5E9",
-];
-
-const FALLBACK_LITERACY_DATA: LiteracyTopicStat[] = [
+const FALLBACK_LITERACY: LiteracyTopicStat[] = [
     { topic: "Risk & Volatility", avgScore: 52 },
     { topic: "Diversification", avgScore: 61 },
     { topic: "Long-term Investing", avgScore: 74 },
     { topic: "Reading Alerts", avgScore: 49 },
     { topic: "Basic Instruments", avgScore: 68 },
 ];
-
-const LITERACY_SHORT_LABELS: Record<string, string> = {
+const LITERACY_SHORT: Record<string, string> = {
     "Risk & Volatility": "Risk",
-    Diversification: "Diversify",
-    "Long-term Investing": "Long-term",
+    "Diversification": "Divers.",
+    "Long-term Investing": "L-Term",
     "Reading Alerts": "Alerts",
     "Basic Instruments": "Basics",
 };
 
+// ─── Color palette ────────────────────────────────────────────────────────────
+// Extra-bright, saturated colors so each bar pops clearly against white
+const PALETTE = ["#2563EB", "#22C55E", "#F97316", "#EC4899", "#E11D48", "#A855F7"];
+
+// Literacy score → semantic color
+function scoreColor(n: number) {
+    if (n < 55) return "#EF4444";
+    if (n < 70) return "#F59E0B";
+    return "#10B981";
+}
+function scoreLabel(n: number) {
+    if (n < 55) return "Needs Focus";
+    if (n < 70) return "Improving";
+    return "Strong";
+}
+
+// ─── Chart configs ────────────────────────────────────────────────────────────
+// White background so labels are always readable
+const BAR_CFG = {
+    backgroundGradientFrom: "#FFFFFF",
+    backgroundGradientTo: "#FFFFFF",
+    decimalPlaces: 0,
+    barPercentage: 0.6,
+    // fallback color (overridden per-bar via datasets.colors + flatColor)
+    color: (o = 1) => `rgba(37,99,235,${o})`,
+    // Dark label color for maximum contrast on white bg
+    labelColor: () => "#1E293B",
+    // bright blue base if dataset-specific colors are not applied
+    fillShadowGradient: "#2563EB",
+    fillShadowGradientOpacity: 1,
+    style: { borderRadius: 12 },
+    propsForBackgroundLines: {
+        // Completely invisible — no dashes, no lines
+        strokeWidth: 0,
+        stroke: "transparent",
+    },
+    propsForLabels: {
+        fontSize: 11,
+        fontWeight: "700",
+    },
+};
+
+const PIE_CFG = {
+    backgroundGradientFrom: "#FFFFFF",
+    backgroundGradientTo: "#FFFFFF",
+    decimalPlaces: 0,
+    color: (o = 1) => `rgba(79,70,229,${o})`,
+    labelColor: () => "#1E293B",
+};
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+/** Pill toggle: Bar | Pie */
+function ChartToggle({
+    value,
+    onChange,
+}: {
+    value: "bar" | "pie";
+    onChange: (v: "bar" | "pie") => void;
+}) {
+    return (
+        <View style={tog.wrap}>
+            {(["bar", "pie"] as const).map((opt) => {
+                const active = value === opt;
+                return (
+                    <TouchableOpacity
+                        key={opt}
+                        activeOpacity={0.85}
+                        onPress={() => onChange(opt)}
+                        style={[tog.btn, active && tog.btnOn]}
+                    >
+                        <Feather
+                            name={opt === "bar" ? "bar-chart-2" : "pie-chart"}
+                            size={12}
+                            color={active ? "#FFFFFF" : "#64748B"}
+                        />
+                        <Text style={[tog.txt, active && tog.txtOn]}>
+                            {opt === "bar" ? "Bar" : "Pie"}
+                        </Text>
+                    </TouchableOpacity>
+                );
+            })}
+        </View>
+    );
+}
+const tog = StyleSheet.create({
+    wrap: {
+        flexDirection: "row",
+        backgroundColor: "#F1F5F9",
+        borderRadius: 99,
+        padding: 3,
+    },
+    btn: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 4,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 99,
+    },
+    btnOn: { backgroundColor: "#4F46E5" },
+    txt: { fontSize: 12, fontWeight: "700", color: "#64748B" },
+    txtOn: { color: "#FFFFFF" },
+});
+
+/** Colored KPI tile */
+function KpiTile({
+    icon,
+    label,
+    value,
+    accent,
+}: {
+    icon: string;
+    label: string;
+    value: string;
+    accent: string;
+}) {
+    return (
+        <View style={[kpi.tile, { borderColor: accent + "40" }]}>
+            <View style={[kpi.iconRing, { backgroundColor: accent + "1A" }]}>
+                <Feather name={icon as any} size={15} color={accent} />
+            </View>
+            <Text style={[kpi.val, { color: accent }]}>{value}</Text>
+            <Text style={kpi.lbl}>{label}</Text>
+        </View>
+    );
+}
+const kpi = StyleSheet.create({
+    tile: {
+        flex: 1,
+        alignItems: "center",
+        backgroundColor: "#FFFFFF",
+        borderRadius: 16,
+        paddingVertical: 14,
+        paddingHorizontal: 4,
+        borderWidth: 1.5,
+        marginHorizontal: 4,
+        // subtle shadow
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.07,
+        shadowRadius: 10,
+        elevation: 3,
+    },
+    iconRing: {
+        width: 32,
+        height: 32,
+        borderRadius: 10,
+        alignItems: "center",
+        justifyContent: "center",
+        marginBottom: 8,
+    },
+    val: { fontSize: 20, fontWeight: "800", letterSpacing: -0.5 },
+    lbl: {
+        fontSize: 10,
+        fontWeight: "600",
+        color: "#94A3B8",
+        marginTop: 2,
+        textAlign: "center",
+    },
+});
+
+/** Card wrapper */
+function Card({ children, style }: { children: React.ReactNode; style?: object }) {
+    return <View style={[cd.card, style]}>{children}</View>;
+}
+const cd = StyleSheet.create({
+    card: {
+        backgroundColor: "#FFFFFF",
+        borderRadius: 20,
+        padding: CARD_INNER,
+        marginBottom: 16,
+        shadowColor: "#1E293B",
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.08,
+        shadowRadius: 20,
+        elevation: 5,
+    },
+});
+
+/** Card section header row */
+function CardHeader({
+    title,
+    desc,
+    accentColor,
+    chartType,
+    onToggle,
+}: {
+    title: string;
+    desc: string;
+    accentColor: string;
+    chartType: "bar" | "pie";
+    onToggle: (v: "bar" | "pie") => void;
+}) {
+    return (
+        <View style={ch.wrap}>
+            {/* Left: accent bar + text */}
+            <View style={ch.left}>
+                <View style={[ch.accent, { backgroundColor: accentColor }]} />
+                <View style={{ flex: 1 }}>
+                    <Text style={ch.title}>{title}</Text>
+                    <Text style={ch.desc} numberOfLines={2}>{desc}</Text>
+                </View>
+            </View>
+            {/* Right: toggle */}
+            <ChartToggle value={chartType} onChange={onToggle} />
+        </View>
+    );
+}
+const ch = StyleSheet.create({
+    wrap: {
+        flexDirection: "row",
+        alignItems: "flex-start",
+        justifyContent: "space-between",
+        gap: 10,
+        marginBottom: 14,
+    },
+    left: { flexDirection: "row", alignItems: "flex-start", gap: 10, flex: 1 },
+    accent: { width: 4, borderRadius: 99, height: "100%", minHeight: 36 },
+    title: {
+        fontSize: 15,
+        fontWeight: "800",
+        color: "#0F172A",
+        letterSpacing: -0.3,
+        marginBottom: 2,
+    },
+    desc: { fontSize: 11, color: "#94A3B8", lineHeight: 16 },
+});
+
+/** Tip row inside info card */
+function Tip({
+    icon,
+    text,
+    iconBg,
+    iconColor,
+}: {
+    icon: string;
+    text: string;
+    iconBg: string;
+    iconColor: string;
+}) {
+    return (
+        <View style={tp.row}>
+            <View style={[tp.icon, { backgroundColor: iconBg }]}>
+                <Feather name={icon as any} size={12} color={iconColor} />
+            </View>
+            <Text style={tp.text}>{text}</Text>
+        </View>
+    );
+}
+const tp = StyleSheet.create({
+    row: { flexDirection: "row", alignItems: "flex-start", gap: 10, marginBottom: 10 },
+    icon: {
+        width: 26,
+        height: 26,
+        borderRadius: 8,
+        alignItems: "center",
+        justifyContent: "center",
+        marginTop: 1,
+    },
+    text: { flex: 1, fontSize: 13, color: "#374151", lineHeight: 19 },
+});
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function RegulatorScreen() {
     const [wards, setWards] = useState<WardStat[]>([]);
     const [totalUsers, setTotalUsers] = useState<number | undefined>(undefined);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [literacyStats] = useState<LiteracyTopicStat[]>(FALLBACK_LITERACY_DATA);
-    const [wardChartType, setWardChartType] = useState<"bar" | "pie">("bar");
-    const [literacyChartType, setLiteracyChartType] = useState<"bar" | "pie">(
-        "bar"
-    );
+    const [literacy, setLiteracy] = useState<LiteracyTopicStat[]>(FALLBACK_LITERACY);
+    const [wardChart, setWardChart] = useState<"bar" | "pie">("bar");
+    const [litChart, setLitChart] = useState<"bar" | "pie">("bar");
 
     useEffect(() => {
-        let isMounted = true;
-
-        async function loadWardCoverage() {
+        let alive = true;
+        (async () => {
             try {
                 setLoading(true);
                 setError(null);
-
-                // NOTE: This expects a backend regulator endpoint like:
-                // GET /regulator/ward-coverage
                 const res = await apiFetch<WardCoverageResponse>("/regulator/ward-coverage");
-
-                if (!isMounted) return;
-
+                if (!alive) return;
                 if (!res || !Array.isArray(res.wards) || res.wards.length === 0) {
-                    // Fallback to demo data so the regulator view still renders
-                    setWards(FALLBACK_WARD_DATA);
-                    setTotalUsers(
-                        FALLBACK_WARD_DATA.reduce((sum, w) => sum + w.userCount, 0)
-                    );
+                    setWards(FALLBACK_WARDS);
+                    setTotalUsers(FALLBACK_WARDS.reduce((s, w) => s + w.userCount, 0));
                 } else {
                     setWards(res.wards);
-                    const total =
-                        res.metadata?.totalUsers ??
-                        res.wards.reduce((sum, w) => sum + w.userCount, 0);
-                    setTotalUsers(total);
+                    setTotalUsers(
+                        res.metadata?.totalUsers ?? res.wards.reduce((s, w) => s + w.userCount, 0)
+                    );
+                    if (res.literacyTopics?.length) setLiteracy(res.literacyTopics);
                 }
-            } catch (e) {
-                if (!isMounted) return;
-                console.warn("Failed to load ward coverage", e);
-                setError("Unable to load live ward coverage. Showing sample data.");
-                setWards(FALLBACK_WARD_DATA);
-                setTotalUsers(
-                    FALLBACK_WARD_DATA.reduce((sum, w) => sum + w.userCount, 0)
-                );
+            } catch {
+                if (!alive) return;
+                setError("Showing sample data — live data unavailable.");
+                setWards(FALLBACK_WARDS);
+                setTotalUsers(FALLBACK_WARDS.reduce((s, w) => s + w.userCount, 0));
             } finally {
-                if (isMounted) {
-                    setLoading(false);
-                }
+                if (alive) setLoading(false);
             }
-        }
-
-        loadWardCoverage();
-
-        return () => {
-            isMounted = false;
-        };
+        })();
+        return () => { alive = false; };
     }, []);
 
-    const barData = {
-        labels: wards.map((w) => `W-${w.wardNumber}`),
-        datasets: [
-            {
-                data: wards.map((w) => w.userCount || 0),
-            },
-        ],
-    };
+    // ── Derived stats ──
+    const avgLit = literacy.length
+        ? Math.round(literacy.reduce((s, t) => s + t.avgScore, 0) / literacy.length)
+        : 0;
+    const weakCount = literacy.filter((t) => t.avgScore < 60).length;
+    const topWard = wards.length
+        ? wards.reduce((a, b) => (a.userCount > b.userCount ? a : b))
+        : null;
 
-    const wardPieData = wards.map((w, index) => ({
+    // ── Ward chart data ──
+    const wardBarData = {
+        labels: wards.map((w) => `W${w.wardNumber}`),
+        datasets: [{
+            data: wards.map((w) => w.userCount || 0),
+            // One vivid color per bar — rendered via flatColor prop
+            colors: wards.map((_, i) => () => PALETTE[i % PALETTE.length]),
+        }],
+    };
+    const wardPieData = wards.map((w, i) => ({
         name: `Ward ${w.wardNumber}`,
         population: w.userCount,
-        color: PIE_COLORS[index % PIE_COLORS.length],
+        color: PALETTE[i % PALETTE.length],
         legendFontColor: "#334155",
         legendFontSize: 12,
     }));
 
-    const literacyBarData = {
-        labels: literacyStats.map(
-            (t) => LITERACY_SHORT_LABELS[t.topic] ?? t.topic
-        ),
-        datasets: [
-            {
-                data: literacyStats.map((t) => t.avgScore),
-            },
-        ],
+    // ── Literacy chart data ──
+    // Use semantic colors per bar so bar chart itself shows red/amber/green
+    const litBarData = {
+        labels: literacy.map((t) => LITERACY_SHORT[t.topic] ?? t.topic.split(" ")[0]),
+        datasets: [{
+            data: literacy.map((t) => t.avgScore),
+            colors: literacy.map((t) => () => scoreColor(t.avgScore)),
+        }],
     };
-
-    const literacyPieData = literacyStats.map((t, index) => ({
+    const litPieData = literacy.map((t, i) => ({
         name: t.topic,
         population: t.avgScore,
-        color: PIE_COLORS[index % PIE_COLORS.length],
+        color: PALETTE[i % PALETTE.length],
         legendFontColor: "#334155",
         legendFontSize: 11,
     }));
 
     return (
         <ScrollView
-            style={styles.container}
-            contentContainerStyle={{ paddingBottom: 40 }}
+            style={s.root}
+            contentContainerStyle={s.scroll}
             showsVerticalScrollIndicator={false}
         >
+            {/* ════════════════════════════════
+                HERO HEADER
+            ════════════════════════════════ */}
             <LinearGradient
-                colors={["#111827", "#020617"]}
+                colors={["#0A2D5C", "#0B3B78"]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
-                style={styles.headerGradient}
+                style={s.hero}
             >
                 <HeaderBar
                     tint="dark"
-                    rightSlot={
-                        <Feather name="shield" size={20} color="#E5E7EB" />
-                    }
+                    rightSlot={<Feather name="shield" size={20} color="#93C5FD" />}
                 />
-                <Text style={styles.headerTitle}>Regulator Insights</Text>
-                <Text style={styles.headerSubtitle}>
-                    Ward-wise view of StockLearn adoption for government & regulators
+
+                {/* Status badge — matches Browse Market dot pill */}
+                <View style={s.liveBadge}>
+                    <View style={s.liveDot} />
+                    <Text style={s.liveTxt}>Regulator Dashboard</Text>
+                </View>
+
+                <Text style={s.heroTitle}>Regulator Insights</Text>
+                <Text style={s.heroSub}>
+                    Ward-wise StockLearn adoption · Government &amp; Regulator view
                 </Text>
+
             </LinearGradient>
 
-            <View style={styles.content}>
+            {/* ════════════════════════════════
+                BODY
+            ════════════════════════════════ */}
+            <View style={s.body}>
+
+                {/* ── Banners ── */}
                 {loading && (
-                    <View style={styles.loadingBox}>
-                        <ActivityIndicator size="small" color="#2563EB" />
-                        <Text style={styles.loadingText}>Loading ward coverage…</Text>
+                    <View style={s.infoBanner}>
+                        <ActivityIndicator size="small" color="#4F46E5" />
+                        <Text style={s.infoTxt}>Loading ward coverage…</Text>
+                    </View>
+                )}
+                {!!error && (
+                    <View style={s.warnBanner}>
+                        <Feather name="alert-circle" size={13} color="#B45309" />
+                        <Text style={s.warnTxt}>{error}</Text>
                     </View>
                 )}
 
-                {error && (
-                    <View style={styles.errorBox}>
-                        <Text style={styles.errorText}>{error}</Text>
-                    </View>
-                )}
-
-                {/* High-level summary */}
-                <View style={styles.summaryCard}>
-                    <Text style={styles.summaryTitle}>Coverage Snapshot</Text>
-                    <Text style={styles.summaryMetric}>
-                        {totalUsers ?? "—"}{" "}
-                        <Text style={styles.summaryMetricUnit}>citizens using the app</Text>
-                    </Text>
-                    <Text style={styles.summarySub}>
-                        Data shown by ward to help target financial literacy programs.
-                    </Text>
+                {/* ── KPI tiles ── */}
+                <View style={s.kpiRow}>
+                    <KpiTile
+                        icon="users"
+                        label="Total Users"
+                        value={totalUsers != null ? String(totalUsers) : "—"}
+                        accent="#4F46E5"
+                    />
+                    <KpiTile
+                        icon="award"
+                        label="Avg Literacy"
+                        value={`${avgLit}%`}
+                        accent="#10B981"
+                    />
+                    <KpiTile
+                        icon="alert-triangle"
+                        label="Weak Topics"
+                        value={String(weakCount)}
+                        accent="#F59E0B"
+                    />
                 </View>
 
-                {/* Bar chart – absolute number of downloads per ward */}
-                <View style={styles.card}>
-                    <View style={styles.cardHeaderRow}>
-                        <Text style={styles.cardTitle}>Downloads by ward</Text>
-                        <View style={styles.toggleContainer}>
-                            <Text
-                                style={[
-                                    styles.toggleOption,
-                                    wardChartType === "bar" && styles.toggleOptionActive,
-                                ]}
-                                onPress={() => setWardChartType("bar")}
-                            >
-                                Bar
-                            </Text>
-                            <Text
-                                style={[
-                                    styles.toggleOption,
-                                    wardChartType === "pie" && styles.toggleOptionActive,
-                                ]}
-                                onPress={() => setWardChartType("pie")}
-                            >
-                                Pie
+                {/* ════════ WARD DOWNLOADS CARD ════════ */}
+                <Card>
+                    <CardHeader
+                        title="Downloads by Ward"
+                        desc="Which wards are using StockLearn most?"
+                        accentColor="#4F46E5"
+                        chartType={wardChart}
+                        onToggle={setWardChart}
+                    />
+
+                    {/* Chart area with light tinted bg so white chart doesn't merge into card */}
+                    <View style={s.chartShell}>
+                        {wardChart === "bar" ? (
+                            <BarChart
+                                data={wardBarData}
+                                width={CHART_W}
+                                height={220}
+                                fromZero
+                                yAxisLabel=""
+                                yAxisSuffix=""
+                                chartConfig={BAR_CFG}
+                                showValuesOnTopOfBars
+                                flatColor
+                                withInnerLines
+                                style={s.chart}
+                            />
+                        ) : (
+                            <PieChart
+                                data={wardPieData}
+                                width={CHART_W}
+                                height={220}
+                                accessor="population"
+                                backgroundColor="transparent"
+                                paddingLeft="10"
+                                chartConfig={PIE_CFG}
+                                absolute
+                                style={s.chart}
+                            />
+                        )}
+                    </View>
+
+                    {/* Insight chip */}
+                    {topWard && (
+                        <View style={s.chip}>
+                            <Feather name="trending-up" size={12} color="#4F46E5" />
+                            <Text style={s.chipTxt}>
+                                Ward {topWard.wardNumber} leads —{" "}
+                                <Text style={s.chipBold}>{topWard.userCount} users</Text>
                             </Text>
                         </View>
-                    </View>
-                    <Text style={styles.cardDesc}>
-                        Switch between bar and pie view to compare high- and low-adoption wards for targeted campaigns.
-                    </Text>
-                    {wardChartType === "bar" ? (
-                        <BarChart
-                            data={barData}
-                            width={chartWidth}
-                            height={220}
-                            fromZero
-                            yAxisLabel=""
-                            yAxisSuffix=""
-                            chartConfig={barChartConfig}
-                            showValuesOnTopOfBars
-                            flatColor
-                            withInnerLines
-                            style={styles.chart}
-                        />
-                    ) : (
-                        <PieChart
-                            data={wardPieData}
-                            width={chartWidth}
-                            height={220}
-                            accessor="population"
-                            backgroundColor="transparent"
-                            paddingLeft="8"
-                            chartConfig={pieChartConfig}
-                            absolute
-                            style={styles.chart}
-                        />
                     )}
-                </View>
+                </Card>
 
-                {/* Literacy gaps visual – quiz performance by topic */}
-                <View style={styles.card}>
-                    <View style={styles.cardHeaderRow}>
-                        <Text style={styles.cardTitle}>Financial literacy by topic</Text>
-                        <View style={styles.toggleContainer}>
-                            <Text
-                                style={[
-                                    styles.toggleOption,
-                                    literacyChartType === "bar" && styles.toggleOptionActive,
-                                ]}
-                                onPress={() => setLiteracyChartType("bar")}
-                            >
-                                Bar
-                            </Text>
-                            <Text
-                                style={[
-                                    styles.toggleOption,
-                                    literacyChartType === "pie" && styles.toggleOptionActive,
-                                ]}
-                                onPress={() => setLiteracyChartType("pie")}
-                            >
-                                Pie
-                            </Text>
+                {/* ════════ LITERACY CARD ════════ */}
+                <Card>
+                    <CardHeader
+                        title="Literacy by Topic"
+                        desc="Avg quiz scores — lower = citizens need more help here"
+                        accentColor="#10B981"
+                        chartType={litChart}
+                        onToggle={setLitChart}
+                    />
+
+                    <View style={s.chartShell}>
+                        {litChart === "bar" ? (
+                            <BarChart
+                                data={litBarData}
+                                width={CHART_W}
+                                height={220}
+                                fromZero
+                                yAxisLabel=""
+                                yAxisSuffix="%"
+                                chartConfig={BAR_CFG}
+                                showValuesOnTopOfBars
+                                flatColor
+                                withInnerLines
+                                style={s.chart}
+                            />
+                        ) : (
+                            <PieChart
+                                data={litPieData}
+                                width={CHART_W}
+                                height={220}
+                                accessor="population"
+                                backgroundColor="transparent"
+                                paddingLeft="10"
+                                chartConfig={PIE_CFG}
+                                absolute
+                                style={s.chart}
+                            />
+                        )}
+                    </View>
+
+                    {/* Color legend for literacy */}
+                    <View style={s.legendWrap}>
+                        {[
+                            { color: "#EF4444", label: "< 55% · Needs Focus" },
+                            { color: "#F59E0B", label: "55–70% · Improving" },
+                            { color: "#10B981", label: "> 70% · Strong" },
+                        ].map((l) => (
+                            <View key={l.label} style={s.legendItem}>
+                                <View style={[s.legendDot, { backgroundColor: l.color }]} />
+                                <Text style={s.legendTxt}>{l.label}</Text>
+                            </View>
+                        ))}
+                    </View>
+                </Card>
+
+                {/* ════════ HOW TO USE ════════ */}
+                <Card style={s.infoCard}>
+                    <View style={s.infoHeadRow}>
+                        <View style={[s.infoIcon, { backgroundColor: "#EEF2FF" }]}>
+                            <Feather name="compass" size={15} color="#4F46E5" />
                         </View>
+                        <Text style={s.infoHeadTitle}>How regulators can use this</Text>
                     </View>
-                    <Text style={styles.cardDesc}>
-                        Lower scores highlight where citizens are most confused about investing, market behaviour, or risk.
-                    </Text>
-                    {literacyChartType === "bar" ? (
-                        <BarChart
-                            data={literacyBarData}
-                            width={chartWidth}
-                            height={220}
-                            fromZero
-                            yAxisLabel=""
-                            yAxisSuffix="%"
-                            chartConfig={barChartConfig}
-                            showValuesOnTopOfBars
-                            flatColor
-                            withInnerLines
-                            style={styles.chart}
-                        />
-                    ) : (
-                        <PieChart
-                            data={literacyPieData}
-                            width={chartWidth}
-                            height={220}
-                            accessor="population"
-                            backgroundColor="transparent"
-                            paddingLeft="8"
-                            chartConfig={pieChartConfig}
-                            absolute
-                            style={styles.chart}
-                        />
-                    )}
-                </View>
+                    <Tip
+                        icon="map-pin"
+                        text="Focus workshops on wards with both low downloads and low quiz scores."
+                        iconBg="#EEF2FF"
+                        iconColor="#4F46E5"
+                    />
+                    <Tip
+                        icon="copy"
+                        text="Study high-adoption wards — see what communication is working."
+                        iconBg="#EEF2FF"
+                        iconColor="#4F46E5"
+                    />
+                    <Tip
+                        icon="trending-up"
+                        text="Track change over time once campaigns launch in specific wards."
+                        iconBg="#EEF2FF"
+                        iconColor="#4F46E5"
+                    />
+                </Card>
 
-                {/* Explanation: ward coverage for government */}
-                <View style={styles.infoCard}>
-                    <Text style={styles.infoTitle}>How regulators can use this</Text>
-                    <Text style={styles.infoText}>
-                        • Focus literacy workshops on wards with low downloads and low quiz scores.{"\n"}
-                        • Compare high-adoption wards to see what communication is working.{"\n"}
-                        • Track change over time once campaigns are launched in specific wards.
-                    </Text>
-                </View>
+                {/* ════════ BEHAVIORAL INSIGHTS ════════ */}
+                <Card style={[s.infoCard, { borderColor: "#D1FAE5" }]}>
+                    <View style={s.infoHeadRow}>
+                        <View style={[s.infoIcon, { backgroundColor: "#D1FAE5" }]}>
+                            <Feather name="activity" size={15} color="#059669" />
+                        </View>
+                        <Text style={s.infoHeadTitle}>Behavioral Insights from StockLearn</Text>
+                    </View>
+                    <Tip
+                        icon="book-open"
+                        text="Literacy chart is built from real quiz and lesson data inside the app."
+                        iconBg="#D1FAE5"
+                        iconColor="#059669"
+                    />
+                    <Tip
+                        icon="alert-circle"
+                        text="Low-score topics reveal where citizens are most confused about investing."
+                        iconBg="#D1FAE5"
+                        iconColor="#059669"
+                    />
+                    <Tip
+                        icon="shield"
+                        text="Use these insights to shape policies and campaigns that reduce risky behaviour."
+                        iconBg="#D1FAE5"
+                        iconColor="#059669"
+                    />
+                </Card>
 
-                {/* Explanation: how STOCKLEARN helps government & regulators */}
-                <View style={styles.infoCard}>
-                    <Text style={styles.infoTitle}>Behavioral insights from StockLearn</Text>
-                    <Text style={styles.infoText}>
-                        • The literacy chart above is built from quiz and lesson data inside StockLearn.{"\n"}
-                        • Topics with lower scores mark knowledge gaps where citizens struggle the most.{"\n"}
-                        • Regulators can target campaigns and policies toward those weak areas to reduce risky behaviour and improve safe participation.
-                    </Text>
-                </View>
             </View>
         </ScrollView>
     );
 }
-const barChartConfig = {
-    backgroundGradientFrom: "#FFFFFF",
-    backgroundGradientTo: "#FFFFFF",
-    decimalPlaces: 0,
-    barPercentage: 0.6,
-    fillShadowGradient: "#0B3B78",
-    fillShadowGradientOpacity: 1,
-    color: (opacity = 1) => `rgba(11, 59, 120, ${opacity})`,
-    labelColor: (opacity = 1) => `rgba(71, 85, 105, ${opacity})`,
-    style: {
-        borderRadius: 16,
-    },
-    propsForBackgroundLines: {
-        strokeDasharray: "",
-        stroke: "#E2E8F0",
-    },
-};
 
-const pieChartConfig = {
-    backgroundGradientFrom: "#FFFFFF",
-    backgroundGradientTo: "#FFFFFF",
-    decimalPlaces: 0,
-    color: (opacity = 1) => `rgba(37, 99, 235, ${opacity})`,
-    labelColor: (opacity = 1) => `rgba(71, 85, 105, ${opacity})`,
-};
+// ─── Global stylesheet ────────────────────────────────────────────────────────
+const s = StyleSheet.create({
+    root: { flex: 1, backgroundColor: "#F1F5F9" },
+    scroll: { paddingBottom: 52 },
 
-const styles = StyleSheet.create({
-    container: { backgroundColor: "#020617" },
-    headerGradient: {
-        paddingTop: 60,
-        paddingHorizontal: 20,
-        paddingBottom: 22,
-        borderBottomLeftRadius: 28,
-        borderBottomRightRadius: 28,
-        overflow: "visible",
-        position: "relative",
-        elevation: 50,
-        zIndex: 50,
+    // ── Hero ──
+    hero: {
+        paddingTop: 56,
+        paddingHorizontal: H_PAD,
+        paddingBottom: 28,
+        borderBottomLeftRadius: 32,
+        borderBottomRightRadius: 32,
     },
-    headerTitle: {
-        fontSize: 26,
-        fontWeight: "700",
-        color: "#fff",
-        marginTop: 12,
-    },
-    headerSubtitle: {
-        fontSize: 14,
-        color: "#E5E7EB",
-        marginTop: 6,
-    },
-    content: { paddingHorizontal: 20, paddingTop: 16, zIndex: 0 },
-    loadingBox: {
+    liveBadge: {
         flexDirection: "row",
         alignItems: "center",
         gap: 8,
-        backgroundColor: "#EFF6FF",
-        borderRadius: 10,
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        marginBottom: 12,
+        alignSelf: "flex-start",
+        marginTop: 16,
+        marginBottom: 10,
     },
-    loadingText: {
-        fontSize: 13,
-        color: "#1D4ED8",
-    },
-    errorBox: {
-        backgroundColor: "#FEF2F2",
-        borderRadius: 10,
-        padding: 10,
-        marginBottom: 12,
-    },
-    errorText: {
-        fontSize: 13,
-        color: "#B91C1C",
-    },
-    summaryCard: {
-        backgroundColor: "#020617",
-        borderRadius: 18,
-        padding: 16,
-        marginBottom: 16,
-        borderWidth: 1,
-        borderColor: "rgba(148, 163, 184, 0.3)",
-    },
-    summaryTitle: {
-        fontSize: 14,
-        fontWeight: "600",
-        color: "#E5E7EB",
+    liveDot: { width: 8, height: 8, borderRadius: 99, backgroundColor: "#EF4444" },
+    liveTxt: { fontSize: 12, fontWeight: "600", color: "#E2E8F0" },
+    heroTitle: {
+        fontSize: 28,
+        fontWeight: "800",
+        color: "#FFFFFF",
+        letterSpacing: -0.3,
+        lineHeight: 34,
         marginBottom: 6,
     },
-    summaryMetric: {
-        fontSize: 24,
-        fontWeight: "700",
-        color: "#FACC15",
-    },
-    summaryMetricUnit: {
-        fontSize: 14,
-        fontWeight: "500",
-        color: "#E5E7EB",
-    },
-    summarySub: {
-        marginTop: 6,
+    heroSub: {
         fontSize: 13,
-        color: "#9CA3AF",
+        color: "#94A3B8",
+        marginTop: 8,
+        lineHeight: 19,
+        maxWidth: "80%",
     },
-    card: {
-        backgroundColor: "#FFFFFF",
-        borderRadius: 18,
-        paddingVertical: 14,
-        paddingHorizontal: 14,
-        marginBottom: 16,
-        shadowColor: "#0F172A",
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.08,
-        shadowRadius: 20,
-        elevation: 6,
-    },
-    chart: {
-        alignSelf: "center",
-        marginTop: 4,
-    },
-    cardTitle: {
-        fontSize: 16,
-        fontWeight: "600",
-        color: "#0F172A",
-        marginBottom: 4,
-    },
-    cardDesc: {
-        fontSize: 13,
-        color: "#64748B",
-        marginBottom: 12,
-    },
-    cardHeaderRow: {
+
+
+    // ── Body ──
+    body: { paddingHorizontal: H_PAD, paddingTop: 20 },
+
+    // ── Banners ──
+    infoBanner: {
         flexDirection: "row",
         alignItems: "center",
-        justifyContent: "space-between",
+        gap: 8,
+        backgroundColor: "#EEF2FF",
+        borderRadius: 12,
+        padding: 12,
+        marginBottom: 14,
     },
-    toggleContainer: {
+    infoTxt: { fontSize: 13, color: "#3730A3", fontWeight: "600" },
+    warnBanner: {
         flexDirection: "row",
-        backgroundColor: "#E5E7EB",
-        borderRadius: 999,
-        padding: 2,
-    },
-    toggleOption: {
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        fontSize: 12,
-        color: "#475569",
-    },
-    toggleOptionActive: {
-        backgroundColor: "#0F172A",
-        color: "#F9FAFB",
-        borderRadius: 999,
-    },
-    infoCard: {
-        backgroundColor: "#0B1120",
-        borderRadius: 18,
-        padding: 16,
-        marginTop: 4,
-        marginBottom: 24,
+        alignItems: "center",
+        gap: 7,
+        backgroundColor: "#FFFBEB",
+        borderRadius: 12,
+        padding: 12,
+        marginBottom: 14,
         borderWidth: 1,
-        borderColor: "rgba(148, 163, 184, 0.4)",
+        borderColor: "#FDE68A",
     },
-    infoTitle: {
-        fontSize: 15,
-        fontWeight: "600",
-        color: "#E5E7EB",
-        marginBottom: 6,
+    warnTxt: { flex: 1, fontSize: 12, color: "#92400E", fontWeight: "600" },
+
+    // ── KPI row ──
+    kpiRow: {
+        flexDirection: "row",
+        marginHorizontal: -4,
+        marginBottom: 16,
     },
-    infoText: {
-        fontSize: 13,
-        color: "#CBD5F5",
-        lineHeight: 20,
+
+    // ── Chart shell ──
+    // Gives the chart a soft tinted background so it reads as a distinct panel
+    chartShell: {
+        backgroundColor: "#F8FAFF",
+        borderRadius: 14,
+        paddingVertical: 6,
+        alignItems: "center",
+        overflow: "hidden",
+        borderWidth: 1,
+        borderColor: "#E2E8F0",
+    },
+    chart: { borderRadius: 12 },
+
+    // ── Insight chip ──
+    chip: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 5,
+        backgroundColor: "#EEF2FF",
+        alignSelf: "flex-start",
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 99,
+        marginTop: 12,
+    },
+    chipTxt: { fontSize: 12, color: "#3730A3" },
+    chipBold: { fontWeight: "800" },
+
+    // ── Literacy legend ──
+    legendWrap: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        gap: 10,
+        marginTop: 14,
+        paddingTop: 12,
+        borderTopWidth: 1,
+        borderTopColor: "#F1F5F9",
+    },
+    legendItem: { flexDirection: "row", alignItems: "center", gap: 5 },
+    legendDot: { width: 8, height: 8, borderRadius: 99 },
+    legendTxt: { fontSize: 11, color: "#64748B", fontWeight: "500" },
+
+    // ── Info cards ──
+    infoCard: {
+        borderWidth: 1.5,
+        borderColor: "#E0E7FF",
+        shadowOpacity: 0.03,
+    },
+    infoHeadRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+        marginBottom: 14,
+    },
+    infoIcon: {
+        width: 32,
+        height: 32,
+        borderRadius: 10,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    infoHeadTitle: {
+        flex: 1,
+        fontSize: 14,
+        fontWeight: "800",
+        color: "#0F172A",
+        letterSpacing: -0.2,
     },
 });
