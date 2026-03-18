@@ -14,8 +14,23 @@ const MAX_FLASHCARDS_PER_LESSON = 4;
 const PASSING_SCORE_PERCENT = 70;
 const LEVEL_XP_STEP = 120;
 const QUIZ_BONUS_XP = 15;
-const MAX_ACTIVITY_DAYS = 35;
+const MAX_STREAK_HISTORY_DAYS = 100;
 const DEFAULT_MAX_HEARTS = 5;
+
+type StreakDayRecord = {
+  date: string;
+  lessonsCompleted: number;
+  quizzesCompleted: number;
+  xpEarned: number;
+  streakCount: number;
+  freezeUsed: boolean;
+};
+
+type StreakCelebration = {
+  date: string;
+  xpEarned: number;
+  streakCount: number;
+};
 
 @Injectable()
 export class ProgressService {
@@ -39,41 +54,185 @@ export class ProgressService {
     return Math.floor((this.getDayStart(to).getTime() - this.getDayStart(from).getTime()) / dayMs);
   }
 
-  private getDateKey(date: Date): string {
+  private getLocalDate(now: Date, timezoneOffsetMinutes: number) {
+    return new Date(now.getTime() - timezoneOffsetMinutes * 60 * 1000);
+  }
+
+  private getDateKeyWithOffset(now: Date, timezoneOffsetMinutes: number): string {
+    return this.getLocalDate(now, timezoneOffsetMinutes).toISOString().slice(0, 10);
+  }
+
+  private parseDateKey(dateKey: string): Date {
+    return new Date(`${dateKey}T00:00:00.000Z`);
+  }
+
+  private formatDateKey(date: Date): string {
     return date.toISOString().slice(0, 10);
   }
 
-  private appendLearningDay(user: User, now: Date) {
-    const todayKey = this.getDateKey(now);
-    const existing = user.learningActivityDates ?? [];
-    if (!existing.includes(todayKey)) {
-      user.learningActivityDates = [...existing, todayKey].slice(-MAX_ACTIVITY_DAYS);
+  private normalizeStreakHistory(user: User) {
+    const history = (user.streakHistory ?? []) as StreakDayRecord[];
+    history.sort((a, b) => a.date.localeCompare(b.date));
+    if (history.length > MAX_STREAK_HISTORY_DAYS) {
+      user.streakHistory = history.slice(-MAX_STREAK_HISTORY_DAYS);
+    } else {
+      user.streakHistory = history;
     }
   }
 
-  private getCurrentWeekProgress(user: User, now: Date) {
-    const currentDay = now.getDay();
+  private getOrCreateStreakDay(user: User, dateKey: string): StreakDayRecord {
+    const history = (user.streakHistory ?? []) as StreakDayRecord[];
+    const existingIndex = history.findIndex((item) => item.date === dateKey);
+    if (existingIndex >= 0) {
+      return history[existingIndex];
+    }
+    const record: StreakDayRecord = {
+      date: dateKey,
+      lessonsCompleted: 0,
+      quizzesCompleted: 0,
+      xpEarned: 0,
+      streakCount: 0,
+      freezeUsed: false,
+    };
+    history.push(record);
+    user.streakHistory = history;
+    return record;
+  }
+
+  private isDailyRequirementMet(record: StreakDayRecord) {
+    return record.lessonsCompleted >= 1 && record.quizzesCompleted >= 1;
+  }
+
+  private resolveTimezoneOffset(user: User, clientOffset?: number) {
+    if (Number.isFinite(clientOffset)) {
+      user.timezoneOffsetMinutes = Number(clientOffset);
+      return Number(clientOffset);
+    }
+    if (Number.isFinite(user.timezoneOffsetMinutes)) {
+      return Number(user.timezoneOffsetMinutes);
+    }
+    return 0;
+  }
+
+  private processStreakRollovers(user: User, now: Date, timezoneOffsetMinutes: number) {
+    const todayKey = this.getDateKeyWithOffset(now, timezoneOffsetMinutes);
+    const lastCheckKey = user.lastStreakCheckDate ?? todayKey;
+    if (!user.lastStreakCheckDate) {
+      user.lastStreakCheckDate = todayKey;
+      this.normalizeStreakHistory(user);
+      return true;
+    }
+
+    if (lastCheckKey === todayKey) {
+      return false;
+    }
+
+    let cursor = this.parseDateKey(lastCheckKey);
+    const todayDate = this.parseDateKey(todayKey);
+    let changed = false;
+
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+    while (cursor < todayDate) {
+      const dateKey = this.formatDateKey(cursor);
+      const record = this.getOrCreateStreakDay(user, dateKey);
+      const requirementMet = this.isDailyRequirementMet(record);
+
+      if (!requirementMet) {
+        const freezes = user.streakFreezes ?? 0;
+        if (freezes > 0) {
+          user.streakFreezes = freezes - 1;
+          user.streakFreezeUsedCount = (user.streakFreezeUsedCount ?? 0) + 1;
+          record.freezeUsed = true;
+          record.streakCount = user.streakDays ?? 0;
+          changed = true;
+        } else {
+          if ((user.streakDays ?? 0) !== 0) {
+            user.streakDays = 0;
+            changed = true;
+          }
+          record.streakCount = 0;
+        }
+      } else if (record.streakCount === 0) {
+        record.streakCount = user.streakDays ?? 0;
+        changed = true;
+      }
+
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+
+    user.lastStreakCheckDate = todayKey;
+    this.normalizeStreakHistory(user);
+    return changed || lastCheckKey !== todayKey;
+  }
+
+  private recordDailyActivity(
+    user: User,
+    now: Date,
+    timezoneOffsetMinutes: number,
+    deltas: { lessonsCompleted?: number; quizzesCompleted?: number; xpEarned?: number },
+  ) {
+    const dateKey = this.getDateKeyWithOffset(now, timezoneOffsetMinutes);
+    const record = this.getOrCreateStreakDay(user, dateKey);
+    record.lessonsCompleted = Math.max(0, record.lessonsCompleted + (deltas.lessonsCompleted ?? 0));
+    record.quizzesCompleted = Math.max(0, record.quizzesCompleted + (deltas.quizzesCompleted ?? 0));
+    record.xpEarned = Math.max(0, record.xpEarned + (deltas.xpEarned ?? 0));
+
+    const requirementMet = this.isDailyRequirementMet(record);
+    let streakAwarded = false;
+    if (requirementMet && record.streakCount === 0) {
+      user.streakDays = (user.streakDays ?? 0) + 1;
+      record.streakCount = user.streakDays ?? 0;
+      streakAwarded = true;
+    }
+
+    this.normalizeStreakHistory(user);
+    return { record, requirementMet, streakAwarded };
+  }
+
+  private buildStreakCelebration(
+    user: User,
+    record: StreakDayRecord,
+    streakAwarded: boolean,
+  ): StreakCelebration | null {
+    if (!streakAwarded) return null;
+    if (user.lastStreakCelebrationDate === record.date) {
+      return null;
+    }
+    user.lastStreakCelebrationDate = record.date;
+    return {
+      date: record.date,
+      xpEarned: record.xpEarned,
+      streakCount: record.streakCount,
+    };
+  }
+
+  private getCurrentWeekProgress(user: User, now: Date, timezoneOffsetMinutes: number) {
+    const localNow = this.getLocalDate(now, timezoneOffsetMinutes);
+    const currentDay = localNow.getDay();
     const mondayOffset = currentDay === 0 ? -6 : 1 - currentDay;
-    const monday = new Date(now);
-    monday.setDate(now.getDate() + mondayOffset);
+    const monday = new Date(localNow);
+    monday.setDate(localNow.getDate() + mondayOffset);
     monday.setHours(0, 0, 0, 0);
 
     const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    const activity = new Set(user.learningActivityDates ?? []);
+    const activity = new Map(
+      (user.streakHistory ?? []).map((item: any) => [item.date, item as StreakDayRecord]),
+    );
 
     return labels.map((label, index) => {
       const date = new Date(monday);
       date.setDate(monday.getDate() + index);
-      const dateKey = this.getDateKey(date);
-      const isToday = this.getDateKey(now) === dateKey;
-      const completed = activity.has(dateKey);
+      const dateKey = date.toISOString().slice(0, 10);
+      const isToday = localNow.toISOString().slice(0, 10) === dateKey;
+      const record = activity.get(dateKey);
+      const completed = record ? this.isDailyRequirementMet(record) : false;
 
       return {
         label,
         date: dateKey,
         completed,
         isToday,
-        status: completed ? 'done' : date > now ? 'locked' : isToday ? 'today' : 'missed',
+        status: completed ? 'done' : date > localNow ? 'locked' : isToday ? 'today' : 'missed',
       };
     });
   }
@@ -127,42 +286,6 @@ export class ProgressService {
     user.streakFreezes = updatedFreezes;
   }
 
-  private updateStreak(user: User, now: Date) {
-    let freezeUsed = 0;
-    if (!user.lastLearningAt) {
-      user.streakDays = 1;
-      user.lastLearningAt = now;
-      this.appendLearningDay(user, now);
-      return { freezeUsed };
-    }
-
-    const dayDiff = this.diffInDays(user.lastLearningAt, now);
-    if (dayDiff === 0) {
-      user.lastLearningAt = now;
-      this.appendLearningDay(user, now);
-      return { freezeUsed };
-    }
-
-    if (dayDiff === 1) {
-      user.streakDays = (user.streakDays ?? 0) + 1;
-    } else {
-      const missedDays = dayDiff - 1;
-      const freezes = user.streakFreezes ?? 0;
-      if (missedDays > 0 && freezes >= missedDays) {
-        user.streakFreezes = freezes - missedDays;
-        user.streakFreezeUsedCount = (user.streakFreezeUsedCount ?? 0) + missedDays;
-        freezeUsed = missedDays;
-        user.streakDays = (user.streakDays ?? 0) + 1;
-      } else {
-        user.streakDays = 1;
-      }
-    }
-
-    user.lastLearningAt = now;
-    this.appendLearningDay(user, now);
-    return { freezeUsed };
-  }
-
   private getLevel(xp: number): number {
     return Math.floor(Math.max(0, xp) / LEVEL_XP_STEP) + 1;
   }
@@ -201,6 +324,8 @@ export class ProgressService {
     const progressInLevel = xp % LEVEL_XP_STEP;
     const now = new Date();
     this.ensureHeartsFresh(user, now);
+    this.normalizeStreakHistory(user);
+    const timezoneOffsetMinutes = this.resolveTimezoneOffset(user);
     return {
       xp,
       level: this.getLevel(xp),
@@ -208,13 +333,15 @@ export class ProgressService {
       streakFreezes: user.streakFreezes ?? 3,
       maxStreakFreezes: user.maxStreakFreezes ?? 3,
       badges: user.badges ?? [],
+      badgeSeen: user.badgeSeen ?? [],
+      streakHistory: user.streakHistory ?? [],
       hearts: user.hearts ?? DEFAULT_MAX_HEARTS,
       maxHearts: user.maxHearts ?? DEFAULT_MAX_HEARTS,
       lessonsCompletedCount: user.lessonsCompletedCount ?? 0,
       correctQuizAnswers: user.correctQuizAnswers ?? 0,
       xpToNextLevel: LEVEL_XP_STEP - progressInLevel,
-      weeklyProgress: this.getCurrentWeekProgress(user, now),
-      streakMessage: 'Do not forget me today!',
+      weeklyProgress: this.getCurrentWeekProgress(user, now, timezoneOffsetMinutes),
+      streakMessage: 'Finish a lesson and a quiz today!',
     };
   }
 
@@ -276,7 +403,7 @@ export class ProgressService {
   }
 
   // Called when user completes a lesson
-  async completeLesson(userId: string, lessonId: string) {
+  async completeLesson(userId: string, lessonId: string, clientTimezoneOffset?: number) {
     const now = new Date();
     const userObjectId = new Types.ObjectId(userId);
     const lessonObjectId = new Types.ObjectId(lessonId);
@@ -314,11 +441,11 @@ export class ProgressService {
       throw new NotFoundException('User not found');
     }
 
+    const timezoneOffsetMinutes = this.resolveTimezoneOffset(user, clientTimezoneOffset);
+    this.processStreakRollovers(user, now, timezoneOffsetMinutes);
     this.ensureHeartsFresh(user, now);
     let xpAwarded = 0;
     const newBadges: string[] = [];
-
-    const streakMeta = this.updateStreak(user, now);
 
     if (!wasCompleted) {
       user.lessonsCompletedCount = (user.lessonsCompletedCount ?? 0) + 1;
@@ -372,6 +499,12 @@ export class ProgressService {
       }
     }
 
+    const activity = this.recordDailyActivity(user, now, timezoneOffsetMinutes, {
+      lessonsCompleted: wasCompleted ? 0 : 1,
+      xpEarned: xpAwarded,
+    });
+    const streakCelebration = this.buildStreakCelebration(user, activity.record, activity.streakAwarded);
+
     this.applyMilestoneBadges(user, newBadges);
     this.applyFreezeRefillMilestones(user, newBadges);
     await user.save();
@@ -379,13 +512,19 @@ export class ProgressService {
     return {
       progress,
       xpAwarded,
-      freezeUsed: streakMeta.freezeUsed,
+      freezeUsed: activity.record.freezeUsed,
       newBadges,
+      streakCelebration,
       gamification: this.gamificationSnapshot(user),
     };
   }
 
-  async recordFlashcardView(userId: string, lessonId: string, count = 1) {
+  async recordFlashcardView(
+    userId: string,
+    lessonId: string,
+    count = 1,
+    clientTimezoneOffset?: number,
+  ) {
     const now = new Date();
     const parsedCount = Number.isFinite(count) ? Number(count) : 1;
     const safeCount = Math.max(1, Math.floor(parsedCount));
@@ -424,12 +563,18 @@ export class ProgressService {
       throw new NotFoundException('User not found');
     }
 
+    const timezoneOffsetMinutes = this.resolveTimezoneOffset(user, clientTimezoneOffset);
+    this.processStreakRollovers(user, now, timezoneOffsetMinutes);
     this.ensureHeartsFresh(user, now);
-    const streakMeta = this.updateStreak(user, now);
 
     if (xpAwarded > 0) {
       user.xp = (user.xp ?? 0) + xpAwarded;
     }
+
+    const activity = this.recordDailyActivity(user, now, timezoneOffsetMinutes, {
+      xpEarned: xpAwarded,
+    });
+    const streakCelebration = this.buildStreakCelebration(user, activity.record, activity.streakAwarded);
 
     const newBadges: string[] = [];
     this.applyMilestoneBadges(user, newBadges);
@@ -439,8 +584,9 @@ export class ProgressService {
     return {
       grantedCount,
       xpAwarded,
-      freezeUsed: streakMeta.freezeUsed,
+      freezeUsed: activity.record.freezeUsed,
       newBadges,
+      streakCelebration,
       gamification: this.gamificationSnapshot(user),
     };
   }
@@ -503,7 +649,7 @@ export class ProgressService {
     };
   }
 
-  async getGamificationSummary(userId: string) {
+  async getGamificationSummary(userId: string, clientTimezoneOffset?: number) {
     const userObjectId = new Types.ObjectId(userId);
     const user = await this.userModel.findById(userObjectId).exec();
 
@@ -512,8 +658,13 @@ export class ProgressService {
     }
 
     const now = new Date();
+    const previousOffset = user.timezoneOffsetMinutes;
+    const timezoneOffsetMinutes = this.resolveTimezoneOffset(user, clientTimezoneOffset);
+    const offsetUpdated =
+      Number.isFinite(clientTimezoneOffset) && previousOffset !== timezoneOffsetMinutes;
+    const streakUpdated = this.processStreakRollovers(user, now, timezoneOffsetMinutes);
     const heartsUpdated = this.ensureHeartsFresh(user, now);
-    if (heartsUpdated) {
+    if (heartsUpdated || streakUpdated || offsetUpdated) {
       await user.save();
     }
 
@@ -570,11 +721,36 @@ export class ProgressService {
     };
   }
 
+  async markBadgesSeen(userId: string, badgeIds: string[]) {
+    const userObjectId = new Types.ObjectId(userId);
+    const user = await this.userModel.findById(userObjectId).exec();
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const normalized = Array.isArray(badgeIds)
+      ? badgeIds.map((id) => String(id).trim()).filter((id) => id.length > 0)
+      : [];
+
+    if (normalized.length === 0) {
+      return { badgeSeen: user.badgeSeen ?? [] };
+    }
+
+    const seen = new Set(user.badgeSeen ?? []);
+    normalized.forEach((id) => seen.add(id));
+    user.badgeSeen = Array.from(seen);
+    await user.save();
+
+    return { badgeSeen: user.badgeSeen };
+  }
+
   // Grade quiz for a lesson and store best score
   async submitQuiz(
     userId: string,
     lessonId: string,
     answers: number[],
+    clientTimezoneOffset?: number,
   ) {
     const now = new Date();
     const userObjectId = new Types.ObjectId(userId);
@@ -671,8 +847,9 @@ export class ProgressService {
       throw new NotFoundException('User not found');
     }
 
+    const timezoneOffsetMinutes = this.resolveTimezoneOffset(user, clientTimezoneOffset);
+    this.processStreakRollovers(user, now, timezoneOffsetMinutes);
     this.ensureHeartsFresh(user, now);
-    const streakMeta = this.updateStreak(user, now);
 
     const previousBestCorrectAnswers = existing?.bestCorrectAnswers ?? 0;
     const newlyImprovedCorrectAnswers = Math.max(0, correctAnswers - previousBestCorrectAnswers);
@@ -685,6 +862,17 @@ export class ProgressService {
     user.correctQuizAnswers = (user.correctQuizAnswers ?? 0) + correctAnswers;
     const wrongAnswers = Math.max(0, quiz.length - correctAnswers);
     user.hearts = Math.max(0, (user.hearts ?? DEFAULT_MAX_HEARTS) - wrongAnswers);
+
+    const todayKey = this.getDateKeyWithOffset(now, timezoneOffsetMinutes);
+    const lastQuizAttemptKey = existing?.lastQuizAttemptAt
+      ? this.getDateKeyWithOffset(existing.lastQuizAttemptAt, timezoneOffsetMinutes)
+      : null;
+    const quizDelta = lastQuizAttemptKey === todayKey ? 0 : 1;
+    const activity = this.recordDailyActivity(user, now, timezoneOffsetMinutes, {
+      quizzesCompleted: quizDelta,
+      xpEarned: xpAwarded,
+    });
+    const streakCelebration = this.buildStreakCelebration(user, activity.record, activity.streakAwarded);
 
     const newBadges: string[] = [];
     this.applyMilestoneBadges(user, newBadges);
@@ -699,9 +887,10 @@ export class ProgressService {
       bestScore,
       xpAwarded,
       bonusXpAwarded,
-      freezeUsed: streakMeta.freezeUsed,
+      freezeUsed: activity.record.freezeUsed,
       feedback,
       newBadges,
+      streakCelebration,
       gamification: this.gamificationSnapshot(user),
     };
   }

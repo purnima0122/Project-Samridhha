@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   Param,
   Post,
   Query,
@@ -28,10 +29,16 @@ export class ProgressController {
   // Mark lesson as completed
   @UseGuards(AuthGuard)
   @Post('complete/:lessonId')
-  completeLesson(@Req() req, @Param('lessonId') lessonId: string) {
+  completeLesson(
+    @Req() req,
+    @Param('lessonId') lessonId: string,
+    @Headers('x-client-tz-offset') tzOffset?: string,
+  ) {
+    const parsedOffset = Number(tzOffset);
     return this.progressService.completeLesson(
       req.userId,
       lessonId,
+      Number.isFinite(parsedOffset) ? parsedOffset : undefined,
     );
   }
 
@@ -44,8 +51,12 @@ export class ProgressController {
 
   @UseGuards(AuthGuard)
   @Get('gamification')
-  getGamification(@Req() req) {
-    return this.progressService.getGamificationSummary(req.userId);
+  getGamification(@Req() req, @Headers('x-client-tz-offset') tzOffset?: string) {
+    const parsedOffset = Number(tzOffset);
+    return this.progressService.getGamificationSummary(
+      req.userId,
+      Number.isFinite(parsedOffset) ? parsedOffset : undefined,
+    );
   }
 
   // Summary for progress bars
@@ -68,11 +79,14 @@ export class ProgressController {
     @Req() req,
     @Param('lessonId') lessonId: string,
     @Body('answers') answers: number[],
+    @Headers('x-client-tz-offset') tzOffset?: string,
   ) {
+    const parsedOffset = Number(tzOffset);
     return this.progressService.submitQuiz(
       req.userId,
       lessonId,
       answers,
+      Number.isFinite(parsedOffset) ? parsedOffset : undefined,
     );
   }
 
@@ -82,11 +96,20 @@ export class ProgressController {
     @Req() req,
     @Param('lessonId') lessonId: string,
     @Body('count') count?: number,
+    @Headers('x-client-tz-offset') tzOffset?: string,
   ) {
+    const parsedOffset = Number(tzOffset);
     return this.progressService.recordFlashcardView(
       req.userId,
       lessonId,
       count,
+      Number.isFinite(parsedOffset) ? parsedOffset : undefined,
     );
+  }
+
+  @UseGuards(AuthGuard)
+  @Post('badges/seen')
+  markBadgesSeen(@Req() req, @Body('badges') badges: string[]) {
+    return this.progressService.markBadgesSeen(req.userId, badges);
   }
 }
