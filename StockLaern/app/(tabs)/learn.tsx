@@ -1,11 +1,12 @@
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
   Easing,
   Modal,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -71,303 +72,395 @@ interface Quest {
   iconKey: string;
   type: "lesson" | "vault";
   order: number;
-  duration: number;
-  videoUrl?: string;
-  color?: string;
-  icon?: string;
-  quiz?: ApiQuizQuestion[];
-};
+  xp: number;
+  flashcards: Flashcard[];
+  quiz: QuizQuestion[];
+  facts: Fact[];
+}
 
-type ApiProgress = {
-  lessonId: { _id: string } | string;
-  completed: boolean;
-  flashcardsViewed?: number;
-};
+interface Chapter {
+  id: number;
+  key: string;
+  title: string;
+  iconKey: string;
+  color: string;
+  darkColor: string;
+  tagline: string;
+  xpTotal: number;
+  quests: Quest[];
+}
 
-type GamificationSummary = {
+interface GameState {
   xp: number;
   level: number;
-  streakDays: number;
+  streak: number;
+  freezes: number;
+  hearts: number;
+  maxHearts: number;
+  completedQuests: Set<string>;
+  questStars: Record<string, number>;
+  perfectQuizzes: number;
+  totalFlips: number;
+  vaultsOpened: number;
+  earnedBadges: Set<string>;
   badges: string[];
-  lessonsCompletedCount: number;
-  correctQuizAnswers: number;
-  xpToNextLevel: number;
-  nextLessonId: string | null;
-  nextLessonTitle: string | null;
-  totalLessons: number;
-  completedLessons: number;
-  coursePercent: number;
-};
+  weeklyProgress: Array<{ label: string; completed: boolean }>;
+}
 
 type BadgeDef = {
   id: string;
   icon: string;
   title: string;
-  module: string;
-  order: number;
-  icon: any;
-  iconName: string;
-  color: string;
-  duration: string;
-  content: string;
-  videoUrl: string;
-  mcqs: {
-    question: string;
-    options: string[];
-    correctAnswer: number;
-    explanation?: string;
-  }[];
+  desc: string;
+  condition?: (s: GameState) => boolean;
 };
 
-const iconMap: Record<string, any> = {
-  TrendingUp,
-  BookOpen,
-  Shield,
-  PieChart,
-  HelpCircle,
-};
-
-const externalResources = [
-  { title: 'NEPSE Official', url: 'https://www.nepalstock.com', description: 'Live market data and announcements' },
-  { title: 'SEBON Website', url: 'https://www.sebon.gov.np', description: 'Regulatory info for Nepali investors' },
-  { title: 'Investopedia', url: 'https://www.investopedia.com', description: 'Global stock market encyclopedia' },
+/* -- Badge & Icon config ---------------------------------- */
+const BADGES: BadgeDef[] = [
+  {
+    id: "first_lesson",
+    icon: "mdi:sprout",
+    title: "First Steps",
+    desc: "Complete your first lesson",
+    condition: (s) => s.completedQuests.size >= 1,
+  },
+  {
+    id: "lessons_5",
+    icon: "mdi:run-fast",
+    title: "Momentum",
+    desc: "Complete 5 lessons",
+    condition: (s) => s.completedQuests.size >= 5,
+  },
+  {
+    id: "streak_3",
+    icon: "mdi:fire",
+    title: "On Fire",
+    desc: "3-day streak",
+    condition: (s) => s.streak >= 3,
+  },
+  {
+    id: "streak_7",
+    icon: "mdi:lightning-bolt",
+    title: "Lightning",
+    desc: "7-day streak",
+    condition: (s) => s.streak >= 7,
+  },
+  {
+    id: "xp_100",
+    icon: "mdi:star-circle",
+    title: "Rising Star",
+    desc: "Earn 100 XP",
+    condition: (s) => s.xp >= 100,
+  },
+  {
+    id: "xp_300",
+    icon: "mdi:school",
+    title: "Scholar",
+    desc: "Earn 300 XP",
+    condition: (s) => s.xp >= 300,
+  },
+  {
+    id: "quiz_perfect",
+    icon: "mdi:target",
+    title: "Sharpshooter",
+    desc: "100% on a quiz",
+    condition: (s) => s.perfectQuizzes >= 1,
+  },
+  {
+    id: "flashcard_flip",
+    icon: "mdi:cards",
+    title: "Card Shark",
+    desc: "Flip 20 flashcards",
+    condition: (s) => s.totalFlips >= 20,
+  },
+  {
+    id: "vault_open",
+    icon: "mdi:safe",
+    title: "Vault Hunter",
+    desc: "Open your first vault",
+    condition: (s) => s.vaultsOpened >= 1,
+  },
 ];
 
-type LearningSection = 'lessons' | 'tax';
-
-const TAX_REFERENCE_RATES = {
-  capitalGainsPercent: 7.5,
-  dividendPercent: 5,
-  vatPercent: 13,
-  corporatePercent: 25,
-};
-
-const TAX_BASICS = [
-  {
-    title: 'Income Tax',
-    subtitle: 'Progressive slab system on yearly earnings.',
-    value: 'Approx 1% - 30%',
-  },
-  {
-    title: 'Capital Gains Tax',
-    subtitle: 'Applies to profit from selling investments.',
-    value: `${TAX_REFERENCE_RATES.capitalGainsPercent}%`,
-  },
-  {
-    title: 'Dividend Tax',
-    subtitle: 'Withholding tax on received dividends.',
-    value: `${TAX_REFERENCE_RATES.dividendPercent}%`,
-  },
-  {
-    title: 'VAT',
-    subtitle: 'Consumption tax charged on goods/services.',
-    value: `${TAX_REFERENCE_RATES.vatPercent}%`,
-  },
-  {
-    title: 'Corporate Tax',
-    subtitle: 'Tax on business profits (entity level).',
-    value: `${TAX_REFERENCE_RATES.corporatePercent}%`,
-  },
+const KEYWORD_ICON_MAP = [
+  { kw: ["bank", "banking"], icon: "mdi:bank" },
+  { kw: ["loan", "emi", "debt", "interest"], icon: "mdi:bank-transfer" },
+  { kw: ["budget", "expense", "saving", "wallet"], icon: "mdi:wallet" },
+  { kw: ["money", "cash", "income", "salary", "finance"], icon: "mdi:cash-multiple" },
+  { kw: ["stock", "market", "nepse", "share", "invest", "trading"], icon: "mdi:chart-line" },
+  { kw: ["insurance", "risk", "protect", "shield"], icon: "mdi:shield-check" },
+  { kw: ["vault", "secret", "facts"], icon: "mdi:safe" },
+  { kw: ["intro", "basic", "guide", "learn"], icon: "mdi:book-open-page-variant" },
 ];
 
-const DEFAULT_COLOR = '#5B8DEF';
-const DEFAULT_ICON = 'BookOpen';
-const PASSING_SCORE_PERCENT = 70;
+const MODULE_ICONS = [
+  "mdi:cash-multiple",
+  "mdi:bank",
+  "mdi:chart-line",
+  "mdi:brain",
+  "mdi:rocket-launch",
+  "mdi:book-open-page-variant",
+];
 
-function parseNumericInput(value: string): number {
-  if (!value) {
-    return 0;
+/* -- Helpers ---------------------------------------------- */
+const pn = (v: any, f: number) => (typeof v === "number" && !isNaN(v) ? v : f);
+const ps = (v: any, f: string) => (typeof v === "string" && v.trim() ? v : f);
+const pa = (v: any, f: any[]) => (Array.isArray(v) ? v : f);
+
+function resolveIcon(title: string, fallback: string) {
+  if (!title) return fallback;
+  const low = title.toLowerCase();
+  for (const e of KEYWORD_ICON_MAP) {
+    if (e.kw.some((w) => low.includes(w))) return e.icon;
   }
-  const normalized = value.replace(/[^0-9.]/g, '');
-  const parsed = Number.parseFloat(normalized);
-  return Number.isFinite(parsed) ? parsed : 0;
+  return fallback;
 }
 
-function formatCurrency(value: number): string {
-  return `NPR ${Math.max(0, value).toLocaleString('en-US', {
-    maximumFractionDigits: 2,
-  })}`;
+function calcStars(score: number) {
+  if (!score || score <= 0) return 0;
+  if (score >= 90) return 3;
+  if (score >= 70) return 2;
+  return 1;
 }
 
-function calculateIncomeTaxFromSlab(income: number): number {
-  if (income <= 0) return 0;
-
-  const slabs = [
-    { limit: 500000, rate: 0.01 },
-    { limit: 200000, rate: 0.1 },
-    { limit: 300000, rate: 0.2 },
-    { limit: Number.POSITIVE_INFINITY, rate: 0.3 },
-  ];
-
-  let remaining = income;
-  let totalTax = 0;
-
-  for (const slab of slabs) {
-    if (remaining <= 0) {
-      break;
-    }
-    const taxableAmount = Math.min(remaining, slab.limit);
-    totalTax += taxableAmount * slab.rate;
-    remaining -= taxableAmount;
-  }
-
-  return totalTax;
+function normalizeQuest(quest: any, index: number, chapterKey: string): Quest {
+  const s = quest || {};
+  const type: "vault" | "lesson" = s.type === "vault" ? "vault" : "lesson";
+  const id = String(s.id || s._id || `${chapterKey}-${index + 1}`);
+  const title = ps(s.title, type === "vault" ? "Mind Vault" : `Lesson ${index + 1}`);
+  const iconKey =
+    type === "vault"
+      ? "mdi:safe"
+      : resolveIcon(title, MODULE_ICONS[index % MODULE_ICONS.length]);
+  const xp = pn(s.xp, type === "vault" ? 20 : 50);
+  const flashcards = pa(s.flashcards, [])
+    .map((c, i) => ({
+      id: i + 1,
+      prompt: ps(c?.prompt, ""),
+      answer: ps(c?.answer, ""),
+      tag: ps(c?.tag, "Concept"),
+    }))
+    .filter((c) => c.prompt);
+  const quiz = pa(s.quiz, [])
+    .map((q) => {
+      const opts = pa(q?.opts, pa(q?.options, []));
+      const ans =
+        typeof q?.ans === "number"
+          ? q.ans
+          : typeof q?.correctOptionIndex === "number"
+            ? q.correctOptionIndex
+            : 0;
+      return {
+        q: ps(q?.q, ps(q?.prompt, "")),
+        opts,
+        ans,
+        exp: ps(q?.exp, ps(q?.explanation, "Keep learning!")),
+      };
+    })
+    .filter((q) => q.q && q.opts.length);
+  const facts = pa(s.facts, [])
+    .map((f, i) => ({
+      iconKey: ps(f?.icon, ["mdi:lightbulb-on", "mdi:star-four-points", "mdi:brain"][i % 3]),
+      title: ps(f?.title, "Key Insight"),
+      body: ps(f?.body, ""),
+    }))
+    .filter((f) => f.body);
+  return { id, title, iconKey, type, order: pn(s.order, index), xp, flashcards, quiz, facts };
 }
 
-function formatDuration(minutes?: number) {
-  if (!minutes || Number.isNaN(minutes)) {
-    return '5 min';
-  }
-  return `${minutes} min`;
-}
-
-function mapLesson(apiLesson: ApiLesson): Lesson {
-  const iconName = apiLesson.icon && iconMap[apiLesson.icon] ? apiLesson.icon : DEFAULT_ICON;
-  const icon = iconMap[iconName] || BookOpen;
-
+function normalizeChapter(ch: any, index: number): Chapter {
+  const s = ch || {};
+  const theme = COLOR_POOL[index % COLOR_POOL.length];
+  const title = ps(s.title, `Chapter ${index + 1}`);
+  const key = ps(s.id, title);
+  const quests = pa(s.quests, [])
+    .map((q: any, i: number) => normalizeQuest(q, i, key))
+    .sort((a: Quest, b: Quest) => a.order - b.order);
   return {
-    id: apiLesson._id,
-    title: apiLesson.title,
-    module: apiLesson.module,
-    order: apiLesson.order ?? 0,
-    icon,
-    iconName,
-    color: apiLesson.color || DEFAULT_COLOR,
-    duration: formatDuration(apiLesson.duration),
-    content: apiLesson.content,
-    videoUrl: apiLesson.videoUrl || '',
-    mcqs: (apiLesson.quiz || []).slice(0, 3).map((question) => ({
-      question: question.prompt,
-      options: question.options,
-      correctAnswer: question.correctOptionIndex,
-      explanation: question.explanation,
-    })),
+    id: pn(s.id, index + 1),
+    key,
+    title,
+    iconKey: resolveIcon(title, MODULE_ICONS[index % MODULE_ICONS.length]),
+    color: ps(s.color, theme.color),
+    darkColor: ps(s.darkColor, theme.dark),
+    tagline: ps(s.tagline, "Level up your skills"),
+    xpTotal: quests.reduce((a: number, q: Quest) => a + q.xp, 0),
+    quests,
   };
 }
 
-type QuizQuestion = Lesson['mcqs'][number];
-
-function splitLessonIntoCards(content: string): string[] {
-  const rawSegments = content
-    .split('\n')
-    .flatMap((line) => line.split(/(?<=[.!?])\s+/))
-    .map((item) => item.trim())
-    .filter((item) => item.length > 15);
-
-  const normalized = rawSegments
-    .map((item) =>
-      item
-        .replace(/^[\u2022\-]\s*/, '')
-        .replace(/^Concept Card \d+:\s*/i, '')
-        .replace(/^Module \d+:\s*/i, '')
-        .trim(),
-    )
-    .map((item) => {
-      if (!item.includes('?')) {
-        return item;
-      }
-      const questionSplit = item.split(/\?\s*/, 2);
-      if (questionSplit.length > 1 && questionSplit[1].trim().length > 10) {
-        return questionSplit[1].trim();
-      }
-      return '';
-    })
-    .filter((item) => item.length > 15 && !item.endsWith('?'))
-    .filter((item) => !/^(what|why|how|when|where|who)\b/i.test(item));
-
-  return Array.from(new Set(normalized)).slice(0, 4);
+function normalizeFlow(payload: any) {
+  const s = payload || {};
+  const chapters = pa(s.chapters, []).map(normalizeChapter);
+  const progress = pa(s.progress, []).map((item: any) => {
+    let lid = item?.lessonId;
+    if (lid && typeof lid === "object") lid = lid._id || lid.id;
+    return { ...item, lessonId: lid ? String(lid) : null };
+  });
+  return { chapters, progress, gamification: s.gamification || {} };
 }
 
-function isMiniAssessmentQuestion(question: QuizQuestion): boolean {
-  if (question.options.length !== 2) {
-    return false;
-  }
-
-  const options = question.options.map((option) => option.trim().toLowerCase());
-  const hasTrue = options.includes('true');
-  const hasFalse = options.includes('false');
-
-  return hasTrue && hasFalse;
-}
-
-const FLASHCARD_GAP = 12;
-const FLASHCARD_FLIP_DURATION = 420;
-
-const FLASHCARD_THEMES = [
-  {
-    front: ['#1D4ED8', '#0B2A7C'],
-    back: ['#1E3A8A', '#172554'],
-    accent: '#93C5FD',
-  },
-  {
-    front: ['#0F766E', '#134E4A'],
-    back: ['#115E59', '#042F2E'],
-    accent: '#5EEAD4',
-  },
-  {
-    front: ['#7C3AED', '#4C1D95'],
-    back: ['#1E40AF', '#3B0764'],
-    accent: '#C4B5FD',
-  },
-  {
-    front: ['#B45309', '#7C2D12'],
-    back: ['#92400E', '#431407'],
-    accent: '#FDBA74',
-  },
-] as const;
-
-function Flashcard({
-  text,
-  index,
-  cardWidth,
-  scrollX,
+/* -- Icon Component --------------------------------------- */
+function Ico({
+  name,
+  size = 20,
+  color = C.text,
+  style,
 }: {
-  text: string;
-  index: number;
-  cardWidth: number;
-  scrollX: Animated.Value;
+  name?: string;
+  size?: number;
+  color?: string;
+  style?: any;
 }) {
-  const theme = FLASHCARD_THEMES[index % FLASHCARD_THEMES.length];
-  const [isFlipped, setIsFlipped] = useState(false);
-  const flipAnim = useRef(new Animated.Value(0)).current;
+  if (!name) return null;
+  const safeName = name.replace(/^mdi:/, "") as IconName;
+  return <MaterialCommunityIcons name={safeName} size={size} color={color} style={style} />;
+}
 
-  const inputRange = [
-    (index - 1) * (cardWidth + FLASHCARD_GAP),
-    index * (cardWidth + FLASHCARD_GAP),
-    (index + 1) * (cardWidth + FLASHCARD_GAP),
+/* -- Stat Pill -------------------------------------------- */
+function StatPill({
+  icon,
+  value,
+  tint,
+  bg,
+  border,
+}: {
+  icon: string;
+  value: number | string;
+  tint: string;
+  bg: string;
+  border: string;
+}) {
+  return (
+    <View style={[s.statPill, { backgroundColor: bg, borderColor: border }]}>
+      <Ico name={icon} size={15} color={tint} />
+      <Text style={[s.statValue, { color: tint }]}>{value}</Text>
+    </View>
+  );
+}
+/* -- Top Navbar ------------------------------------------- */
+function TopNav({
+  gs,
+  completedCount,
+  totalQuests,
+  totalStars,
+  activeTab,
+  onTabChange,
+}: {
+  gs: GameState;
+  completedCount: number;
+  totalQuests: number;
+  totalStars: number;
+  activeTab: string;
+  onTabChange: (tab: string) => void;
+}) {
+  const progressPct = totalQuests > 0 ? (completedCount / totalQuests) * 100 : 0;
+  const tabs = [
+    { id: "learn", icon: "mdi:book-open-page-variant", label: "Learn" },
+    { id: "badges", icon: "mdi:medal", label: "Badges" },
+    { id: "profile", icon: "mdi:account-circle", label: "Profile" },
   ];
-  const opacity = scrollX.interpolate({
-    inputRange,
-    outputRange: [0.65, 1, 0.65],
-    extrapolate: 'clamp',
-  });
-  const scale = scrollX.interpolate({
-    inputRange,
-    outputRange: [0.95, 1, 0.95],
-    extrapolate: 'clamp',
-  });
-  const translateY = scrollX.interpolate({
-    inputRange,
-    outputRange: [8, 0, 8],
-    extrapolate: 'clamp',
-  });
 
-  const frontRotate = flipAnim.interpolate({
-    inputRange: [0, 180],
-    outputRange: ['0deg', '180deg'],
-  });
-  const backRotate = flipAnim.interpolate({
-    inputRange: [0, 180],
-    outputRange: ['180deg', '360deg'],
-  });
-  const frontOpacity = flipAnim.interpolate({
-    inputRange: [0, 88, 92, 180],
-    outputRange: [1, 1, 0, 0],
-  });
-  const backOpacity = flipAnim.interpolate({
-    inputRange: [0, 88, 92, 180],
-    outputRange: [0, 0, 1, 1],
-  });
+  return (
+    <LinearGradient
+      colors={["#0A2D5C", "#0B3B78"]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={s.topNav}
+    >
+      <View style={s.navBrand}>
+        <HeaderBar tint="dark" rightSlot={<TopRightMenu theme="dark" />} />
+      </View>
+
+      <View style={s.statsRow}>
+        <StatPill icon="mdi:fire" value={gs.streak} tint="#FB923C" bg="rgba(251,146,60,0.18)" border="rgba(251,146,60,0.35)" />
+        <StatPill icon="mdi:heart" value={gs.hearts} tint="#FB7185" bg="rgba(251,113,133,0.18)" border="rgba(251,113,133,0.35)" />
+        <StatPill icon="mdi:star" value={totalStars} tint="#FACC15" bg="rgba(250,204,21,0.18)" border="rgba(250,204,21,0.35)" />
+        <StatPill icon="mdi:lightning-bolt" value={gs.xp} tint="#A5B4FC" bg="rgba(129,140,248,0.22)" border="rgba(129,140,248,0.4)" />
+      </View>
+
+      <View style={s.progressRow}>
+        <Text style={s.progressLabel}>Overall Progress</Text>
+        <Text style={s.progressCount}>
+          {completedCount}/{totalQuests} quests
+        </Text>
+      </View>
+      <View style={s.progressBar}>
+        <View style={[s.progressFill, { width: `${progressPct}%` as any }]} />
+      </View>
+
+      <View style={s.tabBar}>
+        {tabs.map((tab) => (
+          <Pressable key={tab.id} style={s.tabBtn} onPress={() => onTabChange(tab.id)}>
+            {activeTab === tab.id && <View style={s.tabIndicator} />}
+            <Ico name={tab.icon} size={22} color={activeTab === tab.id ? "#F8FAFC" : "#CBD5E1"} />
+            <Text style={[s.tabLabel, activeTab === tab.id && s.tabLabelActive]}>
+              {tab.label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+    </LinearGradient>
+  );
+}
+
+/* -- Chapter Header --------------------------------------- */
+function ChapterHeader({
+  chapter,
+  completedCount,
+  totalCount,
+}: {
+  chapter: Chapter;
+  completedCount: number;
+  totalCount: number;
+}) {
+  const pct = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
+  return (
+    <View style={[s.chapterHeader, { borderColor: chapter.color + "33", backgroundColor: chapter.color + "12" }]}> 
+      <View style={s.chapterTop}>
+        <View style={{ flex: 1 }}>
+          <Text style={[s.chapterLabel, { color: chapter.color }]}>CHAPTER {chapter.id}</Text>
+          <Text style={s.chapterTitle}>
+            <Ico name={chapter.iconKey} size={16} color={chapter.color} /> {chapter.title}
+          </Text>
+          <Text style={s.chapterTagline}>{chapter.tagline}</Text>
+        </View>
+        <View style={[s.chapterBadge, { backgroundColor: chapter.color + "22" }]}> 
+          <Text style={[s.chapterBadgeNum, { color: chapter.color }]}>
+            {completedCount}/{totalCount}
+          </Text>
+          <Text style={s.chapterBadgeSub}>done</Text>
+        </View>
+      </View>
+      <View style={[s.chapterProgressBg, { backgroundColor: chapter.color + "22" }]}> 
+        <View style={[s.chapterProgressFill, { width: `${pct}%` as any, backgroundColor: chapter.color }]} />
+      </View>
+    </View>
+  );
+}
+
+/* -- Quest Bubble ----------------------------------------- */
+function QuestBubble({
+  quest,
+  chapter,
+  isLocked,
+  isDone,
+  stars,
+  offset,
+  onOpen,
+}: {
+  quest: Quest;
+  chapter: Chapter;
+  isLocked: boolean;
+  isDone: boolean;
+  stars: number;
+  offset: number;
+  onOpen: (q: Quest) => void;
+}) {
+  const anim = useRef(new Animated.Value(1)).current;
+  const isVault = quest.type === "vault";
+  const nodeColor = isVault ? C.purple : chapter.color;
+  const showCrown = !isLocked && !isDone && !isVault;
 
   const handlePress = () => {
     if (isLocked) return;
@@ -451,97 +544,50 @@ function QuestPath({
   questStars: Record<string, number>;
   onOpenQuest: (q: Quest) => void;
 }) {
-  const cardWidth = Math.max(300, Dimensions.get('window').width - 40);
-  const scrollX = useRef(new Animated.Value(0)).current;
-  const seenCardsRef = useRef<Set<number>>(new Set());
-
-  const markCardSeen = useCallback(
-    (index: number) => {
-      if (index < 0 || index >= cards.length) {
-        return;
-      }
-      if (seenCardsRef.current.has(index)) {
-        return;
-      }
-      seenCardsRef.current.add(index);
-      onCardViewed?.(1);
-    },
-    [cards.length, onCardViewed],
-  );
-
-  useEffect(() => {
-    seenCardsRef.current.clear();
-    if (cards.length > 0) {
-      markCardSeen(0);
-    }
-  }, [cards, markCardSeen]);
-
-  if (cards.length === 0) {
-    return null;
-  }
+  const quests = chapter.quests;
+  const offsets = [0, 44, -44, 20, -20];
+  const completedCount = quests.filter((q) => completedQuests.has(q.id)).length;
 
   return (
-    <View style={styles.flashcardsSection}>
-      <View style={styles.sectionHeadingRow}>
-        <Text style={styles.flashcardsTitle}>Concept Flashcards</Text>
-        <Text style={styles.swipeHint}>Swipe and tap</Text>
-      </View>
-      <Animated.FlatList
-        data={cards}
-        horizontal
-        keyExtractor={(_, index) => `flashcard-${index}`}
-        showsHorizontalScrollIndicator={false}
-        decelerationRate="fast"
-        disableIntervalMomentum
-        snapToInterval={cardWidth + FLASHCARD_GAP}
-        snapToAlignment="start"
-        contentContainerStyle={styles.flashcardList}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-          { useNativeDriver: true },
-        )}
-        onMomentumScrollEnd={(event) => {
-          const x = event.nativeEvent.contentOffset.x;
-          const index = Math.round(x / (cardWidth + FLASHCARD_GAP));
-          markCardSeen(index);
-        }}
-        scrollEventThrottle={16}
-        renderItem={({ item, index }) => {
-          return <Flashcard text={item} index={index} cardWidth={cardWidth} scrollX={scrollX} />;
-        }}
-      />
-      <View style={styles.flashDotRow}>
-        {cards.map((_, index) => {
-          const dotOpacity = scrollX.interpolate({
-            inputRange: [
-              (index - 1) * (cardWidth + FLASHCARD_GAP),
-              index * (cardWidth + FLASHCARD_GAP),
-              (index + 1) * (cardWidth + FLASHCARD_GAP),
-            ],
-            outputRange: [0.3, 1, 0.3],
-            extrapolate: 'clamp',
-          });
-          const dotScale = scrollX.interpolate({
-            inputRange: [
-              (index - 1) * (cardWidth + FLASHCARD_GAP),
-              index * (cardWidth + FLASHCARD_GAP),
-              (index + 1) * (cardWidth + FLASHCARD_GAP),
-            ],
-            outputRange: [1, 1.25, 1],
-            extrapolate: 'clamp',
-          });
+    <View style={{ marginBottom: 28 }}>
+      <ChapterHeader chapter={chapter} completedCount={completedCount} totalCount={quests.length} />
+      <View style={{ alignItems: "center" }}>
+        {quests.map((quest, index) => {
+          const done = completedQuests.has(quest.id);
+          const locked = index > 0 && !completedQuests.has(quests[index - 1].id);
+          const stars = questStars[quest.id] || 0;
+          const offset = offsets[index % offsets.length];
+          const prevOffset = index > 0 ? offsets[(index - 1) % offsets.length] : offset;
+          const dotOffset = Math.round((prevOffset + offset) / 2);
+          const nodeColor = quest.type === "vault" ? C.purple : chapter.color;
 
           return (
-            <Animated.View
-              key={`flash-dot-${index}`}
-              style={[
-                styles.flashDot,
-                {
-                  opacity: dotOpacity,
-                  transform: [{ scale: dotScale }],
-                },
-              ]}
-            />
+            <View key={quest.id} style={{ alignItems: "center", width: "100%" }}>
+              {index > 0 && (
+                <View style={{ alignItems: "center", gap: 5, marginVertical: 4, transform: [{ translateX: dotOffset }] }}>
+                  {[0, 1, 2, 3].map((d) => (
+                    <View
+                      key={d}
+                      style={{
+                        width: 5,
+                        height: 5,
+                        borderRadius: 3,
+                        backgroundColor: !locked ? nodeColor + "50" : C.border + "60",
+                      }}
+                    />
+                  ))}
+                </View>
+              )}
+              <QuestBubble
+                quest={quest}
+                chapter={chapter}
+                isLocked={locked}
+                isDone={done}
+                stars={stars}
+                offset={offset}
+                onOpen={onOpenQuest}
+              />
+            </View>
           );
         })}
       </View>
@@ -549,56 +595,83 @@ function QuestPath({
   );
 }
 
-// MCQ Quiz Component
-function MCQQuiz({
-  questions,
-  onComplete,
+/* -- Learn Tab -------------------------------------------- */
+function LearnTab({
+  chapters,
+  gs,
+  onOpenQuest,
+  loadError,
 }: {
-  questions: QuizQuestion[];
-  onComplete: (score: number, answers: number[]) => void;
+  chapters: Chapter[];
+  gs: GameState;
+  onOpenQuest: (q: Quest) => void;
+  loadError: string;
 }) {
-  const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
-  const [score, setScore] = useState(0);
-  const [answered, setAnswered] = useState(false);
-  const [answers, setAnswers] = useState<number[]>(() => questions.map(() => -1));
-
-  const scoreRef = useRef(0);
-
-  const handleAnswer = (index: number) => {
-    if (answered) return;
-
-    setSelectedAnswer(index);
-    setAnswered(true);
-    setAnswers((prev) => {
-      const next = [...prev];
-      next[currentQuestion] = index;
-      return next;
-    });
-
-    if (index === questions[currentQuestion].correctAnswer) {
-      scoreRef.current += 1;
-      setScore((prevScore) => prevScore + 1);
-    }
-  };
-
-  const handleNext = () => {
-    if (currentQuestion < questions.length - 1) {
-      setCurrentQuestion((prevIndex) => prevIndex + 1);
-      setSelectedAnswer(null);
-      setAnswered(false);
-      return;
-    }
-
-    onComplete(scoreRef.current, answers);
-  };
-
-  if (currentQuestion >= questions.length) {
-    return null;
+  if (chapters.length === 0) {
+    return (
+      <View style={s.placeholderTab}>
+        <Ico name="mdi:book-education-outline" size={48} color={C.muted} />
+        <Text style={s.placeholderTitle}>No Lessons Yet</Text>
+        <Text style={s.placeholderSub}>Lessons will appear here once published</Text>
+      </View>
+    );
   }
+  return (
+    <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+      {!!loadError && (
+        <View style={s.errorBanner}>
+          <Text style={s.errorText}>{loadError}</Text>
+        </View>
+      )}
+      {chapters.map((ch) => (
+        <QuestPath
+          key={ch.key}
+          chapter={ch}
+          completedQuests={gs.completedQuests}
+          questStars={gs.questStars}
+          onOpenQuest={onOpenQuest}
+        />
+      ))}
+    </ScrollView>
+  );
+}
 
-  const question = questions[currentQuestion];
-  const completionPercent = Math.round((currentQuestion / questions.length) * 100);
+/* -- Profile Tab ------------------------------------------ */
+function ProfileTab({ gs, totalStars }: { gs: GameState; totalStars: number }) {
+  const stats = [
+    { icon: "mdi:fire", label: "Streak", value: `${gs.streak} days`, color: "#FB923C" },
+    { icon: "mdi:lightning-bolt", label: "Total XP", value: String(gs.xp), color: "#A5B4FC" },
+    { icon: "mdi:star", label: "Stars", value: String(totalStars), color: "#FACC15" },
+    { icon: "mdi:heart", label: "Hearts", value: String(gs.hearts), color: "#FB7185" },
+  ];
+  return (
+    <ScrollView contentContainerStyle={{ padding: 20 }}>
+      <View style={[s.profileCard, { borderColor: C.border, backgroundColor: C.card }]}> 
+        <View style={s.avatar}>
+          <Ico name="mdi:account" size={36} color="#fff" />
+        </View>
+        <Text style={s.profileName}>Learner</Text>
+        <Text style={s.profileSub}>Level {gs.level} - {gs.xp} XP</Text>
+      </View>
+      <View style={s.statGrid}>
+        {stats.map((stat) => (
+          <View key={stat.label} style={[s.statCard, { borderColor: C.border, backgroundColor: C.card }]}> 
+            <Ico name={stat.icon} size={28} color={stat.color} />
+            <Text style={[s.statCardValue, { color: stat.color }]}>{stat.value}</Text>
+            <Text style={s.statCardLabel}>{stat.label}</Text>
+          </View>
+        ))}
+      </View>
+    </ScrollView>
+  );
+}
+
+/* -- Badges Tab ------------------------------------------- */
+function BadgesTab({ gs, badgeCatalog }: { gs: GameState; badgeCatalog: BadgeDef[] }) {
+  const earnedCount = badgeCatalog.filter((b) => b.condition && b.condition(gs)).length;
+  const weekly = gs.weeklyProgress.length === 7
+    ? gs.weeklyProgress
+    : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((label, i) => ({ label, completed: i < gs.streak }));
 
   return (
     <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
@@ -615,44 +688,38 @@ function MCQQuiz({
           <Text style={[s.streakBannerNum, { fontSize: 32 }]}>{gs.xp}</Text>
           <Text style={s.streakBannerSub}>Level {gs.level}</Text>
         </View>
-        <View style={styles.quizTopProgressBadge}>
-          <Text style={styles.quizTopProgressBadgeText}>{completionPercent}%</Text>
+      </View>
+      <View style={[s.activityCard, { borderColor: C.border, backgroundColor: C.card }]}> 
+        <Text style={s.activityTitle}>Activity - last 7 days</Text>
+        <View style={s.activityRow}>
+          {weekly.map((day, i) => (
+            <View key={i} style={{ alignItems: "center", gap: 4 }}>
+              <View style={[s.activityDot, { backgroundColor: day.completed ? C.gold : C.border }]} />
+              <Text style={s.activityDotLabel}>{day.label}</Text>
+            </View>
+          ))}
         </View>
       </View>
-
-      <View style={styles.quizPanel}>
-        <Text style={styles.questionCount}>
-          Question {currentQuestion + 1} of {questions.length} | Score: {score}/{questions.length}
-        </Text>
-        <Text style={styles.questionText}>{question.question}</Text>
-
-        {question.options.map((option: string, index: number) => {
-          const isSelected = selectedAnswer === index;
-          const isCorrectOption = index === question.correctAnswer;
-          const showCorrect = answered && isCorrectOption;
-          const showIncorrect = answered && isSelected && !isCorrectOption;
-
+      <Text style={[s.placeholderSub, { marginBottom: 12 }]}>Badges - {earnedCount}/{badgeCatalog.length} earned</Text>
+      <View style={s.badgeGrid}>
+        {badgeCatalog.map((b) => {
+          const isEarned = b.condition ? b.condition(gs) : false;
           return (
-            <TouchableOpacity
-              key={`quiz-option-${currentQuestion}-${index}`}
+            <View
+              key={b.id}
               style={[
-                styles.option,
-                showCorrect && styles.optionCorrect,
-                showIncorrect && styles.optionIncorrect,
+                s.badgeCard,
+                {
+                  borderColor: isEarned ? C.purple + "55" : C.border,
+                  backgroundColor: isEarned ? "#1F1535" : C.card,
+                  opacity: isEarned ? 1 : 0.45,
+                },
               ]}
-              onPress={() => handleAnswer(index)}
-              disabled={answered}
             >
-              <Text
-                style={[
-                  styles.optionText,
-                  showCorrect && styles.optionTextCorrect,
-                  showIncorrect && styles.optionTextIncorrect,
-                ]}
-              >
-                {option}
-              </Text>
-            </TouchableOpacity>
+              <Ico name={b.icon} size={34} color={isEarned ? "#C4B5FD" : C.muted} />
+              <Text style={[s.badgeTitle, { color: isEarned ? "#E2E8F0" : C.muted }]}>{b.title}</Text>
+              <Text style={s.badgeDesc}>{b.desc}</Text>
+            </View>
           );
         })}
       </View>
@@ -966,518 +1033,361 @@ function VaultModal({ visible, chapter, quest, onExit, onComplete }: any) {
   );
 }
 
+/* -- Badge Toast ------------------------------------------ */
+function BadgeToast({ badge }: { badge: BadgeDef | null }) {
+  if (!badge) return null;
+  return (
+    <View style={s.badgeToast}>
+      <Ico name={badge.icon} size={32} color="#C4B5FD" />
+      <View style={{ flex: 1 }}>
+        <Text style={s.badgeToastLabel}>Badge Unlocked!</Text>
+        <Text style={s.badgeToastTitle}>{badge.title}</Text>
+        <Text style={s.badgeToastDesc}>{badge.desc}</Text>
+      </View>
+    </View>
+  );
+}
+/* -- Main Screen ------------------------------------------ */
 export default function LearnScreen() {
-  const { accessToken, isAuthenticated } = useAuth();
-  const [lessons, setLessons] = useState<Lesson[]>([]);
-  const [completedLessons, setCompletedLessons] = useState<string[]>([]);
-  const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
-  const [gamification, setGamification] = useState<GamificationSummary | null>(null);
-  const [loadingLessons, setLoadingLessons] = useState(false);
-  const [lessonsError, setLessonsError] = useState<string | null>(null);
-  const [activeSection, setActiveSection] = useState<LearningSection>('lessons');
-  const [annualIncomeInput, setAnnualIncomeInput] = useState('');
-  const [investmentProfitInput, setInvestmentProfitInput] = useState('');
+  const { accessToken } = useAuth();
+  const [chapters, setChapters] = useState<Chapter[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [activeTab, setActiveTab] = useState("learn");
 
-  const loadLessons = useCallback(async () => {
-    if (!accessToken) return;
-    try {
-      setLoadingLessons(true);
-      setLessonsError(null);
-      const data = await apiFetch<ApiLesson[]>('/lessons', {}, accessToken);
-      setLessons(data.map(mapLesson));
-    } catch (error: any) {
-      setLessonsError(error?.message || 'Unable to load lessons.');
-    } finally {
-      setLoadingLessons(false);
-    }
-  }, [accessToken]);
+  const [activeChapter, setActiveChapter] = useState<Chapter | null>(null);
+  const [activeQuest, setActiveQuest] = useState<Quest | null>(null);
+  const [questScreen, setQuestScreen] = useState<"none" | "flashcard" | "quiz" | "vault">("none");
 
-  const loadProgress = useCallback(async () => {
-    if (!accessToken) return;
-    try {
-      const data = await apiFetch<ApiProgress[]>('/progress/me', {}, accessToken);
-      const completed = data
-        .filter((item) => item.completed)
-        .map((item) => (typeof item.lessonId === 'string' ? item.lessonId : item.lessonId._id));
-      setCompletedLessons(completed);
-    } catch (error) {
-      console.warn('Unable to load progress', error);
-    }
-  }, [accessToken]);
+  const [fcIdx, setFcIdx] = useState(0);
+  const [fcFlipped, setFcFlipped] = useState(false);
 
-  const loadGamification = useCallback(async () => {
-    if (!accessToken) return;
-    try {
-      const data = await apiFetch<GamificationSummary>('/progress/gamification', {}, accessToken);
-      setGamification(data);
-    } catch (error) {
-      console.warn('Unable to load gamification summary', error);
-    }
+  const [quizIdx, setQuizIdx] = useState(0);
+  const [quizAns, setQuizAns] = useState<number | null>(null);
+  const [quizScore, setQuizScore] = useState(0);
+  const [quizDone, setQuizDone] = useState(false);
+  const [quizStars, setQuizStars] = useState(0);
+  const [quizAnswers, setQuizAnswers] = useState<number[]>([]);
+
+  const [badgeToast, setBadgeToast] = useState<BadgeDef | null>(null);
+  const flashcardViewedRef = useRef(new Set<string>());
+
+  const [gs, setGs] = useState<GameState>({
+    xp: 0,
+    level: 1,
+    streak: 0,
+    freezes: 0,
+    hearts: 5,
+    maxHearts: 5,
+    completedQuests: new Set(),
+    questStars: {},
+    perfectQuizzes: 0,
+    totalFlips: 0,
+    vaultsOpened: 0,
+    earnedBadges: new Set(),
+    badges: [],
+    weeklyProgress: [],
+  });
+
+  const badgeCatalog = useMemo(() => {
+    const chapterBadges: BadgeDef[] = chapters.map((ch) => ({
+      id: `unit_${ch.key}`,
+      icon: "mdi:trophy",
+      title: `${ch.title} Champ`,
+      desc: `Complete ${ch.title}`,
+      condition: (s) => ch.quests.every((q) => s.completedQuests.has(q.id)),
+    }));
+    return [...BADGES, ...chapterBadges];
+  }, [chapters]);
+
+  function applyGamification(snap: any) {
+    if (!snap) return;
+    setGs((prev) => ({
+      ...prev,
+      xp: pn(snap.xp, prev.xp),
+      level: pn(snap.level, prev.level),
+      streak: pn(snap.streakDays, prev.streak),
+      freezes: pn(snap.streakFreezes, prev.freezes),
+      hearts: pn(snap.hearts, prev.hearts),
+      maxHearts: pn(snap.maxHearts, prev.maxHearts),
+      badges: pa(snap.badges, prev.badges),
+      weeklyProgress: pa(snap.weeklyProgress, prev.weeklyProgress),
+    }));
+  }
+
+  function hydrateProgress(progress: any[], gamification: any) {
+    const completed = progress.filter((p) => p.completed).map((p) => String(p.lessonId));
+    const backendStars = progress.reduce((acc: Record<string, number>, p: any) => {
+      if (p.bestScore > 0 && p.lessonId) acc[String(p.lessonId)] = calcStars(p.bestScore);
+      return acc;
+    }, {});
+    setGs((prev) => ({
+      ...prev,
+      completedQuests: new Set([...prev.completedQuests, ...completed]),
+      perfectQuizzes: Math.max(prev.perfectQuizzes, progress.filter((p) => p.bestScore >= 100).length),
+      questStars: { ...prev.questStars, ...backendStars },
+    }));
+    applyGamification(gamification);
+  }
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    apiFetch("/learn/flow", {}, accessToken)
+      .then((payload: any) => {
+        if (!active) return;
+        const { chapters: chs, progress, gamification } = normalizeFlow(payload);
+        setChapters(chs);
+        hydrateProgress(progress, gamification);
+      })
+      .catch((err: any) => {
+        if (!active) return;
+        setLoadError(err?.message || "Failed to load lessons");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, [accessToken]);
 
   useEffect(() => {
-    if (!accessToken) return;
-    loadLessons();
-    loadProgress();
-    loadGamification();
-  }, [accessToken, loadLessons, loadProgress, loadGamification]);
+    const newlyEarned = badgeCatalog.filter(
+      (b) => !gs.earnedBadges.has(b.id) && b.condition && b.condition(gs),
+    );
+    if (newlyEarned.length) {
+      newlyEarned.forEach((b, i) => {
+        setTimeout(() => {
+          setBadgeToast(b);
+          setTimeout(() => setBadgeToast(null), 3000);
+        }, i * 3200);
+      });
+      setGs((prev) => ({
+        ...prev,
+        earnedBadges: new Set([...prev.earnedBadges, ...newlyEarned.map((b) => b.id)]),
+      }));
+    }
+  }, [badgeCatalog, gs.xp, gs.streak, gs.completedQuests.size, gs.perfectQuizzes, gs.totalFlips, gs.vaultsOpened]);
 
-  const toggleLesson = async (lesson: Lesson) => {
-    setSelectedLesson(lesson);
-    if (!accessToken) return;
+  useEffect(() => {
+    if (questScreen !== "flashcard" || !activeQuest) return;
+    const key = `${activeQuest.id}:${fcIdx}`;
+    if (flashcardViewedRef.current.has(key)) return;
+    flashcardViewedRef.current.add(key);
+    apiFetch(`/progress/flashcard/${activeQuest.id}`, { method: "POST", body: JSON.stringify({ count: 1 }) }, accessToken)
+      .then((p: any) => {
+        if (p?.gamification) applyGamification(p.gamification);
+      })
+      .catch(() => {});
+  }, [questScreen, activeQuest, fcIdx, accessToken]);
+
+  const totalStars = Object.values(gs.questStars).reduce((a, s) => a + s, 0);
+  const totalQuests = chapters.reduce((a, ch) => a + ch.quests.length, 0);
+  const completedCount = chapters.reduce(
+    (a, ch) => a + ch.quests.filter((q) => gs.completedQuests.has(q.id)).length,
+    0,
+  );
+
+  function resetQuestState() {
+    setFcIdx(0);
+    setFcFlipped(false);
+    setQuizIdx(0);
+    setQuizAns(null);
+    setQuizScore(0);
+    setQuizDone(false);
+    setQuizAnswers([]);
+    setQuizStars(0);
+  }
+
+  function closeQuest() {
+    resetQuestState();
+    setQuestScreen("none");
+  }
+
+  async function openQuest(quest: Quest) {
+    const ch = chapters.find((c) => c.quests.some((q) => q.id === quest.id)) || null;
+    setActiveChapter(ch);
+    setActiveQuest(quest);
+    if (quest.type === "vault") {
+      setQuestScreen("vault");
+      return;
+    }
+    resetQuestState();
     try {
-      await apiFetch(`/progress/start/${lesson.id}`, { method: 'POST' }, accessToken);
-    } catch (error) {
-      console.warn('Unable to start lesson', error);
+      await apiFetch(`/progress/start/${quest.id}`, { method: "POST" }, accessToken);
+    } catch {}
+    setQuestScreen("flashcard");
+  }
+
+  function flipCard() {
+    setFcFlipped((f) => !f);
+    setGs((prev) => ({ ...prev, totalFlips: prev.totalFlips + 1 }));
+  }
+
+  function startQuiz() {
+    setQuizIdx(0);
+    setQuizAns(null);
+    setQuizScore(0);
+    setQuizDone(false);
+    if (activeQuest) setQuizAnswers(Array(activeQuest.quiz.length).fill(-1));
+    setQuestScreen("quiz");
+  }
+
+  async function nextCard() {
+    const cards = activeQuest?.flashcards || [];
+    if (cards.length > 0 && fcIdx < cards.length - 1) {
+      setFcIdx(fcIdx + 1);
+      setFcFlipped(false);
+      return;
     }
-  };
+    if (activeQuest?.quiz?.length) {
+      startQuiz();
+      return;
+    }
+    try {
+      await apiFetch(`/progress/complete/${activeQuest!.id}`, { method: "POST" }, accessToken);
+    } catch {}
+    setGs((prev) => ({ ...prev, completedQuests: new Set([...prev.completedQuests, activeQuest!.id]) }));
+    closeQuest();
+  }
 
-  const handleLessonComplete = async (lessonId: string): Promise<LessonCompletionResult> => {
-    let completionResult: LessonCompletionResult = {
-      xpAwarded: 20,
-      newBadges: [],
-    };
+  function answerQuiz(idx: number) {
+    if (quizAns !== null || !activeQuest) return;
+    setQuizAns(idx);
+    const correct = idx === activeQuest.quiz[quizIdx].ans;
+    if (correct) setQuizScore((s) => s + 1);
+    else setGs((prev) => ({ ...prev, hearts: Math.max(0, prev.hearts - 1) }));
+    setQuizAnswers((prev) => {
+      const n = [...prev];
+      n[quizIdx] = idx;
+      return n;
+    });
+  }
 
-    if (accessToken) {
-      try {
-        const result = await apiFetch<LessonCompletionResult>(`/progress/complete/${lessonId}`, { method: 'POST' }, accessToken);
-        completionResult = result;
-        if (result.gamification) {
-          setGamification(result.gamification);
-        }
-      } catch (error) {
-        console.warn('Unable to complete lesson', error);
+  async function nextQuiz() {
+    if (quizAns === null || !activeQuest) return;
+    if (quizIdx < activeQuest.quiz.length - 1) {
+      setQuizIdx(quizIdx + 1);
+      setQuizAns(null);
+      return;
+    }
+    const localScore = quizScore + (quizAns === activeQuest.quiz[quizIdx].ans ? 1 : 0);
+    const answers = quizAnswers.map((a, i) => (i === quizIdx ? quizAns : a));
+    try {
+      const result: any = await apiFetch(
+        `/progress/quiz/${activeQuest.id}`,
+        { method: "POST", body: JSON.stringify({ answers }) },
+        accessToken,
+      );
+      const pct =
+        typeof result.scorePercent === "number"
+          ? result.scorePercent
+          : Math.round((localScore / activeQuest.quiz.length) * 100);
+      const stars = calcStars(pct);
+      setQuizStars(stars);
+      setQuizScore(localScore);
+      setQuizDone(true);
+      setGs((prev) => ({
+        ...prev,
+        questStars: { ...prev.questStars, [activeQuest.id]: Math.max(stars, prev.questStars[activeQuest.id] || 0) },
+        perfectQuizzes: prev.perfectQuizzes + (pct === 100 ? 1 : 0),
+      }));
+      applyGamification(result.gamification);
+      if (result.passed) {
+        try {
+          await apiFetch(`/progress/complete/${activeQuest.id}`, { method: "POST" }, accessToken);
+        } catch {}
+        setGs((prev) => ({ ...prev, completedQuests: new Set([...prev.completedQuests, activeQuest.id]) }));
       }
+    } catch {
+      setQuizStars(1);
+      setQuizDone(true);
     }
+  }
 
-    setCompletedLessons((prev) => (prev.includes(lessonId) ? prev : [...prev, lessonId]));
-    return completionResult;
-  };
+  function handleVaultComplete() {
+    if (!activeQuest) return;
+    setGs((prev) => ({
+      ...prev,
+      completedQuests: new Set([...prev.completedQuests, activeQuest.id]),
+      vaultsOpened: prev.vaultsOpened + 1,
+      questStars: { ...prev.questStars, [activeQuest.id]: 3 },
+      xp: prev.xp + activeQuest.xp,
+    }));
+    closeQuest();
+  }
 
-  const progress = lessons.length > 0 ? (completedLessons.length / lessons.length) * 100 : 0;
-  const sortedLessons = useMemo(
-    () => [...lessons].sort((a, b) => a.order - b.order),
-    [lessons],
-  );
-  const completedLessonCards = useMemo(
-    () => sortedLessons.filter((lesson) => completedLessons.includes(lesson.id)),
-    [sortedLessons, completedLessons],
-  );
-  const pendingLessonCards = useMemo(
-    () => sortedLessons.filter((lesson) => !completedLessons.includes(lesson.id)),
-    [sortedLessons, completedLessons],
-  );
-  const unlockedPendingLessonId = pendingLessonCards[0]?.id ?? null;
-  const continueLesson = useMemo(() => {
-    if (!sortedLessons.length) {
-      return null;
-    }
+  if (loading && chapters.length === 0) {
+    return (
+      <View style={[s.fullScreen, s.center, { backgroundColor: C.bg }]}> 
+        <ActivityIndicator size="large" color={C.accent} />
+        <Text style={s.loadingText}>Loading your learning path...</Text>
+        <Text style={s.loadingSubText}>Fetching lessons and progress</Text>
+      </View>
+    );
+  }
 
-    if (gamification?.nextLessonId) {
-      return sortedLessons.find((item) => item.id === gamification.nextLessonId) ?? null;
-    }
-
-    if (unlockedPendingLessonId) {
-      return sortedLessons.find((item) => item.id === unlockedPendingLessonId) ?? null;
-    }
-
-    return sortedLessons[0] ?? null;
-  }, [gamification?.nextLessonId, sortedLessons, unlockedPendingLessonId]);
-
-  const nextLessonTitle = useMemo(() => {
-    if (!selectedLesson) {
-      return null;
-    }
-    const lessonIndex = sortedLessons.findIndex((item) => item.id === selectedLesson.id);
-    if (lessonIndex < 0) {
-      return null;
-    }
-    return sortedLessons[lessonIndex + 1]?.title ?? null;
-  }, [selectedLesson, sortedLessons]);
-
-  const taxSummary = useMemo(() => {
-    const annualIncome = parseNumericInput(annualIncomeInput);
-    const investmentProfit = parseNumericInput(investmentProfitInput);
-
-    const incomeTax = calculateIncomeTaxFromSlab(annualIncome);
-    const capitalGainsTax = investmentProfit * (TAX_REFERENCE_RATES.capitalGainsPercent / 100);
-    const dividendTax = investmentProfit * (TAX_REFERENCE_RATES.dividendPercent / 100);
-    const estimatedTax = incomeTax + capitalGainsTax + dividendTax;
-    const taxableBase = annualIncome + investmentProfit;
-    const effectiveRate = taxableBase > 0 ? (estimatedTax / taxableBase) * 100 : 0;
-
-    return {
-      annualIncome,
-      investmentProfit,
-      incomeTax,
-      capitalGainsTax,
-      dividendTax,
-      estimatedTax,
-      effectiveRate,
-    };
-  }, [annualIncomeInput, investmentProfitInput]);
-
-  const handleOpenURL = (url: string) => {
-    Linking.openURL(url).catch((err: any) => console.error("Couldn't load page", err));
-  };
+  if (loadError && chapters.length === 0) {
+    return (
+      <View style={[s.fullScreen, s.center, { backgroundColor: C.bg, padding: 24 }]}> 
+        <Ico name="mdi:alert-circle-outline" size={44} color="#FCA5A5" />
+        <Text style={s.errorTitle}>Unable to load lessons</Text>
+        <Text style={s.errorText}>{loadError}</Text>
+      </View>
+    );
+  }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.sparkleBg}>
-        <View style={[styles.sparkleDot, { top: 90, left: 28 }]} />
-        <View style={[styles.sparkleDotSmall, { top: 170, left: 240 }]} />
-        <View style={[styles.sparkleDotSmall, { top: 320, left: 90 }]} />
-        <View style={[styles.sparkleDot, { top: 520, left: 278 }]} />
-      </View>
-      {/* Dark Blue Header */}
-      <LinearGradient
-        colors={["#041B38", "#0A3269"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.blueHeader}
-      >
-        <View style={styles.blueHeaderTop}>
-          <HeaderBar
-            tint="dark"
-            rightSlot={isAuthenticated ? <TopRightMenu theme="dark" /> : <GuestAuthActions />}
-          />
+    <View style={[s.fullScreen, { backgroundColor: C.bg }]}> 
+      <TopNav gs={gs} completedCount={completedCount} totalQuests={totalQuests} totalStars={totalStars} activeTab={activeTab} onTabChange={setActiveTab} />
+
+      {activeTab === "learn" && (
+        <LearnTab chapters={chapters} gs={gs} onOpenQuest={openQuest} loadError={loadError} />
+      )}
+      {activeTab === "badges" && <BadgesTab gs={gs} badgeCatalog={badgeCatalog} />}
+      {activeTab === "profile" && <ProfileTab gs={gs} totalStars={totalStars} />}
+
+      <FlashcardModal
+        visible={questScreen === "flashcard"}
+        chapter={activeChapter}
+        quest={activeQuest}
+        fcIdx={fcIdx}
+        fcFlipped={fcFlipped}
+        hearts={gs.hearts}
+        maxHearts={gs.maxHearts}
+        onExit={closeQuest}
+        onFlip={flipCard}
+        onNext={nextCard}
+        onStartQuiz={startQuiz}
+      />
+      <QuizModal
+        visible={questScreen === "quiz"}
+        chapter={activeChapter}
+        quest={activeQuest}
+        quizIdx={quizIdx}
+        quizAns={quizAns}
+        quizScore={quizScore}
+        quizDone={quizDone}
+        quizStars={quizStars}
+        hearts={gs.hearts}
+        maxHearts={gs.maxHearts}
+        onExit={closeQuest}
+        onAnswer={answerQuiz}
+        onNext={nextQuiz}
+      />
+      <VaultModal
+        visible={questScreen === "vault"}
+        chapter={activeChapter}
+        quest={activeQuest}
+        onExit={closeQuest}
+        onComplete={handleVaultComplete}
+      />
+
+      {badgeToast && (
+        <View style={s.badgeToastWrap} pointerEvents="none">
+          <BadgeToast badge={badgeToast} />
         </View>
-        <Text style={styles.headerTitle}>Beginners Guide</Text>
-        <Text style={styles.headerSubtitle}>Micro lessons, instant feedback, rewards, and streaks</Text>
-      </LinearGradient>
-
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {!isAuthenticated && (
-          <View style={styles.tipCard}>
-            <Text style={styles.tipTitle}>Login Required</Text>
-            <Text style={styles.tipText}>
-              Please log in to load lessons, track progress, and save quiz scores.
-            </Text>
-          </View>
-        )}
-        <View style={styles.sectionTabsWrap}>
-          <TouchableOpacity
-            onPress={() => setActiveSection('lessons')}
-            style={[
-              styles.sectionTab,
-              activeSection === 'lessons' && styles.sectionTabActive,
-            ]}
-          >
-            <BookOpen size={14} color={activeSection === 'lessons' ? '#fff' : '#475569'} />
-            <Text
-              style={[
-                styles.sectionTabText,
-                activeSection === 'lessons' && styles.sectionTabTextActive,
-              ]}
-            >
-              Lessons
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => setActiveSection('tax')}
-            style={[
-              styles.sectionTab,
-              activeSection === 'tax' && styles.sectionTabActive,
-            ]}
-          >
-            <PieChart size={14} color={activeSection === 'tax' ? '#fff' : '#475569'} />
-            <Text
-              style={[
-                styles.sectionTabText,
-                activeSection === 'tax' && styles.sectionTabTextActive,
-              ]}
-            >
-              Tax Hub
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {activeSection === 'lessons' ? (
-          <>
-            <View style={styles.learningDashboardCard}>
-              <View style={styles.learningDashboardRow}>
-                <Text style={styles.dashboardChip}>🔥 {gamification?.streakDays ?? 0} Day Streak</Text>
-                <Text style={styles.dashboardChip}>XP: {gamification?.xp ?? 0}</Text>
-                <Text style={styles.dashboardChip}>Level: {gamification?.level ?? 1}</Text>
-              </View>
-              <TouchableOpacity
-                style={styles.continueButton}
-                onPress={() => continueLesson && toggleLesson(continueLesson)}
-                disabled={!continueLesson}
-              >
-                <Text style={styles.continueButtonText}>
-                  Continue Learning {continueLesson ? `- ${continueLesson.title}` : ''}
-                </Text>
-                <ChevronRight size={16} color="#DBEAFE" />
-              </TouchableOpacity>
-            </View>
-
-            {/* Progress Card */}
-            <View style={styles.progressCard}>
-              <View style={styles.progressTextContainer}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <Text style={styles.cardTitle}>Your Progress</Text>
-                  <Text style={styles.progressStat}>{completedLessonCards.length}/{sortedLessons.length}</Text>
-                </View>
-                <View style={styles.progressBarBg}>
-                  <View style={[styles.progressBarFill, { width: `${progress}%` }]} />
-                </View>
-                {progress >= 100 && sortedLessons.length > 0 && (
-                  <Text style={styles.levelCompleteText}>Financial Literacy Level 1 Completed</Text>
-                )}
-              </View>
-            </View>
-
-            {sortedLessons.length > 0 && (
-              <View style={styles.pathCard}>
-                <Text style={styles.pathTitle}>Lesson Path</Text>
-                {sortedLessons.map((lesson, index) => {
-                  const isComplete = completedLessons.includes(lesson.id);
-                  const isPendingUnlocked = unlockedPendingLessonId === lesson.id;
-                  const isLocked = !isComplete && !isPendingUnlocked;
-                  return (
-                    <View key={`path-${lesson.id}`} style={styles.pathRow}>
-                      <View
-                        style={[
-                          styles.pathBubble,
-                          isComplete && styles.pathBubbleComplete,
-                          isPendingUnlocked && styles.pathBubbleActive,
-                          isLocked && styles.pathBubbleLocked,
-                        ]}
-                      >
-                        {isComplete ? <CheckCircle size={14} color="#E2E8F0" /> : isLocked ? <Lock size={14} color="#94A3B8" /> : <Play size={14} color="#DBEAFE" />}
-                      </View>
-                      <Text style={[styles.pathLessonText, isLocked && styles.pathLessonTextLocked]}>
-                        Lesson {index + 1}: {lesson.title}
-                      </Text>
-                    </View>
-                  );
-                })}
-              </View>
-            )}
-
-            {loadingLessons && (
-              <View style={{ paddingVertical: 20, alignItems: 'center' }}>
-                <ActivityIndicator color="#5B8DEF" />
-                <Text style={{ marginTop: 8, color: '#64748B' }}>Loading lessons...</Text>
-              </View>
-            )}
-
-            {lessonsError && (
-              <View style={styles.tipCard}>
-                <Text style={styles.tipTitle}>Lesson Load Error</Text>
-                <Text style={styles.tipText}>{lessonsError}</Text>
-                <TouchableOpacity style={[styles.retakeButton, { marginTop: 12 }]} onPress={loadLessons}>
-                  <Text style={styles.retakeButtonText}>Retry</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* Completed Lessons Section */}
-            {completedLessonCards.length > 0 && sortedLessons.length > 0 && (
-              <>
-                <Text style={styles.sectionTitle}>Completed Lessons</Text>
-                {completedLessonCards
-                  .map((lesson) => {
-                    const Icon = lesson.icon;
-                    return (
-                      <TouchableOpacity
-                        key={lesson.id}
-                        onPress={() => toggleLesson(lesson)}
-                        style={styles.completedLessonCard}
-                      >
-                        <View style={styles.lessonHeader}>
-                          <View style={[styles.iconBox, { backgroundColor: lesson.color + '20' }]}>
-                            <Icon color={lesson.color} size={20} />
-                          </View>
-                          <View style={{ flex: 1, marginLeft: 12 }}>
-                            <View style={styles.titleRow}>
-                              <Text style={styles.lessonTitle}>{lesson.title}</Text>
-                              <CheckCircle size={18} color="#5B8DEF" />
-                            </View>
-                            <Text style={styles.lessonContent} numberOfLines={1}>{lesson.content}</Text>
-                          </View>
-                        </View>
-                      </TouchableOpacity>
-                    );
-                  })}
-              </>
-            )}
-
-            {/* Lessons Section */}
-            <Text style={styles.sectionTitle}>Interactive Lessons</Text>
-            {pendingLessonCards
-              .map((lesson) => {
-                const Icon = lesson.icon;
-                const isLocked = unlockedPendingLessonId !== null && lesson.id !== unlockedPendingLessonId;
-                return (
-                  <View key={lesson.id} style={styles.lessonCard}>
-                    <View style={styles.lessonHeader}>
-                      <View style={[styles.iconBox, { backgroundColor: lesson.color + '20' }]}>
-                        <Icon color={lesson.color} size={20} />
-                      </View>
-                      <View style={{ flex: 1, marginLeft: 12 }}>
-                        <View style={styles.titleRow}>
-                          <Text style={styles.lessonTitle}>{lesson.title}</Text>
-                          <Text style={styles.durationText}>{lesson.duration}</Text>
-                        </View>
-                        <Text style={styles.lessonContent} numberOfLines={2}>{lesson.content}</Text>
-                        <View style={styles.lessonFeatures}>
-                          <View style={styles.featureBadge}>
-                            <Play size={12} color={lesson.color} />
-                            <Text style={[styles.featureText, { color: lesson.color }]}>Video</Text>
-                          </View>
-                          <View style={styles.featureBadge}>
-                            <HelpCircle size={12} color={lesson.color} />
-                            <Text style={[styles.featureText, { color: lesson.color }]}>
-                              Quiz
-                            </Text>
-                          </View>
-                          {isLocked && (
-                            <View style={styles.lockPill}>
-                              <Lock size={12} color="#334155" />
-                              <Text style={styles.lockPillText}>Locked</Text>
-                            </View>
-                          )}
-                        </View>
-                      </View>
-                    </View>
-
-                    <TouchableOpacity
-                      onPress={() => toggleLesson(lesson)}
-                      disabled={isLocked}
-                      style={[styles.buttonIncomplete, isLocked && styles.buttonLocked]}
-                    >
-                      <Text style={styles.buttonTextIncomplete}>
-                        {isLocked ? 'Complete Previous Lesson to Unlock' : 'Start Learning'}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                );
-              })}
-
-            {/* Verified Resources Section */}
-            <Text style={styles.sectionTitle}>Verified Resources</Text>
-            {externalResources.map((resource, index) => (
-              <TouchableOpacity
-                key={index}
-                style={styles.resourceCard}
-                onPress={() => handleOpenURL(resource.url)}
-              >
-                <View style={styles.resourceIconBox}>
-                  <ExternalLink size={18} color="#5B8DEF" />
-                </View>
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={styles.resourceTitle}>{resource.title}</Text>
-                  <Text style={styles.resourceDesc}>{resource.description}</Text>
-                </View>
-                <ChevronRight size={18} color="#CBD5E1" />
-              </TouchableOpacity>
-            ))}
-
-            {/* Study Tip Section */}
-            <View style={styles.tipCard}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                <Info size={16} color="#1E40AF" />
-                <Text style={styles.tipTitle}>Study Tip</Text>
-              </View>
-              <Text style={styles.tipText}>
-                Watch the video first, read the content, then take the quiz to test your knowledge. Complete all lessons to master stock market basics!
-              </Text>
-            </View>
-          </>
-        ) : (
-          <>
-            <Text style={styles.sectionTitle}>Tax Hub</Text>
-            <View style={styles.taxHubCard}>
-              <Text style={styles.taxHubTitle}>Tax Basics</Text>
-              <Text style={styles.taxHubSubtitle}>
-                Quick overview of key tax types and common rates.
-              </Text>
-              {TAX_BASICS.map((item) => (
-                <View key={item.title} style={styles.taxBasicRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.taxBasicTitle}>{item.title}</Text>
-                    <Text style={styles.taxBasicSubtitle}>{item.subtitle}</Text>
-                  </View>
-                  <View style={styles.taxRatePill}>
-                    <Text style={styles.taxRateText}>{item.value}</Text>
-                  </View>
-                </View>
-              ))}
-            </View>
-
-            <View style={styles.taxHubCard}>
-              <Text style={styles.taxHubTitle}>Tax Slab Calculator</Text>
-              <Text style={styles.taxHubSubtitle}>
-                Enter yearly income and investment profit to estimate tax impact.
-              </Text>
-              <Text style={styles.taxInputLabel}>Annual Income (NPR)</Text>
-              <TextInput
-                value={annualIncomeInput}
-                onChangeText={setAnnualIncomeInput}
-                style={styles.taxInput}
-                placeholder="e.g. 850000"
-                placeholderTextColor="#94A3B8"
-                keyboardType="numeric"
-              />
-              <Text style={styles.taxInputLabel}>Investment Profit (NPR)</Text>
-              <TextInput
-                value={investmentProfitInput}
-                onChangeText={setInvestmentProfitInput}
-                style={styles.taxInput}
-                placeholder="e.g. 120000"
-                placeholderTextColor="#94A3B8"
-                keyboardType="numeric"
-              />
-
-              <View style={styles.taxResultCard}>
-                <View style={styles.taxResultRow}>
-                  <Text style={styles.taxResultLabel}>Estimated Tax</Text>
-                  <Text style={styles.taxResultValue}>{formatCurrency(taxSummary.estimatedTax)}</Text>
-                </View>
-                <View style={styles.taxResultRow}>
-                  <Text style={styles.taxResultLabel}>Effective Tax Rate</Text>
-                  <Text style={styles.taxResultValue}>{taxSummary.effectiveRate.toFixed(2)}%</Text>
-                </View>
-                <View style={styles.taxDivider} />
-                <View style={styles.taxResultRow}>
-                  <Text style={styles.taxBreakdownLabel}>Income Tax</Text>
-                  <Text style={styles.taxBreakdownValue}>{formatCurrency(taxSummary.incomeTax)}</Text>
-                </View>
-                <View style={styles.taxResultRow}>
-                  <Text style={styles.taxBreakdownLabel}>Capital Gains Tax</Text>
-                  <Text style={styles.taxBreakdownValue}>{formatCurrency(taxSummary.capitalGainsTax)}</Text>
-                </View>
-                <View style={styles.taxResultRow}>
-                  <Text style={styles.taxBreakdownLabel}>Dividend Tax</Text>
-                  <Text style={styles.taxBreakdownValue}>{formatCurrency(taxSummary.dividendTax)}</Text>
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.taxDisclaimerCard}>
-              <Info size={14} color="#1E40AF" />
-              <Text style={styles.taxDisclaimerText}>
-                Tax Hub values are for educational estimation only. Always verify with current official tax notices and a licensed tax advisor.
-              </Text>
-            </View>
-          </>
-        )}
-
-        <View style={{ height: 50 }} />
-      </ScrollView>
-
-      {/* Lesson Detail Modal */}
-      {selectedLesson && (
-        <LessonDetailView
-          lesson={selectedLesson}
-          onClose={() => setSelectedLesson(null)}
-          onComplete={handleLessonComplete}
-          isCompleted={completedLessons.includes(selectedLesson.id)}
-          nextLessonTitle={nextLessonTitle}
-          onGamificationUpdate={setGamification}
-        />
       )}
     </View>
   );
@@ -1576,693 +1486,113 @@ const s = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
   },
-  progressTextContainer: { flex: 1 },
-  cardTitle: { fontSize: 15, fontWeight: '600', color: '#E2E8F0' },
-  progressStat: { fontSize: 14, fontWeight: '700', color: '#60A5FA' },
-  progressBarBg: { backgroundColor: '#0B264A', height: 10, borderRadius: 5 },
-  progressBarFill: { backgroundColor: '#3B82F6', height: 10, borderRadius: 5 },
-  levelCompleteText: {
-    marginTop: 10,
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#93C5FD',
-  },
+  starRow: { flexDirection: "row", gap: 4, marginTop: 7, alignItems: "center" },
+  starDot: { width: 8, height: 8, borderRadius: 4 },
+  bubbleTitle: { fontSize: 12, fontWeight: "700", marginTop: 5, textAlign: "center", maxWidth: 90, lineHeight: 15 },
+  bubbleMeta: { alignItems: "center", marginTop: 5, gap: 3 },
+  xpTag: { borderRadius: 99, paddingHorizontal: 10, paddingVertical: 2 },
+  xpText: { fontSize: 10, fontWeight: "800" },
+  bubbleSubtitle: { fontSize: 9, color: "#4B5680" },
 
-  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#DBEAFE', marginBottom: 16, marginTop: 8 },
-  pathCard: {
-    backgroundColor: '#07172C',
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: '#1E3A5F',
-    padding: 14,
-    marginBottom: 16,
-  },
-  pathTitle: {
-    color: '#DBEAFE',
-    fontSize: 15,
-    fontWeight: '800',
-    marginBottom: 10,
-  },
-  pathRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-    gap: 10,
-  },
-  pathBubble: {
-    width: 30,
-    height: 30,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#1E3A5F',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#0B264A',
-  },
-  pathBubbleComplete: {
-    backgroundColor: '#2563EB',
-    borderColor: '#60A5FA',
-  },
-  pathBubbleActive: {
-    backgroundColor: '#1D4ED8',
-    borderColor: '#93C5FD',
-  },
-  pathBubbleLocked: {
-    backgroundColor: '#111827',
-    borderColor: '#334155',
-  },
-  pathLessonText: {
-    color: '#BFDBFE',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  pathLessonTextLocked: {
-    color: '#94A3B8',
-  },
+  // Flashcard Modal
+  modalHeader: { flexDirection: "row", alignItems: "center", gap: 12, padding: 16, paddingTop: Platform.OS === "ios" ? 56 : 16, borderBottomWidth: 1 },
+  closeBtn: { padding: 4 },
+  closeText: { color: "#4B5680", fontSize: 20, fontWeight: "600" },
+  progressBarWrap: { flex: 1 },
+  progressBar2: { height: 10, borderRadius: 99, overflow: "hidden" },
+  progressFill2: { height: "100%", borderRadius: 99, shadowOffset: { width: 0, height: 0 }, shadowRadius: 6, shadowOpacity: 0.7 },
+  heartsRow: { flexDirection: "row", gap: 3 },
+  subHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 10, borderBottomWidth: 1 },
+  questTitle: { fontSize: 13, fontWeight: "700", color: "#F0F4FF" },
+  cardBadge: { borderRadius: 99, paddingHorizontal: 10, paddingVertical: 2, borderWidth: 1 },
+  cardBadgeText: { fontSize: 11, fontWeight: "700" },
+  cardArea: { flex: 1, justifyContent: "center", padding: 24 },
+  emptyCard: { borderRadius: 20, padding: 28, alignItems: "center", borderWidth: 1 },
+  emptyCardTitle: { fontSize: 17, fontWeight: "800", color: "#F0F4FF", marginBottom: 6 },
+  emptyCardSub: { fontSize: 12, color: "#4B5680" },
+  flashcard: { borderRadius: 22, padding: 28, borderWidth: 2, shadowOffset: { width: 0, height: 20 }, shadowOpacity: 0.3, shadowRadius: 24, elevation: 12, minHeight: 220, justifyContent: "flex-start" },
+  cardLabel: { fontSize: 10, letterSpacing: 3, textTransform: "uppercase", marginBottom: 14, fontWeight: "700" },
+  cardPrompt: { fontSize: 18, fontWeight: "800", lineHeight: 28, color: "#F0F4FF" },
+  cardHint: { fontSize: 11, color: "#4B5680", marginTop: 20 },
+  cardAnswer: { fontSize: 15, fontWeight: "600", lineHeight: 26, color: "#F0F4FF" },
+  cardActions: { flexDirection: "row", gap: 12, padding: 20, paddingBottom: Platform.OS === "ios" ? 36 : 20 },
+  flipBtn: { flex: 1, borderRadius: 16, padding: 16, alignItems: "center", borderWidth: 1 },
+  flipBtnText: { fontWeight: "800", fontSize: 14 },
+  nextBtn: { flex: 2, borderRadius: 16, padding: 16, alignItems: "center" },
+  nextBtnText: { color: "#000", fontWeight: "900", fontSize: 14 },
 
-  lessonCard: {
-    backgroundColor: '#FAFAF5',
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#E8E8E3'
-  },
-  lessonCardCompleted: { borderColor: '#5B8DEF', backgroundColor: '#E8F1FF' },
-  completedLessonCard: {
-    backgroundColor: '#E8F1FF',
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 2,
-    borderColor: '#5B8DEF',
-  },
-  lessonHeader: { flexDirection: 'row', marginBottom: 16 },
-  iconBox: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  lessonTitle: { fontSize: 16, fontWeight: '700', color: '#1E293B' },
-  durationText: { fontSize: 11, color: '#94A3B8', fontWeight: '600' },
-  lessonContent: { fontSize: 14, color: '#64748B', lineHeight: 20, marginBottom: 8 },
-  lessonFeatures: { flexDirection: 'row', gap: 8, marginTop: 4 },
-  featureBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#F1F5F9', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  featureText: { fontSize: 11, fontWeight: '600' },
-  lockPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#E2E8F0',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  lockPillText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#334155',
-  },
+  // Quiz
+  questionBox: { borderRadius: 20, padding: 20, marginBottom: 16, borderWidth: 2 },
+  questionLabel: { fontSize: 10, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10, fontWeight: "700" },
+  questionText: { fontSize: 17, fontWeight: "800", lineHeight: 26, color: "#F0F4FF" },
+  optionBtn: { borderRadius: 14, padding: 14, borderWidth: 2, flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 },
+  optionLetter: { width: 26, height: 26, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  optionLetterText: { fontWeight: "900", fontSize: 12 },
+  optionText: { flex: 1, fontSize: 14, fontWeight: "600" },
+  explanationBox: { borderRadius: 14, padding: 14, borderWidth: 1, marginBottom: 2 },
+  explanationHead: { fontSize: 12, fontWeight: "700", marginBottom: 4 },
+  explanationText: { fontSize: 13, color: "#4B5680", lineHeight: 20 },
 
-  button: { paddingVertical: 12, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' },
-  buttonIncomplete: {
-    backgroundColor: '#0B3B78',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    elevation: 2,
-    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  buttonLocked: {
-    opacity: 0.55,
-  },
-  buttonCompleted: { backgroundColor: '#E0EDD8' },
-  buttonText: { fontWeight: '700', fontSize: 15 },
-  buttonTextIncomplete: { color: '#fff', fontSize: 15 },
-  buttonTextCompleted: { color: '#3F6DD8' },
+  // Result screen
+  resultScreen: { alignItems: "center", justifyContent: "center", padding: 28 },
+  starRow2: { flexDirection: "row", gap: 10, marginBottom: 14, marginTop: 10 },
+  resultTitle: { fontSize: 26, fontWeight: "900", color: "#F0F4FF", marginBottom: 6 },
+  resultSub: { fontSize: 13, color: "#4B5680", marginBottom: 6 },
+  resultScore: { fontSize: 12, color: "#4B5680", marginBottom: 28 },
+  xpBox: { backgroundColor: "#F59E0B18", borderRadius: 22, padding: 20, marginBottom: 16, alignItems: "center", width: "100%", borderWidth: 2 },
+  xpBoxLabel: { fontSize: 11, color: "#4B5680", marginBottom: 4, letterSpacing: 2, textTransform: "uppercase" },
+  xpBoxValue: { fontSize: 44, fontWeight: "900", color: "#F59E0B" },
 
-  resourceCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    padding: 14,
-    borderRadius: 16,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#E2E8F0'
-  },
-  resourceIconBox: { backgroundColor: '#E8F1FF', padding: 8, borderRadius: 10 },
-  resourceTitle: { fontSize: 15, fontWeight: '700', color: '#1E293B' },
-  resourceDesc: { fontSize: 12, color: '#64748B' },
+  // Primary button
+  primaryBtn: { borderRadius: 18, padding: 18, alignItems: "center", width: "100%" },
+  primaryBtnText: { color: "#000", fontWeight: "900", fontSize: 16 },
 
-  tipCard: { backgroundColor: '#E0ECFF', padding: 16, borderRadius: 16, marginTop: 10, borderWidth: 1, borderColor: '#93C5FD' },
-  tipTitle: { fontSize: 14, fontWeight: '700', color: '#1E40AF', marginLeft: 8 },
-  tipText: { fontSize: 13, color: '#1E40AF', lineHeight: 18, marginTop: 4 },
+  // Vault
+  vaultIntro: { backgroundColor: "#1E1B4B", borderRadius: 20, padding: 20, marginBottom: 18, borderWidth: 1, borderColor: "#7C3AED55" },
+  vaultTitle: { fontSize: 20, fontWeight: "900", color: "#F0F4FF", marginBottom: 6 },
+  vaultSub: { fontSize: 14, fontWeight: "600", lineHeight: 22, color: "#E2E8F0" },
+  factCard: { backgroundColor: "rgba(124,58,237,0.08)", borderRadius: 18, padding: 18, marginBottom: 14, borderWidth: 1, borderColor: "rgba(124,58,237,0.2)", gap: 6 },
+  factTitle: { fontSize: 16, fontWeight: "900", color: "#C4B5FD", marginBottom: 4 },
+  factBody: { fontSize: 14, color: "#CBD5E1", lineHeight: 26 },
+  vaultXp: { fontSize: 18, fontWeight: "900", color: "#F59E0B", textAlign: "center", marginTop: 20, marginBottom: 12 },
 
-  // Modal Styles
-  modalContainer: { flex: 1, backgroundColor: '#082349' },
-  modalContent: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-  modalHeader: { marginTop: 40, marginBottom: 20, alignItems: 'center' },
-  modalHeaderCompact: {
-    backgroundColor: '#031D44',
-    paddingTop: 50,
-    paddingBottom: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#1E3A5F',
-  },
-  modalHeaderTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  closeButton: { padding: 4 },
-  closeButtonText: { fontSize: 22, color: '#fff', fontWeight: '600' },
-  modalIconBox: { width: 60, height: 60, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
-  modalIconBoxCompact: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center'
-  },
-  modalTitle: { fontSize: 24, fontWeight: '800', color: '#1E293B', textAlign: 'center' },
-  modalTitleCompact: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  completedBadgeHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#E8F1FF',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#5B8DEF',
-  },
-  completedBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#3F6DD8',
-  },
+  // Badges
+  streakBanner: { backgroundColor: "#F59E0B", borderRadius: 20, padding: 20, flexDirection: "row", justifyContent: "space-between", marginBottom: 16 },
+  streakBannerLabel: { fontSize: 12, fontWeight: "700", color: "#00000099" },
+  streakBannerNum: { fontSize: 44, fontWeight: "900", color: "#000", lineHeight: 52 },
+  streakBannerSub: { fontSize: 11, color: "#00000066" },
+  activityCard: { borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1 },
+  activityTitle: { fontSize: 12, color: "#4B5680", marginBottom: 10 },
+  activityRow: { flexDirection: "row", justifyContent: "space-between" },
+  activityDot: { width: 28, height: 28, borderRadius: 7 },
+  activityDotLabel: { fontSize: 8, color: "#4B5680" },
+  badgeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  badgeCard: { width: "47%", borderRadius: 16, padding: 16, alignItems: "center", borderWidth: 1, gap: 6 },
+  badgeTitle: { fontSize: 13, fontWeight: "800", marginBottom: 3 },
+  badgeDesc: { fontSize: 10, color: "#4B5680", lineHeight: 14, textAlign: "center" },
 
-  topicCard: {
-    backgroundColor: '#DCE9FF',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#B5C8E6',
-    padding: 14,
-    marginBottom: 12,
-  },
-  topicLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#1E3A8A',
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-  },
-  topicTitle: {
-    marginTop: 4,
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#123B77',
-    lineHeight: 24,
-  },
-  topicMeta: {
-    marginTop: 6,
-    fontSize: 12,
-    color: '#415A80',
-    fontWeight: '600',
-  },
+  // Profile
+  profileCard: { borderRadius: 20, padding: 24, alignItems: "center", marginBottom: 16, borderWidth: 1 },
+  avatar: { width: 72, height: 72, borderRadius: 36, backgroundColor: "#6366F1", alignItems: "center", justifyContent: "center", marginBottom: 12 },
+  profileName: { fontSize: 18, fontWeight: "800", color: "#F0F4FF", marginBottom: 4 },
+  profileSub: { fontSize: 12, color: "#4B5680" },
+  statGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  statCard: { width: "47%", borderRadius: 16, padding: 16, alignItems: "center", borderWidth: 1, gap: 6 },
+  statCardValue: { fontSize: 22, fontWeight: "800" },
+  statCardLabel: { fontSize: 11, color: "#4B5680" },
 
-  // Video Section
-  videoSection: { marginTop: 16, marginBottom: 20 },
-  videoPlaceholder: {
-    width: '100%',
-    height: 200,
-    backgroundColor: '#1E293B',
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12
-  },
-  videoContainer: {
-    width: '100%',
-    height: 200,
-    borderRadius: 12,
-    overflow: 'hidden',
-    backgroundColor: '#000',
-    position: 'relative',
-    marginBottom: 12
-  },
-  videoPlayer: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: '#000'
-  },
-  closeVideoButton: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    zIndex: 10,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    borderRadius: 20,
-    width: 32,
-    height: 32,
-    justifyContent: 'center',
-    alignItems: 'center'
-  },
-  watchVideoButton: {
-    backgroundColor: '#5B8DEF',
-    padding: 12,
-    borderRadius: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6
-  },
-  watchVideoText: { color: '#fff', fontWeight: '700', fontSize: 14 },
-
-  // Content Section
-  contentSection: {
-    marginBottom: 12,
-    backgroundColor: '#E9F2FF',
-    padding: 16,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#B5C8E6',
-  },
-  contentTitle: { fontSize: 16, fontWeight: '700', color: '#1E3660', marginBottom: 10 },
-  contentText: { fontSize: 14, color: '#23395D', lineHeight: 22 },
-  flashcardsSection: {
-    marginBottom: 12,
-  },
-  sectionHeadingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  swipeHint: {
-    fontSize: 12,
-    color: '#C4B5FD',
-    fontWeight: '700',
-  },
-  flashcardList: {
-    paddingRight: 12,
-    paddingBottom: 4,
-  },
-  flashcardItemShell: {
-    marginRight: FLASHCARD_GAP,
-    minHeight: 228,
-  },
-  flashcardTouch: {
-    flex: 1,
-  },
-  flashcardPerspective: {
-    flex: 1,
-    position: 'relative',
-  },
-  flashcardFaceWrap: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 22,
-    overflow: 'hidden',
-    backfaceVisibility: 'hidden',
-    shadowColor: '#020617',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 14,
-    elevation: 8,
-  },
-  flashcardFace: {
-    flex: 1,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.18)',
-    paddingHorizontal: 20,
-    paddingVertical: 18,
-    justifyContent: 'space-between',
-  },
-  flashcardAccentBar: {
-    width: 60,
-    height: 5,
-    borderRadius: 999,
-    marginBottom: 10,
-  },
-  flashcardLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#E2E8F0',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    marginBottom: 8,
-  },
-  flashcardText: {
-    fontSize: 17,
-    color: '#F8FAFC',
-    lineHeight: 26,
-    fontWeight: '600',
-    flex: 1,
-  },
-  flashcardBackTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#F8FAFC',
-    marginBottom: 10,
-    letterSpacing: 0.2,
-  },
-  flashcardBackText: {
-    fontSize: 16,
-    lineHeight: 24,
-    color: '#DBEAFE',
-    fontWeight: '600',
-    flex: 1,
-  },
-  flashcardHint: {
-    marginTop: 10,
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#BFDBFE',
-  },
-  flashcardShine: {
-    position: 'absolute',
-    top: 0,
-    right: -20,
-    width: 120,
-    height: 80,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    borderBottomLeftRadius: 90,
-  },
-  flashDotRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 10,
-    gap: 8,
-  },
-  flashDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: '#2563EB',
-  },
-  flashcardsTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#F8FAFC',
-    marginBottom: 8,
-  },
-  blockTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#123B77',
-    marginBottom: 8,
-  },
-  recapBlock: {
-    marginTop: 2,
-    backgroundColor: '#E9F2FF',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#B5C8E6',
-    padding: 14,
-    marginBottom: 14,
-  },
-  recapRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    marginBottom: 7,
-  },
-  recapDot: {
-    marginTop: 6,
-    width: 6,
-    height: 6,
-    borderRadius: 4,
-    backgroundColor: '#1E3A8A',
-  },
-  recapText: {
-    flex: 1,
-    color: '#23395D',
-    fontSize: 13,
-    lineHeight: 19,
-  },
-
-  // Quiz Section
-  quizSection: {
-    backgroundColor: '#E9F2FF',
-    padding: 14,
-    borderRadius: 14,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#B5C8E6'
-  },
-  quizSectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
-  quizSectionTitle: { fontSize: 16, fontWeight: '800', color: '#123B77' },
-  quizSectionDesc: { fontSize: 13, color: '#415A80', marginBottom: 8, lineHeight: 18 },
-  quizSectionSubText: { fontSize: 12, color: '#1E3A8A', marginBottom: 10, fontWeight: '600' },
-  noQuizHint: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    backgroundColor: '#DBEAFE',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
-    paddingHorizontal: 10,
-    paddingVertical: 9,
-  },
-  noQuizHintText: {
-    flex: 1,
-    color: '#1E3A8A',
-    fontSize: 12,
-    lineHeight: 17,
-    fontWeight: '600',
-  },
-  startQuizButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: '#1D4ED8',
-  },
-  startQuizButtonText: { color: '#fff', fontWeight: '700', fontSize: 14 },
-
-  // MCQ Quiz Styles
-  quizContainer: {
-    marginBottom: 24,
-  },
-  quizTopProgress: {
-    backgroundColor: '#DCE9FF',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#B5C8E6',
-    padding: 14,
-    marginBottom: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  quizTopProgressTextWrap: {
-    flex: 1,
-  },
-  quizTopProgressLabel: {
-    color: '#23395D',
-    fontSize: 12,
-    fontWeight: '700',
-    marginBottom: 10,
-  },
-  quizTopProgressBarBg: {
-    width: '100%',
-    height: 10,
-    backgroundColor: '#B8C4D9',
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  quizTopProgressBarFill: {
-    height: '100%',
-    backgroundColor: '#6EE7D6',
-    borderRadius: 8,
-  },
-  quizTopProgressBadge: {
-    width: 62,
-    height: 62,
-    borderRadius: 32,
-    backgroundColor: '#7C2DDB',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  quizTopProgressBadgeText: {
-    color: '#fff',
-    fontWeight: '800',
-    fontSize: 14,
-  },
-  quizPanel: {
-    backgroundColor: '#E9F2FF',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#B5C8E6',
-    padding: 18,
-    marginBottom: 24,
-  },
-  questionCount: {
-    fontSize: 12,
-    color: '#415A80',
-    fontWeight: '700',
-    marginBottom: 12,
-  },
-  questionText: {
-    fontSize: 29,
-    fontWeight: '800',
-    color: '#0F2549',
-    marginBottom: 16,
-    lineHeight: 36,
-  },
-  option: {
-    backgroundColor: '#F4F8FF',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    borderWidth: 2,
-    borderColor: '#2563EB',
-  },
-  optionCorrect: { backgroundColor: '#D1FAE5', borderColor: '#10B981' },
-  optionIncorrect: { backgroundColor: '#FEF2F2', borderColor: '#EF4444' },
-  optionText: { fontSize: 17, color: '#111827', fontWeight: '600' },
-  optionTextCorrect: { color: '#065F46', fontWeight: '700' },
-  optionTextIncorrect: { color: '#991B1B', fontWeight: '700' },
-  answerBox: {
-    backgroundColor: '#E8F1FF',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 8,
-    marginTop: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: '#2563EB',
-  },
-  answerText: {
-    fontSize: 14,
-    color: '#1F2937',
-    fontWeight: '600',
-  },
-  answerSubtext: {
-    fontSize: 13,
-    color: '#334155',
-    lineHeight: 19,
-    marginTop: 6,
-  },
-  nextButton: {
-    alignSelf: 'center',
-    backgroundColor: '#1D4ED8',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    marginTop: 16,
-  },
-  nextButtonText: { color: '#fff', fontWeight: '700', fontSize: 14 },
-
-  // Quiz Results
-  quizResults: {
-    backgroundColor: '#FAFAF5',
-    padding: 32,
-    borderRadius: 16,
-    marginBottom: 24,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E8E8E3'
-  },
-  resultsTitle: { fontSize: 24, fontWeight: '800', color: '#1E293B', marginTop: 16, marginBottom: 8 },
-  resultsScore: { fontSize: 16, color: '#64748B', marginBottom: 8 },
-  resultsPercentage: { fontSize: 48, fontWeight: '800', color: '#5B8DEF', marginBottom: 8 },
-  congratsText: { fontSize: 14, color: '#3F6DD8', fontWeight: '600', marginTop: 8, textAlign: 'center' },
-  badgeUnlockRow: {
-    marginTop: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#166534',
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-  },
-  badgeUnlockText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  unlockHintText: {
-    marginTop: 10,
-    color: '#1D4ED8',
-    fontSize: 12,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  retakeButton: {
-    backgroundColor: '#F1F5F9',
-    padding: 14,
-    borderRadius: 12,
-    marginTop: 20,
-    paddingHorizontal: 24
-  },
-  retakeButtonText: { color: '#64748B', fontWeight: '700', fontSize: 14 },
-
-  // Complete Section
-  completeSection: {
-    marginTop: 20,
-    marginBottom: 20,
-    paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-  },
-  completeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 14,
-    borderRadius: 10,
-    gap: 8,
-    elevation: 2,
-    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
-    backgroundColor: '#04395E',
-  },
-  completeButtonText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 15,
-  },
-  completeNote: {
-    fontSize: 11,
-    color: '#94A3B8',
-    textAlign: 'center',
-    marginTop: 6,
-  },
-  rewardCard: {
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#1D4ED8',
-    backgroundColor: '#0B264A',
-    padding: 14,
-    marginBottom: 10,
-    alignItems: 'center',
-    gap: 4,
-  },
-  rewardTitle: {
-    color: '#DBEAFE',
-    fontWeight: '800',
-    fontSize: 19,
-  },
-  rewardXp: {
-    color: '#7DD3FC',
-    fontWeight: '800',
-    fontSize: 24,
-  },
-  rewardMeta: {
-    color: '#BFDBFE',
-    fontSize: 13,
-    fontWeight: '600',
-  },
+  // Misc
+  placeholderTab: { flex: 1, alignItems: "center", justifyContent: "center", padding: 28, gap: 8 },
+  placeholderTitle: { fontSize: 18, fontWeight: "800", color: "#F0F4FF", marginBottom: 8, textAlign: "center" },
+  placeholderSub: { fontSize: 13, color: "#4B5680", textAlign: "center", lineHeight: 20 },
+  errorBanner: { backgroundColor: "#EF444418", borderWidth: 1, borderColor: "#EF444440", borderRadius: 12, padding: 10, marginBottom: 14 },
+  errorText: { fontSize: 12, color: "#FCA5A5", textAlign: "center" },
+  errorTitle: { fontSize: 16, fontWeight: "800", color: "#F0F4FF", marginTop: 12, marginBottom: 6 },
+  loadingText: { marginTop: 14, fontSize: 15, color: "#F0F4FF", fontWeight: "700" },
+  loadingSubText: { marginTop: 6, fontSize: 12, color: "#4B5680" },
+  badgeToastWrap: { position: "absolute", top: 80, left: 0, right: 0, alignItems: "center", zIndex: 999 },
+  badgeToast: { backgroundColor: "#1F1535", borderWidth: 1, borderColor: "#7C3AED", borderRadius: 18, padding: 14, flexDirection: "row", alignItems: "center", gap: 12, shadowColor: "#7C3AED", shadowOpacity: 0.4, shadowOffset: { width: 0, height: 8 }, shadowRadius: 24, elevation: 16, minWidth: 260 },
+  badgeToastLabel: { fontSize: 10, color: "#A78BFA", letterSpacing: 2, textTransform: "uppercase" },
+  badgeToastTitle: { fontSize: 15, fontWeight: "900", color: "#E2E8F0" },
+  badgeToastDesc: { fontSize: 11, color: "#4B5680" },
 });

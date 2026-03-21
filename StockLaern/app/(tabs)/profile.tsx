@@ -97,7 +97,7 @@ export default function ProfileScreen() {
                     </View>
                   ))}
                 </View>
-                <Text style={styles.streakHint}>Keep your streak alive by finishing a lesson and a quiz today.</Text>
+                <Text style={styles.streakHint}>Keep your streak alive by finishing a lesson today.</Text>
               </>
             )}
           </View>

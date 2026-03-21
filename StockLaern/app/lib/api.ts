@@ -17,14 +17,11 @@ export async function apiFetch<T>(
   options: RequestInit = {},
   accessToken?: string | null,
 ): Promise<T> {
-  const tzOffset = new Date().getTimezoneOffset();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...NGROK_HEADERS,
     ...(options.headers as Record<string, string>),
   };
-
-  headers["x-client-tz-offset"] = String(tzOffset);
 
   if (accessToken) {
     headers.Authorization = `Bearer ${accessToken}`;
