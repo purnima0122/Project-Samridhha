@@ -7,9 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "stocklearn",
     "userInterfaceStyle": "light",
-    "ios": {
-      
-    },
+    "ios": {},
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
@@ -31,6 +29,16 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {
+        "origin": false,
+        "asyncRoutes": true
+      },
+      "eas": {
+        "projectId": "b722f1af-34bf-4d15-b0d1-33206749a0d0"
+      }
+    },
+    "owner": "kanchi11"
   }
 }

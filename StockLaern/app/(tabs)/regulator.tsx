@@ -1,5 +1,5 @@
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
     Dimensions,
@@ -9,9 +9,11 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
+import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { BarChart, PieChart } from "react-native-chart-kit";
 import HeaderBar from "../components/HeaderBar";
+import { useAuth } from "../context/AuthContext";
 import { apiFetch } from "../lib/api";
 
 // ─── Dimensions ───────────────────────────────────────────────────────────────
@@ -321,6 +323,17 @@ const tp = StyleSheet.create({
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function RegulatorScreen() {
+    const router = useRouter();
+    const { email, isAdmin } = useAuth();
+    const isRegulator = useMemo(() => {
+        const normalizedEmail = email?.trim().toLowerCase() ?? "";
+        return (
+            Boolean(isAdmin) ||
+            normalizedEmail === "user@kathmandu.gov.np" ||
+            normalizedEmail.endsWith("@kathmandu.gov.np")
+        );
+    }, [email, isAdmin]);
+
     const [wards, setWards] = useState<WardStat[]>([]);
     const [totalUsers, setTotalUsers] = useState<number | undefined>(undefined);
     const [loading, setLoading] = useState(true);
@@ -328,6 +341,12 @@ export default function RegulatorScreen() {
     const [literacy, setLiteracy] = useState<LiteracyTopicStat[]>(FALLBACK_LITERACY);
     const [wardChart, setWardChart] = useState<"bar" | "pie">("bar");
     const [litChart, setLitChart] = useState<"bar" | "pie">("bar");
+
+    useEffect(() => {
+        if (!isRegulator) {
+            router.replace("/dashboard");
+        }
+    }, [isRegulator, router]);
 
     useEffect(() => {
         let alive = true;
@@ -367,6 +386,14 @@ export default function RegulatorScreen() {
     const topWard = wards.length
         ? wards.reduce((a, b) => (a.userCount > b.userCount ? a : b))
         : null;
+
+    if (!isRegulator) {
+        return (
+            <View style={s.accessDeniedWrapper}>
+                <Text style={s.accessDeniedText}>Regulator access is restricted.</Text>
+            </View>
+        );
+    }
 
     // ── Ward chart data ──
     const wardBarData = {
@@ -687,6 +714,20 @@ const s = StyleSheet.create({
 
     // ── Body ──
     body: { paddingHorizontal: H_PAD, paddingTop: 20 },
+
+    accessDeniedWrapper: {
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: "#F8FAFC",
+        padding: 20,
+    },
+    accessDeniedText: {
+        fontSize: 16,
+        fontWeight: "700",
+        color: "#EF4444",
+        textAlign: "center",
+    },
 
     // ── Banners ──
     infoBanner: {
