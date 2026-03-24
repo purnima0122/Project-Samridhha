@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "TechProject",
-    "slug": "techproject",
+    "slug": "stocklearn",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -36,9 +36,9 @@
         "asyncRoutes": true
       },
       "eas": {
-        "projectId": "b722f1af-34bf-4d15-b0d1-33206749a0d0"
+        "projectId": "2631d437-ad73-49ed-95cc-fcc053850ed9"
       }
     },
-    "owner": "kanchi11"
+    "owner": "purnima0122s-organization"
   }
 }
