@@ -3,6 +3,7 @@ import type { ComponentProps } from "react";
 import { Tabs } from "expo-router";
 import { View } from "react-native";
 import { DataServerProvider } from "../context/DataServerContext";
+import { useAuth } from "../context/AuthContext";
 
 type TabIconProps = {
   name: ComponentProps<typeof Feather>["name"];
@@ -35,6 +36,12 @@ function TabIcon({ name, color, size, focused }: TabIconProps) {
 }
 
 function TabLayoutInner() {
+  const { email, isAdmin } = useAuth();
+  const showRegulatorTab =
+    Boolean(isAdmin) ||
+    Boolean(email?.trim().toLowerCase() === "user@kathmandu.gov.np") ||
+    Boolean(email?.trim().toLowerCase().endsWith("@kathmandu.gov.np"));
+
   return (
     <Tabs
       screenOptions={{
@@ -71,6 +78,17 @@ function TabLayoutInner() {
           ),
         }}
       />
+      {showRegulatorTab && (
+        <Tabs.Screen
+          name="regulator"
+          options={{
+            title: "Regulator",
+            tabBarIcon: ({ color, size, focused }: TabBarIconRenderProps) => (
+              <TabIcon name="shield" color={color} size={size} focused={focused} />
+            ),
+          }}
+        />
+      )}
       <Tabs.Screen
         name="learn"
         options={{
