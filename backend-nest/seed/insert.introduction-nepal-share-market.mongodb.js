@@ -3,38 +3,71 @@
 // load("backend-nest/seed/insert.introduction-nepal-share-market.mongodb.js")
 
 db.lessons.insertOne({
+  slug: "introduction-nepal-share-market-basics-part-1",
   title: "Introduction to Nepal Share Market (Basics - Part 1)",
-  module: "beginner",
+  topic: "Nepal Financial Literacy",
+  topicSlug: "nepal-financial-literacy",
+  module: "Nepal Share Market",
+  moduleSlug: "nepal-share-market",
+  summary: "Get the big picture of what the Nepal share market is and why it matters.",
   content:
-    "Microlearning Module 1: What is a Share Market?\n" +
-    "Concept Card 1: A share market is a place where people buy and sell shares of companies.\n" +
-    "Concept Card 2: When you buy a share, you become a partial owner of that company.\n" +
-    "Concept Card 3: Companies sell shares to raise money for business growth.\n" +
-    "In-App Example Prompt: If you buy 10 shares of a bank, you own a small portion of that bank.\n\n" +
-    "Microlearning Module 2: Why is Share Market Important?\n" +
-    "Concept Card 1: The share market is a source of investment for individuals.\n" +
-    "Concept Card 2: It is also a source of income for the government through taxes, fees, and economic activity.\n" +
-    "Concept Card 3: A strong share market supports economic growth.\n\n" +
-    "Microlearning Module 3: Role of Foreign Investment\n" +
-    "Concept Card 1: Share markets attract foreign investors.\n" +
-    "Concept Card 2: Foreign investment brings capital into the country.\n" +
-    "Concept Card 3: More investment leads to more business growth and a stronger economy.\n\n" +
-    "Microlearning Module 4: Why Should We Invest?\n" +
-    "Concept Card 1: Investing helps grow your money over time.\n" +
-    "Concept Card 2: Instead of keeping money idle, you can invest it to earn returns.\n" +
-    "Concept Card 3: Share market investment is one way to participate in economic growth.\n\n" +
-    "Quick Recap:\n" +
-    "Share market means buying and selling company shares.\n" +
-    "A share represents ownership in a company.\n" +
-    "Share markets help government revenue and economic growth.\n" +
-    "Foreign investment supports business growth.\n" +
-    "Investing helps build long-term wealth.",
+    "Topic: Nepal Financial Literacy\n" +
+    "Chapter: Nepal Share Market\n" +
+    "Lesson: Introduction to Nepal Share Market (Basics - Part 1)\n" +
+    "Overview: Get the big picture of what the Nepal share market is and why it matters.\n" +
+    "Concept Card 1: When people buy and sell company ownership in Nepal, what kind of market are they using?\n" +
+    "Flip Answer 1: A share market is a place where people buy and sell shares of companies.\n" +
+    "Concept Card 2: If you buy 10 shares of a bank, what do you actually become?\n" +
+    "Flip Answer 2: When you buy a share, you become a partial owner of that company.\n" +
+    "Concept Card 3: Why would a company sell shares to the public?\n" +
+    "Flip Answer 3: Companies sell shares to raise money for business growth.\n" +
+    "Concept Card 4: Besides investors, how can the share market help the wider economy?\n" +
+    "Flip Answer 4: The share market is a source of investment, government revenue through taxes and fees, and broader economic activity.\n" +
+    "Concept Card 5: Why does foreign investment matter in the share market?\n" +
+    "Flip Answer 5: Foreign investment brings capital into the country and can support business growth and a stronger economy.\n" +
+    "Concept Card 6: Why invest instead of leaving money idle?\n" +
+    "Flip Answer 6: Investing helps grow your money over time and lets you participate in economic growth.",
   videoUrl: "https://www.youtube.com/watch?v=0HuYEOO2r1g",
-  color: "#0B3B78",
-  icon: "BookOpen",
+  color: "#8B5CF6",
+  icon: "TrendingUp",
   order: 0,
   duration: 12,
   isPublished: true,
+  flashcards: [
+    {
+      prompt: "When people buy and sell company ownership in Nepal, what kind of market are they using?",
+      answer: "A share market is a place where people buy and sell shares of companies.",
+      tag: "Share Market",
+    },
+    {
+      prompt: "If you buy 10 shares of a bank, what do you actually become?",
+      answer: "When you buy a share, you become a partial owner of that company.",
+      tag: "Ownership",
+    },
+    {
+      prompt: "Why would a company sell shares to the public?",
+      answer: "Companies sell shares to raise money for business growth.",
+      tag: "Capital Raising",
+    },
+    {
+      prompt: "Besides investors, how can the share market help the wider economy?",
+      answer:
+        "The share market is a source of investment, government revenue through taxes and fees, and broader economic activity.",
+      tag: "Economic Role",
+    },
+    {
+      prompt: "Why does foreign investment matter in the share market?",
+      answer:
+        "Foreign investment brings capital into the country and can support business growth and a stronger economy.",
+      tag: "Foreign Investment",
+    },
+    {
+      prompt: "Why invest instead of leaving money idle?",
+      answer:
+        "Investing helps grow your money over time and lets you participate in economic growth.",
+      tag: "Why Invest",
+    },
+  ],
   quiz: [
     {
       prompt: "What is a share?",

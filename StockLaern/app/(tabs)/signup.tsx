@@ -83,7 +83,6 @@ export default function SignupScreen() {
         isAdmin: Boolean(loginData.isAdmin),
       });
       setStatus({ type: "success", message: "Signup successful. Redirecting..." });
-      router.replace("/dashboard");
     } catch (error: any) {
       setStatus({ type: "error", message: error?.message || "Signup failed." });
     } finally {

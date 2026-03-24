@@ -51,14 +51,29 @@ export const VaultFactSchema = SchemaFactory.createForClass(VaultFact);
 
 @Schema({ timestamps: true })
 export class Lesson {
+  @Prop()
+  slug?: string;
+
   @Prop({ required: true })
   title: string;
+
+  @Prop()
+  topic?: string;
+
+  @Prop()
+  topicSlug?: string;
 
   @Prop({ required: true })
   module: string;
 
+  @Prop()
+  moduleSlug?: string;
+
   @Prop({ type: Types.ObjectId, ref: 'LearningModule' })
   moduleId?: Types.ObjectId;
+
+  @Prop({ default: '' })
+  summary: string;
 
   @Prop({ required: true })
   content: string;
@@ -101,3 +116,14 @@ export class Lesson {
 }
 
 export const LessonSchema = SchemaFactory.createForClass(Lesson);
+
+LessonSchema.index(
+  { moduleSlug: 1, slug: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      moduleSlug: { $type: 'string' },
+      slug: { $type: 'string' },
+    },
+  },
+);

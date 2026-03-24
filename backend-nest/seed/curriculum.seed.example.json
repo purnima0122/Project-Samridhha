@@ -1,0 +1,99 @@
+{
+  "topic": {
+    "title": "Nepal Share Market",
+    "slug": "nepal-share-market",
+    "shortInfo": "Learn the NEPSE journey from beginner concepts to confident investing."
+  },
+  "chapters": [
+    {
+      "title": "Share Market Basics",
+      "slug": "share-market-basics",
+      "shortInfo": "Start with ownership, shares, and why markets exist.",
+      "order": 1,
+      "color": "#8B5CF6",
+      "darkColor": "#6D28D9",
+      "emoji": "📈",
+      "lessons": [
+        {
+          "title": "What Is a Share?",
+          "slug": "what-is-a-share",
+          "summary": "Understand what owning a share means in real life.",
+          "order": 1,
+          "duration": 4,
+          "xp": 50,
+          "icon": "TrendingUp",
+          "cards": [
+            {
+              "front": "Imagine a bakery in Kathmandu lets 100 people each own a tiny piece of it. What is each piece called?",
+              "back": "That piece is a share. Buying one means you own a small part of the business.",
+              "label": "Ownership"
+            },
+            {
+              "front": "Why would a company sell shares instead of asking only banks for money?",
+              "back": "Selling shares helps a company raise money from the public without taking only loan-based financing.",
+              "label": "Capital raising"
+            }
+          ],
+          "quiz": [
+            {
+              "question": "If you buy a share, what do you get?",
+              "choices": [
+                "A salary from the company",
+                "Part ownership in the company",
+                "A bank loan",
+                "A government license"
+              ],
+              "correctIndex": 1,
+              "explanation": "A share represents ownership, even if the ownership is very small."
+            },
+            {
+              "question": "Why do companies issue shares?",
+              "choices": [
+                "To raise capital",
+                "To close the business",
+                "To avoid all taxes",
+                "To remove customers"
+              ],
+              "correctIndex": 0,
+              "explanation": "Shares are one way for companies to raise funds for growth."
+            }
+          ]
+        },
+        {
+          "title": "What Is NEPSE?",
+          "slug": "what-is-nepse",
+          "summary": "Learn what the Nepal Stock Exchange does.",
+          "order": 2,
+          "duration": 5,
+          "xp": 50,
+          "icon": "TrendingUp",
+          "cards": [
+            {
+              "front": "You want to buy or sell shares in Nepal. Where would those trades be organized?",
+              "back": "They are organized through NEPSE, the Nepal Stock Exchange.",
+              "label": "Exchange"
+            },
+            {
+              "front": "Why is a stock exchange useful to investors and companies?",
+              "back": "It creates an organized market where shares can be bought, sold, and priced transparently.",
+              "label": "Market role"
+            }
+          ],
+          "quiz": [
+            {
+              "question": "NEPSE is:",
+              "choices": [
+                "Nepal's central bank",
+                "Nepal's stock exchange",
+                "A mutual fund",
+                "A tax office"
+              ],
+              "correctIndex": 1,
+              "explanation": "NEPSE is the stock exchange where listed shares are traded in Nepal."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

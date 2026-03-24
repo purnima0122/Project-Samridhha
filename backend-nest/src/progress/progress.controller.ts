@@ -48,6 +48,24 @@ export class ProgressController {
     return this.progressService.getGamificationSummary(req.userId);
   }
 
+  @UseGuards(AuthGuard)
+  @Get('check-streak')
+  checkStreak(@Req() req) {
+    return this.progressService.checkAndUpdateStreak(req.userId);
+  }
+
+  @UseGuards(AuthGuard)
+  @Get('badges/check')
+  checkBadges(@Req() req) {
+    return this.progressService.checkBadges(req.userId);
+  }
+
+  @UseGuards(AuthGuard)
+  @Post('badges/:badgeId/seen')
+  markBadgeSeen(@Req() req, @Param('badgeId') badgeId: string) {
+    return this.progressService.markBadgeSeen(req.userId, badgeId);
+  }
+
   // Summary for progress bars
   @UseGuards(AuthGuard)
   @Get('summary')

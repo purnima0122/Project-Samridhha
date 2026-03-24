@@ -1,8 +1,7 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "./context/AuthContext";
-import { apiFetch } from "./lib/api";
 
 function firstValue(value?: string | string[]): string | null {
   if (Array.isArray(value)) return value[0] ?? null;
@@ -10,7 +9,6 @@ function firstValue(value?: string | string[]): string | null {
 }
 
 export default function AuthRedirectScreen() {
-  const router = useRouter();
   const params = useLocalSearchParams<{
     accessToken?: string | string[];
     refreshToken?: string | string[];
@@ -19,7 +17,7 @@ export default function AuthRedirectScreen() {
     name?: string | string[];
     isAdmin?: string | string[];
   }>();
-  const { accessToken, refreshToken, userId, signIn, updateUser } = useAuth();
+  const { accessToken, refreshToken, userId, signIn } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const processedRef = useRef(false);
 
@@ -43,7 +41,6 @@ export default function AuthRedirectScreen() {
     if (!authPayload.accessToken || !authPayload.refreshToken || !authPayload.userId) {
       if (accessToken && refreshToken && userId) {
         processedRef.current = true;
-        router.replace("/dashboard");
         return;
       }
       setError("Missing login details from Google redirect. Please try again.");
@@ -56,7 +53,6 @@ export default function AuthRedirectScreen() {
       userId === authPayload.userId
     ) {
       processedRef.current = true;
-      router.replace("/dashboard");
       return;
     }
 
@@ -69,37 +65,7 @@ export default function AuthRedirectScreen() {
       userName: authPayload.userName,
       isAdmin: authPayload.isAdmin === "true",
     });
-    const resolveNextRoute = async () => {
-      try {
-        const profile = await apiFetch<{
-          isProfileComplete: boolean;
-          name?: string;
-          email?: string;
-          number?: string;
-          address?: string;
-          wardNo?: string;
-          isAdmin?: boolean;
-        }>("/users/me", {}, authPayload.accessToken);
-        updateUser({
-          userName: profile.name ?? authPayload.userName ?? null,
-          email: profile.email ?? authPayload.email ?? null,
-          isAdmin: Boolean(profile.isAdmin),
-        });
-        const needsProfile =
-          !profile.isProfileComplete ||
-          !profile.name ||
-          !profile.number ||
-          !profile.address ||
-          !profile.wardNo;
-        router.replace(needsProfile ? "/complete-profile" : "/dashboard");
-      } catch {
-        // Fail closed for onboarding when profile lookup fails during callback.
-        router.replace("/complete-profile");
-      }
-    };
-
-    void resolveNextRoute();
-  }, [accessToken, authPayload, refreshToken, router, signIn, updateUser, userId]);
+  }, [accessToken, authPayload, refreshToken, signIn, userId]);
 
   return (
     <View style={styles.container}>

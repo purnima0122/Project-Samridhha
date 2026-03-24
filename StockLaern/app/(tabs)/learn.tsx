@@ -1,5 +1,5 @@
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -17,6 +17,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import HeaderBar from "../components/HeaderBar";
 import TopRightMenu from "../components/TopRightMenu";
 import { useAuth } from "../context/AuthContext";
+import { useGamification } from "../context/GamificationContext";
 import { apiFetch } from "../lib/api";
 
 /* -- Design Tokens (matches web app) ---------------------- */
@@ -102,9 +103,8 @@ interface GameState {
   perfectQuizzes: number;
   totalFlips: number;
   vaultsOpened: number;
-  earnedBadges: Set<string>;
   badges: string[];
-  weeklyProgress: Array<{ label: string; completed: boolean }>;
+  weeklyProgress: { label: string; completed: boolean }[];
 }
 
 type BadgeDef = {
@@ -120,65 +120,50 @@ const BADGES: BadgeDef[] = [
   {
     id: "first_lesson",
     icon: "mdi:sprout",
-    title: "First Steps",
+    title: "First Step",
     desc: "Complete your first lesson",
-    condition: (s) => s.completedQuests.size >= 1,
   },
   {
     id: "lessons_5",
     icon: "mdi:run-fast",
-    title: "Momentum",
+    title: "Momentum Builder",
     desc: "Complete 5 lessons",
-    condition: (s) => s.completedQuests.size >= 5,
   },
   {
-    id: "streak_3",
-    icon: "mdi:fire",
-    title: "On Fire",
-    desc: "3-day streak",
-    condition: (s) => s.streak >= 3,
+    id: "lessons_10",
+    icon: "mdi:book-open-page-variant",
+    title: "Knowledge Seeker",
+    desc: "Complete 10 lessons",
   },
   {
     id: "streak_7",
-    icon: "mdi:lightning-bolt",
+    icon: "mdi:fire",
     title: "Lightning",
     desc: "7-day streak",
-    condition: (s) => s.streak >= 7,
   },
   {
-    id: "xp_100",
-    icon: "mdi:star-circle",
-    title: "Rising Star",
-    desc: "Earn 100 XP",
-    condition: (s) => s.xp >= 100,
+    id: "streak_14_refill",
+    icon: "mdi:snowflake",
+    title: "Freeze Refill",
+    desc: "Reach 14 streak days after using a freeze",
   },
   {
-    id: "xp_300",
-    icon: "mdi:school",
-    title: "Scholar",
-    desc: "Earn 300 XP",
-    condition: (s) => s.xp >= 300,
+    id: "streak_30",
+    icon: "mdi:lightning-bolt",
+    title: "Monthly Master",
+    desc: "30-day streak",
   },
   {
-    id: "quiz_perfect",
+    id: "quiz_50",
     icon: "mdi:target",
-    title: "Sharpshooter",
-    desc: "100% on a quiz",
-    condition: (s) => s.perfectQuizzes >= 1,
+    title: "Quiz Ace",
+    desc: "Answer 50 quiz questions correctly",
   },
   {
-    id: "flashcard_flip",
-    icon: "mdi:cards",
-    title: "Card Shark",
-    desc: "Flip 20 flashcards",
-    condition: (s) => s.totalFlips >= 20,
-  },
-  {
-    id: "vault_open",
-    icon: "mdi:safe",
-    title: "Vault Hunter",
-    desc: "Open your first vault",
-    condition: (s) => s.vaultsOpened >= 1,
+    id: "course_completed",
+    icon: "mdi:school",
+    title: "Course Completed",
+    desc: "Finish every published lesson",
   },
 ];
 
@@ -668,7 +653,8 @@ function ProfileTab({ gs, totalStars }: { gs: GameState; totalStars: number }) {
 
 /* -- Badges Tab ------------------------------------------- */
 function BadgesTab({ gs, badgeCatalog }: { gs: GameState; badgeCatalog: BadgeDef[] }) {
-  const earnedCount = badgeCatalog.filter((b) => b.condition && b.condition(gs)).length;
+  const earnedBadgeIds = new Set(gs.badges);
+  const earnedCount = badgeCatalog.filter((b) => earnedBadgeIds.has(b.id)).length;
   const weekly = gs.weeklyProgress.length === 7
     ? gs.weeklyProgress
     : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((label, i) => ({ label, completed: i < gs.streak }));
@@ -703,7 +689,7 @@ function BadgesTab({ gs, badgeCatalog }: { gs: GameState; badgeCatalog: BadgeDef
       <Text style={[s.placeholderSub, { marginBottom: 12 }]}>Badges - {earnedCount}/{badgeCatalog.length} earned</Text>
       <View style={s.badgeGrid}>
         {badgeCatalog.map((b) => {
-          const isEarned = b.condition ? b.condition(gs) : false;
+          const isEarned = earnedBadgeIds.has(b.id);
           return (
             <View
               key={b.id}
@@ -1033,23 +1019,10 @@ function VaultModal({ visible, chapter, quest, onExit, onComplete }: any) {
   );
 }
 
-/* -- Badge Toast ------------------------------------------ */
-function BadgeToast({ badge }: { badge: BadgeDef | null }) {
-  if (!badge) return null;
-  return (
-    <View style={s.badgeToast}>
-      <Ico name={badge.icon} size={32} color="#C4B5FD" />
-      <View style={{ flex: 1 }}>
-        <Text style={s.badgeToastLabel}>Badge Unlocked!</Text>
-        <Text style={s.badgeToastTitle}>{badge.title}</Text>
-        <Text style={s.badgeToastDesc}>{badge.desc}</Text>
-      </View>
-    </View>
-  );
-}
 /* -- Main Screen ------------------------------------------ */
 export default function LearnScreen() {
   const { accessToken } = useAuth();
+  const { applyGamificationSnapshot, queueBadges } = useGamification();
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -1069,7 +1042,6 @@ export default function LearnScreen() {
   const [quizStars, setQuizStars] = useState(0);
   const [quizAnswers, setQuizAnswers] = useState<number[]>([]);
 
-  const [badgeToast, setBadgeToast] = useState<BadgeDef | null>(null);
   const flashcardViewedRef = useRef(new Set<string>());
 
   const [gs, setGs] = useState<GameState>({
@@ -1084,7 +1056,6 @@ export default function LearnScreen() {
     perfectQuizzes: 0,
     totalFlips: 0,
     vaultsOpened: 0,
-    earnedBadges: new Set(),
     badges: [],
     weeklyProgress: [],
   });
@@ -1095,13 +1066,13 @@ export default function LearnScreen() {
       icon: "mdi:trophy",
       title: `${ch.title} Champ`,
       desc: `Complete ${ch.title}`,
-      condition: (s) => ch.quests.every((q) => s.completedQuests.has(q.id)),
     }));
     return [...BADGES, ...chapterBadges];
   }, [chapters]);
 
-  function applyGamification(snap: any) {
+  const applyGamification = useCallback((snap: any) => {
     if (!snap) return;
+    applyGamificationSnapshot(snap);
     setGs((prev) => ({
       ...prev,
       xp: pn(snap.xp, prev.xp),
@@ -1113,9 +1084,9 @@ export default function LearnScreen() {
       badges: pa(snap.badges, prev.badges),
       weeklyProgress: pa(snap.weeklyProgress, prev.weeklyProgress),
     }));
-  }
+  }, [applyGamificationSnapshot]);
 
-  function hydrateProgress(progress: any[], gamification: any) {
+  const hydrateProgress = useCallback((progress: any[], gamification: any) => {
     const completed = progress.filter((p) => p.completed).map((p) => String(p.lessonId));
     const backendStars = progress.reduce((acc: Record<string, number>, p: any) => {
       if (p.bestScore > 0 && p.lessonId) acc[String(p.lessonId)] = calcStars(p.bestScore);
@@ -1128,7 +1099,7 @@ export default function LearnScreen() {
       questStars: { ...prev.questStars, ...backendStars },
     }));
     applyGamification(gamification);
-  }
+  }, [applyGamification]);
 
   useEffect(() => {
     let active = true;
@@ -1150,25 +1121,7 @@ export default function LearnScreen() {
     return () => {
       active = false;
     };
-  }, [accessToken]);
-
-  useEffect(() => {
-    const newlyEarned = badgeCatalog.filter(
-      (b) => !gs.earnedBadges.has(b.id) && b.condition && b.condition(gs),
-    );
-    if (newlyEarned.length) {
-      newlyEarned.forEach((b, i) => {
-        setTimeout(() => {
-          setBadgeToast(b);
-          setTimeout(() => setBadgeToast(null), 3000);
-        }, i * 3200);
-      });
-      setGs((prev) => ({
-        ...prev,
-        earnedBadges: new Set([...prev.earnedBadges, ...newlyEarned.map((b) => b.id)]),
-      }));
-    }
-  }, [badgeCatalog, gs.xp, gs.streak, gs.completedQuests.size, gs.perfectQuizzes, gs.totalFlips, gs.vaultsOpened]);
+  }, [accessToken, hydrateProgress]);
 
   useEffect(() => {
     if (questScreen !== "flashcard" || !activeQuest) return;
@@ -1178,9 +1131,10 @@ export default function LearnScreen() {
     apiFetch(`/progress/flashcard/${activeQuest.id}`, { method: "POST", body: JSON.stringify({ count: 1 }) }, accessToken)
       .then((p: any) => {
         if (p?.gamification) applyGamification(p.gamification);
+        if (p?.newBadges) queueBadges(p.newBadges);
       })
       .catch(() => {});
-  }, [questScreen, activeQuest, fcIdx, accessToken]);
+  }, [accessToken, activeQuest, applyGamification, fcIdx, questScreen, queueBadges]);
 
   const totalStars = Object.values(gs.questStars).reduce((a, s) => a + s, 0);
   const totalQuests = chapters.reduce((a, ch) => a + ch.quests.length, 0);
@@ -1246,7 +1200,13 @@ export default function LearnScreen() {
       return;
     }
     try {
-      await apiFetch(`/progress/complete/${activeQuest!.id}`, { method: "POST" }, accessToken);
+      const result: any = await apiFetch(
+        `/progress/complete/${activeQuest!.id}`,
+        { method: "POST" },
+        accessToken,
+      );
+      if (result?.gamification) applyGamification(result.gamification);
+      if (result?.newBadges) queueBadges(result.newBadges);
     } catch {}
     setGs((prev) => ({ ...prev, completedQuests: new Set([...prev.completedQuests, activeQuest!.id]) }));
     closeQuest();
@@ -1294,9 +1254,16 @@ export default function LearnScreen() {
         perfectQuizzes: prev.perfectQuizzes + (pct === 100 ? 1 : 0),
       }));
       applyGamification(result.gamification);
+      if (result?.newBadges) queueBadges(result.newBadges);
       if (result.passed) {
         try {
-          await apiFetch(`/progress/complete/${activeQuest.id}`, { method: "POST" }, accessToken);
+          const completion: any = await apiFetch(
+            `/progress/complete/${activeQuest.id}`,
+            { method: "POST" },
+            accessToken,
+          );
+          if (completion?.gamification) applyGamification(completion.gamification);
+          if (completion?.newBadges) queueBadges(completion.newBadges);
         } catch {}
         setGs((prev) => ({ ...prev, completedQuests: new Set([...prev.completedQuests, activeQuest.id]) }));
       }
@@ -1383,12 +1350,6 @@ export default function LearnScreen() {
         onExit={closeQuest}
         onComplete={handleVaultComplete}
       />
-
-      {badgeToast && (
-        <View style={s.badgeToastWrap} pointerEvents="none">
-          <BadgeToast badge={badgeToast} />
-        </View>
-      )}
     </View>
   );
 }

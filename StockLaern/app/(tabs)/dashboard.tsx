@@ -12,9 +12,11 @@ import {
 } from "react-native";
 import GuestAuthActions from "../components/GuestAuthActions";
 import HeaderBar from "../components/HeaderBar";
+import StreakDisplay from "../components/StreakDisplay";
 import TopRightMenu from "../components/TopRightMenu";
 import { useAuth } from "../context/AuthContext";
 import { useDataServer } from "../context/DataServerContext";
+import { useGamification } from "../context/GamificationContext";
 import { apiFetch } from "../lib/api";
 
 const FALLBACK_WATCHLIST_SYMBOLS = [
@@ -48,25 +50,6 @@ type DashboardData = {
   }[];
 };
 
-type WeeklyProgressDay = {
-  label: string;
-  date: string;
-  completed: boolean;
-  isToday: boolean;
-  status: "done" | "today" | "missed" | "locked";
-};
-
-type GamificationSummary = {
-  xp: number;
-  level: number;
-  streakDays: number;
-  streakFreezes: number;
-  maxStreakFreezes: number;
-  weeklyProgress: WeeklyProgressDay[];
-  nextLessonTitle: string | null;
-  streakMessage?: string;
-};
-
 export default function HomeScreen() {
   const router = useRouter();
   const {
@@ -75,6 +58,7 @@ export default function HomeScreen() {
     userName,
     email,
   } = useAuth();
+  const { gamification, streakCheck } = useGamification();
   const {
     ticks,
     stocks,
@@ -90,7 +74,6 @@ export default function HomeScreen() {
   } = useDataServer();
   const [loadingDashboard, setLoadingDashboard] = useState(false);
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
-  const [gamification, setGamification] = useState<GamificationSummary | null>(null);
   const [showTools, setShowTools] = useState(false);
   const [watchlistSelection, setWatchlistSelection] = useState<string[]>([]);
   const inUserMode = isAuthenticated;
@@ -110,20 +93,6 @@ export default function HomeScreen() {
     };
 
     loadDashboard();
-  }, [accessToken]);
-
-  useEffect(() => {
-    const loadGamification = async () => {
-      if (!accessToken) return;
-      try {
-        const data = await apiFetch<GamificationSummary>("/progress/gamification", {}, accessToken);
-        setGamification(data);
-      } catch (error) {
-        console.warn("Unable to load gamification summary", error);
-      }
-    };
-
-    loadGamification();
   }, [accessToken]);
 
   useEffect(() => {
@@ -292,10 +261,12 @@ export default function HomeScreen() {
         {inUserMode && (
           <>
             <View style={styles.streakHero}>
-              <View style={styles.streakHeroTop}>
-                <Text style={styles.streakCount}>{"\u{1F525}"} {gamification?.streakDays ?? 0} Day Streak</Text>
-                <Text style={styles.freezeCount}>{"\u{2744}\u{FE0F}"} {gamification?.streakFreezes ?? 3}/{gamification?.maxStreakFreezes ?? 3}</Text>
-              </View>
+              <StreakDisplay
+                streak={gamification?.streakDays ?? 0}
+                freezes={gamification?.streakFreezes ?? 0}
+                maxFreezes={gamification?.maxStreakFreezes ?? 3}
+                status={streakCheck?.status ?? gamification?.streakStatus ?? null}
+              />
               <Text style={styles.streakHint}>{gamification?.streakMessage ?? "Don't forget me today!"}</Text>
               <View style={styles.weekRow}>
                 {(gamification?.weeklyProgress ?? []).map((day) => (
@@ -588,13 +559,6 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 14,
   },
-  streakHeroTop: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  streakCount: { color: "#F8FAFC", fontSize: 20, fontWeight: "800" },
-  freezeCount: { color: "#BFDBFE", fontSize: 13, fontWeight: "700" },
   streakHint: { color: "#93C5FD", marginTop: 6, fontSize: 12, fontWeight: "600" },
   weekRow: { flexDirection: "row", gap: 8, marginTop: 10 },
   weekDay: {

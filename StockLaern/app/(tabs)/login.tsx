@@ -56,7 +56,6 @@ export default function LoginScreen() {
         isAdmin: Boolean(data.isAdmin),
       });
       setStatus({ type: "success", message: "Login successful." });
-      router.replace("/dashboard");
     } catch (error: any) {
       setStatus({ type: "error", message: error?.message || "Login failed." });
     } finally {

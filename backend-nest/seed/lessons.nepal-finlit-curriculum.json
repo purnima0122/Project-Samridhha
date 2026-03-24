@@ -1,857 +1,1397 @@
-[
-  {
-    "title": "Why Money Exists",
-    "module": "Money 101",
-    "content": "Money 101: What even IS money?\nLesson: Why Money Exists\nConcept Card 1: Trading goods directly without money. E.g., 5 apples for 2 eggs. Problem: You need someone who wants exactly what you have!\nConcept Card 2: A medium of exchange — something everyone agrees has value. It solves the barter problem by being accepted by everyone.\nConcept Card 3: 1. Medium of Exchange (buy/sell things)\n2. Unit of Account (measure value)\n3. Store of Value (save for later)\nConcept Card 4: There isn't enough of everything for everyone. Scarcity is the fundamental reason economics exists.\nQuick Recap: What is Barter? | What is Money? | 3 Functions of Money",
-    "color": "#F59E0B",
-    "icon": "BookOpen",
-    "order": 1,
-    "duration": 3,
-    "isPublished": true,
-    "quiz": [
-      {
-        "prompt": "What problem does money solve?",
-        "options": [
-          "Makes people rich",
-          "Solves the double coincidence of wants in barter",
-          "Controls inflation",
-          "Pays taxes"
-        ],
-        "correctOptionIndex": 1,
-        "explanation": ""
-      },
-      {
-        "prompt": "Which is NOT a function of money?",
-        "options": [
-          "Medium of exchange",
-          "Store of value",
-          "Source of happiness",
-          "Unit of account"
-        ],
-        "correctOptionIndex": 2,
-        "explanation": ""
-      },
-      {
-        "prompt": "Why does economics exist?",
-        "options": [
-          "Because of taxes",
-          "Because of scarcity",
-          "Because of banks",
-          "Because of debt"
-        ],
-        "correctOptionIndex": 1,
-        "explanation": ""
-      }
-    ]
+{
+  "topic": {
+    "title": "Nepal Financial Literacy",
+    "slug": "nepal-financial-literacy",
+    "shortInfo": "Structured money, banking, personal finance, investing, and NEPSE lessons for learners in Nepal."
   },
-  {
-    "title": "Nepali Currency: The Rupee",
-    "module": "Money 101",
-    "content": "Money 101: What even IS money?\nLesson: Nepali Currency: The Rupee\nConcept Card 1: Nepali Rupee — Nepal's official currency. Symbol: रू or Rs. Issued by Nepal Rastra Bank (NRB).\nConcept Card 2: Nepal's central bank, established 1956. Controls money supply, sets interest rates, and maintains currency stability.\nConcept Card 3: How much of one currency you get for another. E.g., 1 USD ≈ 133 NPR. Rates change daily based on trade and market forces.\nConcept Card 4: Because Nepal imports more than it exports, trade imbalance weakens NPR. Also tied closely to Indian Rupee (INR).\nQuick Recap: What is NPR? | What is Nepal Rastra Bank? | What is Exchange Rate?",
-    "color": "#F59E0B",
-    "icon": "BookOpen",
-    "order": 2,
-    "duration": 4,
-    "isPublished": true,
-    "quiz": [
-      {
-        "prompt": "Which institution issues Nepali currency?",
-        "options": [
-          "Government of Nepal",
-          "Nepal Rastra Bank",
-          "World Bank",
-          "IMF"
-        ],
-        "correctOptionIndex": 1,
-        "explanation": ""
-      },
-      {
-        "prompt": "Nepal's currency is pegged closely to:",
-        "options": [
-          "US Dollar",
-          "Chinese Yuan",
-          "Indian Rupee",
-          "Euro"
-        ],
-        "correctOptionIndex": 2,
-        "explanation": ""
-      },
-      {
-        "prompt": "Exchange rate means:",
-        "options": [
-          "Interest on loans",
-          "How much one currency buys of another",
-          "Tax rate on imports",
-          "Inflation percentage"
-        ],
-        "correctOptionIndex": 1,
-        "explanation": ""
-      }
-    ]
-  },
-  {
-    "title": "Inflation: Why Things Get Expensive",
-    "module": "Money 101",
-    "content": "Money 101: What even IS money?\nLesson: Inflation: Why Things Get Expensive\nConcept Card 1: The general rise in prices over time. If momo cost Rs.50 last year and Rs.60 now — that's 20% inflation on momos!\nConcept Card 2: 1. Too much money chasing too few goods\n2. Supply disruptions (less goods)\n3. Demand surge (more buyers)\n4. Import costs rising\nConcept Card 3: Consumer Price Index — measures inflation by tracking prices of a 'basket' of everyday goods like rice, oil, vegetables, transport.\nConcept Card 4: Your Rs.1,000 buys less every year. Savings lose purchasing power. Fixed-income earners suffer most.\nConcept Card 5: Mild inflation (2-4%) = healthy economy. High inflation (10%+) = economic stress. Deflation (negative) = also bad — people stop spending.\nQuick Recap: What is Inflation? | What causes Inflation? | What is CPI?",
-    "color": "#F59E0B",
-    "icon": "BookOpen",
-    "order": 3,
-    "duration": 5,
-    "isPublished": true,
-    "quiz": [
-      {
-        "prompt": "If your salary stays at Rs.50,000 but inflation is 10%, what happens?",
-        "options": [
-          "You become richer",
-          "Your buying power decreases",
-          "Prices fall",
-          "Nothing changes"
-        ],
-        "correctOptionIndex": 1,
-        "explanation": ""
-      },
-      {
-        "prompt": "What does CPI measure?",
-        "options": [
-          "Company profits",
-          "Currency exchange",
-          "Changes in prices of everyday goods",
-          "Bank interest rates"
-        ],
-        "correctOptionIndex": 2,
-        "explanation": ""
-      },
-      {
-        "prompt": "What is 'hyperinflation'?",
-        "options": [
-          "Mild price increase",
-          "Extremely rapid price increase (like Zimbabwe 2008)",
-          "Falling prices",
-          "Stable prices"
-        ],
-        "correctOptionIndex": 1,
-        "explanation": ""
-      }
-    ]
-  },
-  {
-    "title": "How Banks Work",
-    "module": "Banking Basics",
-    "content": "Banking Basics: Where does your money go?\nLesson: How Banks Work\nConcept Card 1: Banks take deposits from savers and lend that money to borrowers. They charge borrowers more interest than they pay savers — that's their profit.\nConcept Card 2: Banks only keep a fraction of deposits in cash. The rest is loaned out. If you deposit Rs.100, the bank might lend Rs.90 and keep Rs.10.\nConcept Card 3: When everyone tries to withdraw their money at once. Banks can't fulfill this because money is lent out. This caused collapses in the Great Depression.\nConcept Card 4: 1. Commercial Banks (e.g., NIC Asia, Nabil)\n2. Development Banks\n3. Finance Companies\n4. Microfinance Institutions\n5. Nepal Rastra Bank (central bank)\nQuick Recap: What do banks actually do? | What is Fractional Reserve Banking? | What is a Bank Run?",
-    "color": "#3B82F6",
-    "icon": "Shield",
-    "order": 4,
-    "duration": 4,
-    "isPublished": true,
-    "quiz": [
-      {
-        "prompt": "How do banks make profit?",
-        "options": [
-          "By printing money",
-          "Charging higher interest to borrowers than they pay savers",
-          "Government grants",
-          "Selling products"
-        ],
-        "correctOptionIndex": 1,
-        "explanation": ""
-      },
-      {
-        "prompt": "What is fractional reserve banking?",
-        "options": [
-          "Banks keep 100% of deposits",
-          "Banks lend out most deposits, keeping only a fraction",
-          "Banks invest in stocks",
-          "Banks charge fees only"
-        ],
-        "correctOptionIndex": 1,
-        "explanation": ""
-      },
-      {
-        "prompt": "Nepal's central bank is:",
-        "options": [
-          "Nabil Bank",
-          "Rastriya Banijya Bank",
-          "Nepal Rastra Bank",
-          "NIC Asia"
-        ],
-        "correctOptionIndex": 2,
-        "explanation": ""
-      }
-    ]
-  },
-  {
-    "title": "Savings vs Fixed Deposits",
-    "module": "Banking Basics",
-    "content": "Banking Basics: Where does your money go?\nLesson: Savings vs Fixed Deposits\nConcept Card 1: Flexible account. Withdraw anytime. Low interest (2-4% in Nepal). Good for emergency funds and daily expenses.\nConcept Card 2: Lock money for fixed period (3 months to 5 years). Higher interest (7-11% in Nepal). Penalty if withdrawn early.\nConcept Card 3: Depends on goal:\n• Need money soon → Savings Account\n• Won't need money for 1+ year → Fixed Deposit\n• Best strategy: Keep 3 months expenses in savings, rest in FD\nConcept Card 4: Real Return = Interest Rate - Inflation Rate\nIf FD gives 8% but inflation is 7%, your real return is just 1%. You barely grew your money!\nQuick Recap: Savings Account | Fixed Deposit (FD) | Which is better?",
-    "color": "#3B82F6",
-    "icon": "Shield",
-    "order": 5,
-    "duration": 4,
-    "isPublished": true,
-    "quiz": [
-      {
-        "prompt": "Which gives higher interest in Nepal?",
-        "options": [
-          "Savings account",
-          "Fixed deposit",
-          "Current account",
-          "Mobile wallet"
-        ],
-        "correctOptionIndex": 1,
-        "explanation": ""
-      },
-      {
-        "prompt": "If inflation is 8% and your FD rate is 9%, your real return is:",
-        "options": [
-          "17%",
-          "9%",
-          "1%",
-          "-1%"
-        ],
-        "correctOptionIndex": 2,
-        "explanation": ""
-      },
-      {
-        "prompt": "Emergency fund should ideally be in:",
-        "options": [
-          "Stock market",
-          "Fixed deposit",
-          "Savings/liquid account",
-          "Cryptocurrency"
-        ],
-        "correctOptionIndex": 2,
-        "explanation": ""
-      }
-    ]
-  },
-  {
-    "title": "Loans, EMI & Interest",
-    "module": "Banking Basics",
-    "content": "Banking Basics: Where does your money go?\nLesson: Loans, EMI & Interest\nConcept Card 1: Equated Monthly Installment. Fixed amount paid every month to repay a loan. Includes both principal and interest.\nConcept Card 2: Simple: Interest only on principal\nCompound: Interest on principal + previous interest\nCompound grows MUCH faster. Good for investing, bad for loans.\nConcept Card 3: Good Debt: Builds wealth (education loan, home loan)\nBad Debt: Loses value (loan for gadgets, luxury)\nWorst Debt: High-interest consumer loans (30%+ APR)\nConcept Card 4: Credit Information Bureau (CIB) tracks your loan repayment history. Good score = lower interest rates on future loans. Bad score = harder to borrow.\nQuick Recap: What is EMI? | Simple vs Compound Interest | Good Debt vs Bad Debt",
-    "color": "#3B82F6",
-    "icon": "Shield",
-    "order": 6,
-    "duration": 5,
-    "isPublished": true,
-    "quiz": [
-      {
-        "prompt": "What makes compound interest powerful?",
-        "options": [
-          "It's paid by government",
-          "Interest earns interest on itself",
-          "It reduces over time",
-          "Only banks use it"
-        ],
-        "correctOptionIndex": 1,
-        "explanation": ""
-      },
-      {
-        "prompt": "Which is considered 'bad debt'?",
-        "options": [
-          "Education loan",
-          "Home loan",
-          "Loan for a luxury phone",
-          "Business loan"
-        ],
-        "correctOptionIndex": 2,
-        "explanation": ""
-      },
-      {
-        "prompt": "CIB in Nepal tracks:",
-        "options": [
-          "Your tax payments",
-          "Your loan repayment history",
-          "Your savings balance",
-          "Your salary"
-        ],
-        "correctOptionIndex": 1,
-        "explanation": ""
-      }
-    ]
-  },
-  {
-    "title": "Income, Expenses & Budget",
-    "module": "Personal Finance",
-    "content": "Personal Finance: Master your own money first\nLesson: Income, Expenses & Budget\nConcept Card 1: Your take-home pay AFTER taxes. If salary is Rs.60,000 and tax is Rs.5,000, net income = Rs.55,000.\nConcept Card 2: 50% → Needs (rent, food, transport)\n30% → Wants (eating out, Netflix)\n20% → Savings & debt repayment\nA simple budget framework.\nConcept Card 3: Fixed: Same every month (rent, loan EMI)\nVariable: Changes monthly (groceries, entertainment)\nControl variable expenses to save more.\nConcept Card 4: Assign every rupee a job. Income - All Expenses = 0. Not because you spend everything, but because every rupee is allocated to SOMETHING (including savings).\nQuick Recap: What is Net Income? | 50/30/20 Rule | Fixed vs Variable Expenses",
-    "color": "#10B981",
-    "icon": "PieChart",
-    "order": 7,
-    "duration": 5,
-    "isPublished": true,
-    "quiz": [
-      {
-        "prompt": "In the 50/30/20 rule, 20% goes to:",
-        "options": [
-          "Wants",
-          "Needs",
-          "Savings & debt",
-          "Entertainment"
-        ],
-        "correctOptionIndex": 2,
-        "explanation": ""
-      },
-      {
-        "prompt": "Which is a FIXED expense?",
-        "options": [
-          "Grocery bill",
-          "Electricity bill",
-          "Monthly rent",
-          "Dining out"
-        ],
-        "correctOptionIndex": 2,
-        "explanation": ""
-      },
-      {
-        "prompt": "Net income is:",
-        "options": [
-          "Salary before tax",
-          "Salary after tax deductions",
-          "Business revenue",
-          "Bank interest earned"
-        ],
-        "correctOptionIndex": 1,
-        "explanation": ""
-      }
-    ]
-  },
-  {
-    "title": "Emergency Fund: Your Safety Net",
-    "module": "Personal Finance",
-    "content": "Personal Finance: Master your own money first\nLesson: Emergency Fund: Your Safety Net\nConcept Card 1: Money saved specifically for unexpected events: job loss, medical emergency, urgent repair. NOT for sales, trips, or impulse buys.\nConcept Card 2: 3-6 months of your monthly expenses. If you spend Rs.30,000/month, target Rs.90,000-1,80,000 in emergency fund.\nConcept Card 3: High-interest savings account or liquid mutual fund. NOT in stocks (can crash when you need it most). Must be accessible within 1-2 days.\nConcept Card 4: According to studies, most Nepalis can't cover a Rs.10,000 emergency without borrowing. Remittance-dependent families are especially vulnerable if the main earner falls ill.\nQuick Recap: What is an Emergency Fund? | How much should you save? | Where to keep emergency fund?",
-    "color": "#10B981",
-    "icon": "PieChart",
-    "order": 8,
-    "duration": 4,
-    "isPublished": true,
-    "quiz": [
-      {
-        "prompt": "Emergency fund should cover how many months of expenses?",
-        "options": [
-          "1 month",
-          "3-6 months",
-          "10 months",
-          "12 months"
-        ],
-        "correctOptionIndex": 1,
-        "explanation": ""
-      },
-      {
-        "prompt": "Where should you NOT keep your emergency fund?",
-        "options": [
-          "Savings account",
-          "Liquid mutual fund",
-          "Stock market",
-          "Money market account"
-        ],
-        "correctOptionIndex": 2,
-        "explanation": ""
-      },
-      {
-        "prompt": "Emergency fund is for:",
-        "options": [
-          "Vacations",
-          "Festival shopping",
-          "Medical emergencies and job loss",
-          "Buying a new phone"
-        ],
-        "correctOptionIndex": 2,
-        "explanation": ""
-      }
-    ]
-  },
-  {
-    "title": "FOMO, Lifestyle Inflation & Traps",
-    "module": "Personal Finance",
-    "content": "Personal Finance: Master your own money first\nLesson: FOMO, Lifestyle Inflation & Traps\nConcept Card 1: Fear of Missing Out. Seeing friends buy iPhones, go to Maldives, drive new cars — and feeling pressure to match them. Leads to overspending and debt.\nConcept Card 2: When income rises, expenses rise to match it. Earned Rs.10,000 more? Suddenly 'need' a better phone, fancier food, pricier rent. Net savings = same as before.\nConcept Card 3: Social media shows you the highlight reel. That friend in Maldives might have credit card debt. That new car might be on a 7-year loan. Compare outcomes, not appearances.\nConcept Card 4: Continuing something bad because you already invested in it. 'I paid Rs.5,000 for this course so I must finish it.' The Rs.5,000 is gone either way — make the best decision NOW.\nQuick Recap: What is FOMO? | Lifestyle Inflation | The Comparison Trap",
-    "color": "#10B981",
-    "icon": "PieChart",
-    "order": 9,
-    "duration": 5,
-    "isPublished": true,
-    "quiz": [
-      {
-        "prompt": "Lifestyle inflation means:",
-        "options": [
-          "Prices rising due to imports",
-          "Expenses growing as fast as income, with no net savings gain",
-          "Earning more money",
-          "Paying more taxes"
-        ],
-        "correctOptionIndex": 1,
-        "explanation": ""
-      },
-      {
-        "prompt": "The sunk cost fallacy is:",
-        "options": [
-          "Investing in stocks",
-          "Continuing a bad decision because of past investment",
-          "Paying off debt early",
-          "Compound interest"
-        ],
-        "correctOptionIndex": 1,
-        "explanation": ""
-      },
-      {
-        "prompt": "To avoid FOMO-spending, you should:",
-        "options": [
-          "Copy your richest friend's lifestyle",
-          "Compare your financial progress to your own past self",
-          "Buy everything on EMI",
-          "Stop saving"
-        ],
-        "correctOptionIndex": 1,
-        "explanation": ""
-      }
-    ]
-  },
-  {
-    "title": "What is the Share Market?",
-    "module": "Nepal Share Market",
-    "content": "Nepal Share Market: NEPSE — Nepal's stock exchange\nLesson: What is the Share Market?\nConcept Card 1: A small ownership piece of a company. If Nabil Bank has 1 crore shares and you own 100, you own 0.0001% of Nabil Bank and share in its profits.\nConcept Card 2: Nepal Stock Exchange. Nepal's only stock exchange where shares are bought and sold. Located in Kathmandu, established in 1993.\nConcept Card 3: To raise capital (money) from the public without taking loans. You give them money; they give you ownership shares. Win-win if the company grows.\nConcept Card 4: Bull Market: Prices rising, optimism, everyone buying\nBear Market: Prices falling, fear, everyone selling\nNEPSE has experienced both dramatically — 2020-21 was a major bull run.\nQuick Recap: What is a Share? | What is NEPSE? | Why do companies list on NEPSE?",
-    "color": "#8B5CF6",
-    "icon": "TrendingUp",
-    "order": 10,
-    "duration": 5,
-    "isPublished": true,
-    "quiz": [
-      {
-        "prompt": "NEPSE stands for:",
-        "options": [
-          "Nepal Economic Policy System Exchange",
-          "Nepal Stock Exchange",
-          "National Exchange for Public Securities",
-          "Nepal Securities Exchange Platform"
-        ],
-        "correctOptionIndex": 1,
-        "explanation": ""
-      },
-      {
-        "prompt": "If you buy 10 shares of a company, you become:",
-        "options": [
-          "A lender",
-          "A creditor",
-          "A part owner",
-          "An employee"
-        ],
-        "correctOptionIndex": 2,
-        "explanation": ""
-      },
-      {
-        "prompt": "A bear market means:",
-        "options": [
-          "Stock prices are rising",
-          "Stock prices are falling",
-          "A new stock is listed",
-          "Dividend is announced"
-        ],
-        "correctOptionIndex": 1,
-        "explanation": ""
-      }
-    ]
-  },
-  {
-    "title": "IPO: Getting In Early",
-    "module": "Nepal Share Market",
-    "content": "Nepal Share Market: NEPSE — Nepal's stock exchange\nLesson: IPO: Getting In Early\nConcept Card 1: Initial Public Offering. The FIRST time a company sells shares to the public. Nepal's IPO culture is massive — people apply hoping for allotment and quick profit.\nConcept Card 2: 1. Open DEMAT account (Mero Share)\n2. Link bank account\n3. Apply via Mero Share app during open window\n4. Pay application amount\n5. Wait for allotment lottery\nConcept Card 3: Dematerialized account — stores your shares electronically. Like a bank account but for stocks. Required to trade on NEPSE. Opened through brokers or banks.\nConcept Card 4: In Nepal, IPOs are massively oversubscribed (10x-100x demand). So it's a lottery. Applying for more units doesn't help — it's 1 unit per application.\nConcept Card 5: Shares start trading on NEPSE secondary market. Price can go up (profit) or down (loss) from issue price. Many Nepali IPOs list above issue price — but not always.\nQuick Recap: What is IPO? | How to Apply for IPO in Nepal? | What is DEMAT Account?",
-    "color": "#8B5CF6",
-    "icon": "TrendingUp",
-    "order": 11,
-    "duration": 5,
-    "isPublished": true,
-    "quiz": [
-      {
-        "prompt": "What is Mero Share used for in Nepal?",
-        "options": [
-          "Online banking",
-          "Applying for IPOs and managing shares",
-          "Filing taxes",
-          "Paying electricity bills"
-        ],
-        "correctOptionIndex": 1,
-        "explanation": ""
-      },
-      {
-        "prompt": "In Nepal's oversubscribed IPO, applying for more units:",
-        "options": [
-          "Increases your chances",
-          "Doesn't increase chances — it's 1 application per person",
-          "Guarantees allotment",
-          "Gets you a better price"
-        ],
-        "correctOptionIndex": 1,
-        "explanation": ""
-      },
-      {
-        "prompt": "DEMAT account is:",
-        "options": [
-          "A loan account",
-          "A tax account",
-          "An electronic account holding your shares",
-          "A trading algorithm"
-        ],
-        "correctOptionIndex": 2,
-        "explanation": ""
-      }
-    ]
-  },
-  {
-    "title": "Reading Share Prices & Indicators",
-    "module": "Nepal Share Market",
-    "content": "Nepal Share Market: NEPSE — Nepal's stock exchange\nLesson: Reading Share Prices & Indicators\nConcept Card 1: A number representing the overall value of all NEPSE-listed shares. If NEPSE index rises from 2000 to 2200, the market overall gained 10%.\nConcept Card 2: Total value of a company = Share Price × Total Shares. E.g., if Nabil Bank has 10 crore shares at Rs.1000 each, market cap = Rs.10 arba.\nConcept Card 3: Price-to-Earnings Ratio. How much you pay per rupee of profit.\nP/E = Share Price ÷ Earnings Per Share\nLower P/E = potentially cheaper. High P/E = market expects high growth.\nConcept Card 4: Earnings Per Share. Company's annual profit ÷ number of shares. EPS of Rs.50 means the company earned Rs.50 per share this year.\nConcept Card 5: A portion of company profit given to shareholders. Nepal banks often give 10-25% dividends. Types: Cash dividend (actual money) or Stock dividend (extra shares).\nQuick Recap: What is NEPSE Index? | What is Market Capitalization? | What is P/E Ratio?",
-    "color": "#8B5CF6",
-    "icon": "TrendingUp",
-    "order": 12,
-    "duration": 6,
-    "isPublished": true,
-    "quiz": [
-      {
-        "prompt": "If NEPSE index falls from 2500 to 2000, the market:",
-        "options": [
-          "Grew by 20%",
-          "Fell by 20%",
-          "Stayed same",
-          "Doubled"
-        ],
-        "correctOptionIndex": 1,
-        "explanation": ""
-      },
-      {
-        "prompt": "P/E ratio of 15 means:",
-        "options": [
-          "15% annual return guaranteed",
-          "You're paying Rs.15 for every Rs.1 of company earnings",
-          "The company earned 15 lakhs",
-          "15 shares available"
-        ],
-        "correctOptionIndex": 1,
-        "explanation": ""
-      },
-      {
-        "prompt": "A cash dividend means:",
-        "options": [
-          "You receive extra shares",
-          "Company pays you actual money per share",
-          "Share price increases",
-          "You must buy more shares"
-        ],
-        "correctOptionIndex": 1,
-        "explanation": ""
-      }
-    ]
-  },
-  {
-    "title": "Types of Companies on NEPSE",
-    "module": "Nepal Share Market",
-    "content": "Nepal Share Market: NEPSE — Nepal's stock exchange\nLesson: Types of Companies on NEPSE\nConcept Card 1: Largest sector on NEPSE. Commercial banks like Nabil, NIC Asia, Standard Chartered. Generally stable with regular dividends. Regulated by NRB.\nConcept Card 2: Nepal's growing sector. Companies like Upper Tamakoshi, NHPC. Long construction phase, then stable revenue. Connected to Nepal's energy future.\nConcept Card 3: Life and non-life insurance companies. Life insurance: Nepal Life, NLGI. Regulated by Insurance Board (Beema Samiti).\nConcept Card 4: Development banks and finance companies. Higher risk, potentially higher return. Microfinance serves rural Nepal — some listed on NEPSE.\nConcept Card 5: Companies like Bottlers Nepal (Coca-Cola), Unilever Nepal. Smaller sector on NEPSE but growing.\nQuick Recap: Banking Sector | Hydropower Sector | Insurance Sector",
-    "color": "#8B5CF6",
-    "icon": "TrendingUp",
-    "order": 13,
-    "duration": 5,
-    "isPublished": true,
-    "quiz": [
-      {
-        "prompt": "Which sector dominates NEPSE by market cap?",
-        "options": [
-          "Hydropower",
-          "Insurance",
-          "Banking",
-          "Manufacturing"
-        ],
-        "correctOptionIndex": 2,
-        "explanation": ""
-      },
-      {
-        "prompt": "Hydropower companies in Nepal primarily generate revenue from:",
-        "options": [
-          "Tourism",
-          "Selling electricity",
-          "Manufacturing goods",
-          "Banking services"
-        ],
-        "correctOptionIndex": 1,
-        "explanation": ""
-      },
-      {
-        "prompt": "Insurance companies in Nepal are regulated by:",
-        "options": [
-          "Nepal Rastra Bank",
-          "Securities Board of Nepal",
-          "Insurance Board (Beema Samiti)",
-          "Ministry of Finance"
-        ],
-        "correctOptionIndex": 2,
-        "explanation": ""
-      }
-    ]
-  },
-  {
-    "title": "Risk & Return",
-    "module": "Investing Principles",
-    "content": "Investing Principles: Think like an investor\nLesson: Risk & Return\nConcept Card 1: Higher potential return = higher risk. FD: Low risk, low return. Stocks: High risk, high potential return. No free lunch in investing.\nConcept Card 2: Market risk: Overall market falls\nCompany risk: Specific company fails\nLiquidity risk: Can't sell when you want\nInflation risk: Returns don't beat inflation\nConcept Card 3: Don't put all eggs in one basket. Spread across sectors (banking + hydro + insurance) and asset types (stocks + FD + gold). If one falls, others cushion the blow.\nConcept Card 4: How long you can leave money invested. Short term (under 3 years): Low risk instruments. Long term (10+ years): Can afford more volatility for higher returns.\nQuick Recap: Risk-Return Relationship | Types of Investment Risk | Diversification",
-    "color": "#EF4444",
-    "icon": "PieChart",
-    "order": 14,
-    "duration": 5,
-    "isPublished": true,
-    "quiz": [
-      {
-        "prompt": "Which has the LOWEST risk?",
-        "options": [
-          "Cryptocurrency",
-          "Single stock",
-          "Fixed Deposit",
-          "Penny stocks"
-        ],
-        "correctOptionIndex": 2,
-        "explanation": ""
-      },
-      {
-        "prompt": "Diversification helps by:",
-        "options": [
-          "Guaranteeing profits",
-          "Spreading risk across different assets",
-          "Doubling your money",
-          "Avoiding all losses"
-        ],
-        "correctOptionIndex": 1,
-        "explanation": ""
-      },
-      {
-        "prompt": "For a 20-year investment goal, you should:",
-        "options": [
-          "Only keep in savings account",
-          "Take zero risk",
-          "Accept more volatility for higher returns",
-          "Buy lottery tickets"
-        ],
-        "correctOptionIndex": 2,
-        "explanation": ""
-      }
-    ]
-  },
-  {
-    "title": "Mutual Funds in Nepal",
-    "module": "Investing Principles",
-    "content": "Investing Principles: Think like an investor\nLesson: Mutual Funds in Nepal\nConcept Card 1: Pool of money from many investors, managed by a professional fund manager. They invest in stocks, bonds, etc. You get units representing your share.\nConcept Card 2: NEPSE has listed mutual funds. Examples: Nabil Equity Fund, Laxmi Value Fund, NMB Saral Bachat. Minimum investment often as low as Rs.1,000.\nConcept Card 3: Price per unit of a mutual fund. If NAV is Rs.12 and you invest Rs.12,000, you get 1,000 units. NAV changes daily based on fund's portfolio.\nConcept Card 4: Active: Manager picks stocks, trying to beat market. Higher fees.\nPassive: Tracks an index (like NEPSE index). Lower fees. Research shows passive often outperforms active long-term.\nQuick Recap: What is a Mutual Fund? | Mutual Funds in Nepal | NAV (Net Asset Value)",
-    "color": "#EF4444",
-    "icon": "PieChart",
-    "order": 15,
-    "duration": 5,
-    "isPublished": true,
-    "quiz": [
-      {
-        "prompt": "NAV stands for:",
-        "options": [
-          "Net Annual Value",
-          "National Asset Volume",
-          "Net Asset Value",
-          "New Account Value"
-        ],
-        "correctOptionIndex": 2,
-        "explanation": ""
-      },
-      {
-        "prompt": "Which typically has lower management fees?",
-        "options": [
-          "Active fund",
-          "Hedge fund",
-          "Passive index fund",
-          "Venture capital"
-        ],
-        "correctOptionIndex": 2,
-        "explanation": ""
-      },
-      {
-        "prompt": "A mutual fund allows small investors to:",
-        "options": [
-          "Buy real estate directly",
-          "Access diversified portfolio with less capital",
-          "Avoid all risk",
-          "Get guaranteed returns"
-        ],
-        "correctOptionIndex": 1,
-        "explanation": ""
-      }
-    ]
-  },
-  {
-    "title": "Warren Buffett's Rules",
-    "module": "Investing Principles",
-    "content": "Investing Principles: Think like an investor\nLesson: Warren Buffett's Rules\nConcept Card 1: Rule #2: Never forget Rule #1. Protecting capital matters more than chasing gains. Losing 50% requires 100% gain just to recover.\nConcept Card 2: Only invest in businesses you understand. Buffett avoided tech stocks for decades because he didn't understand their moat. He understood Coca-Cola — simple, consistent, global.\nConcept Card 3: 'Our favorite holding period is forever.' Great companies compound over decades. Short-term trading is expensive (taxes, fees) and emotionally exhausting.\nConcept Card 4: Benjamin Graham's idea: Imagine Mr. Market comes daily offering to buy or sell. He's sometimes euphoric (overpriced) and sometimes depressed (underpriced). Your job: Don't follow his mood. Buy when he's scared.\nConcept Card 5: Know what you know. Know what you don't know. Only invest in areas within your competence. Expand the circle slowly but never pretend it's bigger than it is.\nQuick Recap: Rule #1: Never Lose Money | Buy What You Understand | Long-Term Thinking",
-    "color": "#EF4444",
-    "icon": "PieChart",
-    "order": 16,
-    "duration": 6,
-    "isPublished": true,
-    "quiz": [
-      {
-        "prompt": "Buffett's most important investing rule is:",
-        "options": [
-          "Buy growth stocks",
-          "Never lose money",
-          "Time the market",
-          "Diversify into crypto"
-        ],
-        "correctOptionIndex": 1,
-        "explanation": ""
-      },
-      {
-        "prompt": "Mr. Market is depressed and selling shares cheaply. You should:",
-        "options": [
-          "Panic and sell too",
-          "Consider buying — it's a potential opportunity",
-          "Ignore the market forever",
-          "Borrow money to short-sell"
-        ],
-        "correctOptionIndex": 1,
-        "explanation": ""
-      },
-      {
-        "prompt": "Buffett prefers to hold great companies:",
-        "options": [
-          "For 3-6 months",
-          "Until next earnings",
-          "Forever (long term)",
-          "Until price doubles"
-        ],
-        "correctOptionIndex": 2,
-        "explanation": ""
-      }
-    ]
-  },
-  {
-    "title": "Technical Analysis Basics",
-    "module": "Advanced NEPSE",
-    "content": "Advanced NEPSE: Trade smart, not hard\nLesson: Technical Analysis Basics\nConcept Card 1: Studying past price charts and patterns to predict future price movements. Based on the idea that price patterns repeat. Used by traders (not long-term investors).\nConcept Card 2: Support: Price level where stock tends to stop falling (buyers step in)\nResistance: Price level where stock tends to stop rising (sellers step in)\nBreaking these levels is significant.\nConcept Card 3: Average price over a period (50-day MA, 200-day MA). If short-term MA crosses above long-term MA = 'Golden Cross' (bullish). Opposite = 'Death Cross' (bearish).\nConcept Card 4: Number of shares traded. High volume on price rise = strong move. High volume on price fall = panic selling. Low volume moves are less reliable.\nConcept Card 5: Measures if stock is overbought or oversold. RSI above 70 = overbought (may fall). RSI below 30 = oversold (may rise). Range: 0-100.\nQuick Recap: What is Technical Analysis? | Support & Resistance | Moving Averages",
-    "color": "#F97316",
-    "icon": "TrendingUp",
-    "order": 17,
-    "duration": 6,
-    "isPublished": true,
-    "quiz": [
-      {
-        "prompt": "Support level is where:",
-        "options": [
-          "Prices tend to stop falling",
-          "Prices tend to stop rising",
-          "Volume is highest",
-          "Dividends are paid"
-        ],
-        "correctOptionIndex": 0,
-        "explanation": ""
-      },
-      {
-        "prompt": "A Golden Cross occurs when:",
-        "options": [
-          "Stock hits all-time high",
-          "Short-term MA crosses above long-term MA",
-          "Volume is zero",
-          "RSI hits 100"
-        ],
-        "correctOptionIndex": 1,
-        "explanation": ""
-      },
-      {
-        "prompt": "RSI below 30 suggests the stock is:",
-        "options": [
-          "Overbought",
-          "Oversold",
-          "At fair value",
-          "About to crash"
-        ],
-        "correctOptionIndex": 1,
-        "explanation": ""
-      }
-    ]
-  },
-  {
-    "title": "Fundamental Analysis for NEPSE",
-    "module": "Advanced NEPSE",
-    "content": "Advanced NEPSE: Trade smart, not hard\nLesson: Fundamental Analysis for NEPSE\nConcept Card 1: Evaluating a company's actual business health: revenues, profits, debt, management quality. Used to find undervalued stocks to buy and hold.\nConcept Card 2: NPA (Non-Performing Assets %): Lower is better — shows loan quality\nCDR (Credit to Deposit Ratio): NRB mandates under 90%\nROE (Return on Equity): How efficiently using shareholder money\nConcept Card 3: Company's net assets ÷ shares. If BV = Rs.200 and share price = Rs.150, it's trading BELOW book value — potentially undervalued. Price-to-Book ratio < 1 often seen as cheap.\nConcept Card 4: Key sections to check:\n• Chairman's message (vision)\n• Financial statements (profit/loss)\n• Notes to accounts (hidden details)\n• Auditor's report (red flags)\nAvailable on NEPSE website for all listed companies.\nQuick Recap: What is Fundamental Analysis? | Key Ratios for Nepal Banks | Book Value per Share",
-    "color": "#F97316",
-    "icon": "TrendingUp",
-    "order": 18,
-    "duration": 7,
-    "isPublished": true,
-    "quiz": [
-      {
-        "prompt": "High NPA ratio in a bank means:",
-        "options": [
-          "High profits",
-          "More loans going bad — bad sign",
-          "Better dividends",
-          "Lower risk"
-        ],
-        "correctOptionIndex": 1,
-        "explanation": ""
-      },
-      {
-        "prompt": "If Price-to-Book ratio is below 1, the stock:",
-        "options": [
-          "Is overpriced",
-          "May be trading below its asset value",
-          "Will definitely crash",
-          "Pays no dividend"
-        ],
-        "correctOptionIndex": 1,
-        "explanation": ""
-      },
-      {
-        "prompt": "Annual reports in Nepal are available on:",
-        "options": [
-          "Company's Instagram",
-          "NEPSE website",
-          "Ministry of Finance only",
-          "Paid subscription services"
-        ],
-        "correctOptionIndex": 1,
-        "explanation": ""
-      }
-    ]
-  },
-  {
-    "title": "Rights Shares & Bonus Shares",
-    "module": "Advanced NEPSE",
-    "content": "Advanced NEPSE: Trade smart, not hard\nLesson: Rights Shares & Bonus Shares\nConcept Card 1: Existing shareholders get the 'right' to buy new shares at a discounted price. E.g., 1:10 rights means for every 10 shares you own, you can buy 1 new share at Rs.100 (vs market price of Rs.500).\nConcept Card 2: Free shares given from company's reserves. 20% bonus = for every 100 shares, you get 20 more free. Share price adjusts down proportionally — but you have more shares.\nConcept Card 3: Not exactly. If 20% bonus, share price drops ~20% on ex-date. Your total value stays roughly same. But long-term, if company keeps earning well, more shares = more dividends later.\nConcept Card 4: Date when company records who owns shares for dividends/bonuses. Own shares BEFORE this date to qualify. After this, price drops by roughly dividend amount (ex-dividend date).\nQuick Recap: What are Rights Shares? | What are Bonus Shares? | Does Bonus = Free Money?",
-    "color": "#F97316",
-    "icon": "TrendingUp",
-    "order": 19,
-    "duration": 5,
-    "isPublished": true,
-    "quiz": [
-      {
-        "prompt": "A 1:5 rights share offer means:",
-        "options": [
-          "You get 1 free share for every 5 owned",
-          "For every 5 shares, you can BUY 1 new at discounted price",
-          "Stock price rises 5x",
-          "5% dividend announced"
-        ],
-        "correctOptionIndex": 1,
-        "explanation": ""
-      },
-      {
-        "prompt": "After 20% bonus share, the share price typically:",
-        "options": [
-          "Rises 20%",
-          "Stays the same",
-          "Drops proportionally (~20%)",
-          "Goes to zero"
-        ],
-        "correctOptionIndex": 2,
-        "explanation": ""
-      },
-      {
-        "prompt": "You must own shares BEFORE which date to receive dividend?",
-        "options": [
-          "Annual meeting date",
-          "Book closure date",
-          "IPO date",
-          "Fiscal year end"
-        ],
-        "correctOptionIndex": 1,
-        "explanation": ""
-      }
-    ]
-  }
-]
+  "chapters": [
+    {
+      "title": "Money 101",
+      "slug": "money-101",
+      "shortInfo": "What even IS money?",
+      "order": 1,
+      "color": "#F59E0B",
+      "darkColor": "#cd7600",
+      "isPublished": true,
+      "lessons": [
+        {
+          "title": "Why Money Exists",
+          "slug": "why-money-exists",
+          "summary": "See why barter fails and why money became necessary.",
+          "order": 1,
+          "duration": 3,
+          "xp": 50,
+          "icon": "BookOpen",
+          "color": "#F59E0B",
+          "isPublished": true,
+          "cards": [
+            {
+              "front": "Imagine you have apples but need eggs. What trade problem appears before money exists?",
+              "back": "Barter: Trading goods directly without money. E.g., 5 apples for 2 eggs. Problem: You need someone who wants exactly what you have!",
+              "label": "Barter"
+            },
+            {
+              "front": "If barter keeps failing, what could everyone agree to accept so trade becomes easier?",
+              "back": "Money is a medium of exchange — something everyone agrees has value. It solves the barter problem by being accepted by everyone.",
+              "label": "Medium of Exchange"
+            },
+            {
+              "front": "If money is useful every day, what three jobs must it do?",
+              "back": "The 3 functions of money: 1. Medium of Exchange (buy/sell things) 2. Unit of Account (measure value) 3. Store of Value (save for later)",
+              "label": "The 3 functions of money"
+            },
+            {
+              "front": "Why do people and countries have to make economic choices at all?",
+              "back": "Scarcity: There isn't enough of everything for everyone. Scarcity is the fundamental reason economics exists.",
+              "label": "Scarcity"
+            }
+          ],
+          "quiz": [
+            {
+              "question": "What problem does money solve?",
+              "choices": [
+                "Makes people rich",
+                "Solves the double coincidence of wants in barter",
+                "Controls inflation",
+                "Pays taxes"
+              ],
+              "correctIndex": 1,
+              "explanation": "Money solves the barter problem by removing the need for two people to want exactly what the other has at the same time."
+            },
+            {
+              "question": "Which is NOT a function of money?",
+              "choices": [
+                "Medium of exchange",
+                "Store of value",
+                "Source of happiness",
+                "Unit of account"
+              ],
+              "correctIndex": 2,
+              "explanation": "Money helps people exchange, measure, and store value, but being a source of happiness is not one of its economic functions."
+            },
+            {
+              "question": "Why does economics exist?",
+              "choices": [
+                "Because of taxes",
+                "Because of scarcity",
+                "Because of banks",
+                "Because of debt"
+              ],
+              "correctIndex": 1,
+              "explanation": "Economics exists because resources are limited while human wants keep growing, so choices have to be made."
+            }
+          ]
+        },
+        {
+          "title": "Nepali Currency: The Rupee",
+          "slug": "nepali-currency-the-rupee",
+          "summary": "Understand Nepal's currency, central bank, and exchange rates.",
+          "order": 2,
+          "duration": 4,
+          "xp": 50,
+          "icon": "BookOpen",
+          "color": "#F59E0B",
+          "isPublished": true,
+          "cards": [
+            {
+              "front": "What is Nepal's official money called, and who puts it into circulation?",
+              "back": "Nepali Rupee — Nepal's official currency. Symbol: रू or Rs. Issued by Nepal Rastra Bank (NRB).",
+              "label": "Nepali Rupee"
+            },
+            {
+              "front": "Who manages Nepal's money supply and works to keep the rupee stable?",
+              "back": "Nepal Rastra Bank: Nepal's central bank, established 1956. Controls money supply, sets interest rates, and maintains currency stability.",
+              "label": "Nepal Rastra Bank"
+            },
+            {
+              "front": "If 1 USD equals about 133 NPR, what is that number actually showing?",
+              "back": "Exchange Rate: How much of one currency you get for another. E.g., 1 USD ≈ 133 NPR. Rates change daily based on trade and market forces.",
+              "label": "Exchange Rate"
+            },
+            {
+              "front": "Why can imports and Nepal's INR link affect how strong the rupee feels?",
+              "back": "Because Nepal imports more than it exports, trade imbalance weakens NPR. It is also tied closely to the Indian Rupee (INR).",
+              "label": "What affects NPR"
+            }
+          ],
+          "quiz": [
+            {
+              "question": "Which institution issues Nepali currency?",
+              "choices": [
+                "Government of Nepal",
+                "Nepal Rastra Bank",
+                "World Bank",
+                "IMF"
+              ],
+              "correctIndex": 1,
+              "explanation": "Nepal Rastra Bank is the central bank that issues and manages the Nepali rupee."
+            },
+            {
+              "question": "Nepal's currency is pegged closely to:",
+              "choices": [
+                "US Dollar",
+                "Chinese Yuan",
+                "Indian Rupee",
+                "Euro"
+              ],
+              "correctIndex": 2,
+              "explanation": "The Nepali rupee is closely linked to the Indian rupee, which strongly influences its exchange relationship."
+            },
+            {
+              "question": "Exchange rate means:",
+              "choices": [
+                "Interest on loans",
+                "How much one currency buys of another",
+                "Tax rate on imports",
+                "Inflation percentage"
+              ],
+              "correctIndex": 1,
+              "explanation": "An exchange rate tells you how much of one currency can be traded for another currency."
+            }
+          ]
+        },
+        {
+          "title": "Inflation: Why Things Get Expensive",
+          "slug": "inflation-why-things-get-expensive",
+          "summary": "Learn why prices rise and how inflation affects daily life.",
+          "order": 3,
+          "duration": 5,
+          "xp": 50,
+          "icon": "BookOpen",
+          "color": "#F59E0B",
+          "isPublished": true,
+          "cards": [
+            {
+              "front": "If momo cost more this year than last year, what economic idea are you seeing in action?",
+              "back": "Inflation is the general rise in prices over time. If momo cost Rs.50 last year and Rs.60 now — that's 20% inflation on momos!",
+              "label": "Inflation"
+            },
+            {
+              "front": "When prices rise across the economy, what forces can be driving it?",
+              "back": "Causes of inflation: 1. Too much money chasing too few goods 2. Supply disruptions (less goods) 3. Demand surge (more buyers) 4. Import costs rising",
+              "label": "Causes of inflation"
+            },
+            {
+              "front": "How do economists track whether everyday goods are getting more expensive?",
+              "back": "CPI (Consumer Price Index) measures inflation by tracking prices of a 'basket' of everyday goods like rice, oil, vegetables, and transport.",
+              "label": "CPI"
+            },
+            {
+              "front": "If your savings stay the same but prices keep rising, what happens to your buying power?",
+              "back": "Your Rs.1,000 buys less every year. Savings lose purchasing power. Fixed-income earners suffer most.",
+              "label": "Purchasing Power"
+            },
+            {
+              "front": "Is all inflation bad, or does the level of inflation change the story?",
+              "back": "Mild inflation (2-4%) = healthy economy. High inflation (10%+) = economic stress. Deflation (negative) = also bad — people stop spending.",
+              "label": "Inflation Levels"
+            }
+          ],
+          "quiz": [
+            {
+              "question": "If your salary stays at Rs.50,000 but inflation is 10%, what happens?",
+              "choices": [
+                "You become richer",
+                "Your buying power decreases",
+                "Prices fall",
+                "Nothing changes"
+              ],
+              "correctIndex": 1,
+              "explanation": "When prices rise but your salary stays the same, your money buys fewer goods and services than before."
+            },
+            {
+              "question": "What does CPI measure?",
+              "choices": [
+                "Company profits",
+                "Currency exchange",
+                "Changes in prices of everyday goods",
+                "Bank interest rates"
+              ],
+              "correctIndex": 2,
+              "explanation": "CPI tracks the changing prices of a basket of common goods and services to estimate inflation."
+            },
+            {
+              "question": "What is 'hyperinflation'?",
+              "choices": [
+                "Mild price increase",
+                "Extremely rapid price increase (like Zimbabwe 2008)",
+                "Falling prices",
+                "Stable prices"
+              ],
+              "correctIndex": 1,
+              "explanation": "Hyperinflation is an extreme and rapid rise in prices that destroys normal purchasing power."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Banking Basics",
+      "slug": "banking-basics",
+      "shortInfo": "Where does your money go?",
+      "order": 2,
+      "color": "#3B82F6",
+      "darkColor": "#135ace",
+      "isPublished": true,
+      "lessons": [
+        {
+          "title": "How Banks Work",
+          "slug": "how-banks-work",
+          "summary": "See how banks use deposits, loans, and reserves to operate.",
+          "order": 1,
+          "duration": 4,
+          "xp": 50,
+          "icon": "Shield",
+          "color": "#3B82F6",
+          "isPublished": true,
+          "cards": [
+            {
+              "front": "If banks take deposits and give loans, where does their profit actually come from?",
+              "back": "Banks take deposits from savers and lend that money to borrowers. They charge borrowers more interest than they pay savers — that's their profit.",
+              "label": "Bank Profit Model"
+            },
+            {
+              "front": "If you deposit Rs.100, why does the bank keep only part of it in cash?",
+              "back": "Fractional Reserve Banking: Banks only keep a fraction of deposits in cash. The rest is loaned out. If you deposit Rs.100, the bank might lend Rs.90 and keep Rs.10.",
+              "label": "Fractional Reserve Banking"
+            },
+            {
+              "front": "What happens if too many depositors try to withdraw at the same time?",
+              "back": "Bank Run: When everyone tries to withdraw their money at once. Banks can't fulfill this because money is lent out. This caused collapses in the Great Depression.",
+              "label": "Bank Run"
+            },
+            {
+              "front": "What main kinds of banking institutions operate in Nepal?",
+              "back": "Types of banks in Nepal: 1. Commercial Banks (e.g., NIC Asia, Nabil) 2. Development Banks 3. Finance Companies 4. Microfinance Institutions 5. Nepal Rastra Bank (central bank)",
+              "label": "Types of banks in Nepal"
+            }
+          ],
+          "quiz": [
+            {
+              "question": "How do banks make profit?",
+              "choices": [
+                "By printing money",
+                "Charging higher interest to borrowers than they pay savers",
+                "Government grants",
+                "Selling products"
+              ],
+              "correctIndex": 1,
+              "explanation": "Banks earn money mainly from the gap between the interest they charge borrowers and the interest they pay savers."
+            },
+            {
+              "question": "What is fractional reserve banking?",
+              "choices": [
+                "Banks keep 100% of deposits",
+                "Banks lend out most deposits, keeping only a fraction",
+                "Banks invest in stocks",
+                "Banks charge fees only"
+              ],
+              "correctIndex": 1,
+              "explanation": "In fractional reserve banking, a bank keeps only part of deposits as cash and lends the rest out."
+            },
+            {
+              "question": "Nepal's central bank is:",
+              "choices": [
+                "Nabil Bank",
+                "Rastriya Banijya Bank",
+                "Nepal Rastra Bank",
+                "NIC Asia"
+              ],
+              "correctIndex": 2,
+              "explanation": "Nepal Rastra Bank is the central bank responsible for monetary policy and financial regulation."
+            }
+          ]
+        },
+        {
+          "title": "Savings vs Fixed Deposits",
+          "slug": "savings-vs-fixed-deposits",
+          "summary": "Compare savings accounts and fixed deposits based on your goals.",
+          "order": 2,
+          "duration": 4,
+          "xp": 50,
+          "icon": "Shield",
+          "color": "#3B82F6",
+          "isPublished": true,
+          "cards": [
+            {
+              "front": "If you need flexible access to money, what kind of account fits best?",
+              "back": "Savings Account: Flexible account. Withdraw anytime. Low interest (2-4% in Nepal). Good for emergency funds and daily expenses.",
+              "label": "Savings Account"
+            },
+            {
+              "front": "If you can lock money away for longer, what bank product usually pays more?",
+              "back": "Fixed Deposit (FD): Lock money for fixed period (3 months to 5 years). Higher interest (7-11% in Nepal). Penalty if withdrawn early.",
+              "label": "Fixed Deposit (FD)"
+            },
+            {
+              "front": "If you need cash soon versus later, how would you choose between savings and an FD?",
+              "back": "Which to choose depends on goal: Need money soon → Savings Account. Won't need money for 1+ year → Fixed Deposit. Best strategy: Keep 3 months expenses in savings, rest in FD.",
+              "label": "Which to choose depends on goal"
+            },
+            {
+              "front": "If your deposit earns interest but prices also rise, how do you know your real gain?",
+              "back": "Real Return = Interest Rate - Inflation Rate. If FD gives 8% but inflation is 7%, your real return is just 1%. You barely grew your money!",
+              "label": "Real Return"
+            }
+          ],
+          "quiz": [
+            {
+              "question": "Which gives higher interest in Nepal?",
+              "choices": [
+                "Savings account",
+                "Fixed deposit",
+                "Current account",
+                "Mobile wallet"
+              ],
+              "correctIndex": 1,
+              "explanation": "Fixed deposits usually offer higher interest because the money stays locked in for a fixed period."
+            },
+            {
+              "question": "If inflation is 8% and your FD rate is 9%, your real return is:",
+              "choices": [
+                "17%",
+                "9%",
+                "1%",
+                "-1%"
+              ],
+              "correctIndex": 2,
+              "explanation": "Real return is calculated after inflation, so 9% interest minus 8% inflation leaves only a 1% gain in buying power."
+            },
+            {
+              "question": "Emergency fund should ideally be in:",
+              "choices": [
+                "Stock market",
+                "Fixed deposit",
+                "Savings/liquid account",
+                "Cryptocurrency"
+              ],
+              "correctIndex": 2,
+              "explanation": "Emergency money should stay liquid and easy to access, so a savings or other liquid account is safer than locked or risky assets."
+            }
+          ]
+        },
+        {
+          "title": "Loans, EMI & Interest",
+          "slug": "loans-emi-and-interest",
+          "summary": "Understand EMI, interest, and how to judge good versus bad debt.",
+          "order": 3,
+          "duration": 5,
+          "xp": 50,
+          "icon": "Shield",
+          "color": "#3B82F6",
+          "isPublished": true,
+          "cards": [
+            {
+              "front": "When you repay a loan every month, what exactly is an EMI?",
+              "back": "EMI (Equated Monthly Installment): Fixed amount paid every month to repay a loan. Includes both principal and interest.",
+              "label": "EMI (Equated Monthly Installment)"
+            },
+            {
+              "front": "Why does compound interest grow much faster than simple interest over time?",
+              "back": "Simple Interest: Interest only on principal. Compound Interest: Interest on principal + previous interest. Compound grows MUCH faster. Good for investing, bad for loans.",
+              "label": "Simple Interest"
+            },
+            {
+              "front": "How can you tell the difference between useful debt and harmful debt?",
+              "back": "Good Debt: Builds wealth (education loan, home loan). Bad Debt: Loses value (loan for gadgets, luxury). Worst Debt: High-interest consumer loans (30%+ APR).",
+              "label": "Good Debt"
+            },
+            {
+              "front": "Why does your credit history matter before a bank decides your next loan?",
+              "back": "CIB (Credit Information Bureau) tracks your loan repayment history. Good score = lower interest rates on future loans. Bad score = harder to borrow.",
+              "label": "Credit History"
+            }
+          ],
+          "quiz": [
+            {
+              "question": "What makes compound interest powerful?",
+              "choices": [
+                "It's paid by government",
+                "Interest earns interest on itself",
+                "It reduces over time",
+                "Only banks use it"
+              ],
+              "correctIndex": 1,
+              "explanation": "Compound interest is powerful because interest is earned not only on the original amount but also on earlier interest."
+            },
+            {
+              "question": "Which is considered 'bad debt'?",
+              "choices": [
+                "Education loan",
+                "Home loan",
+                "Loan for a luxury phone",
+                "Business loan"
+              ],
+              "correctIndex": 2,
+              "explanation": "A luxury phone loan usually finances consumption, not an asset that grows income or long-term value."
+            },
+            {
+              "question": "CIB in Nepal tracks:",
+              "choices": [
+                "Your tax payments",
+                "Your loan repayment history",
+                "Your savings balance",
+                "Your salary"
+              ],
+              "correctIndex": 1,
+              "explanation": "CIB records your loan repayment history, which lenders use to judge your credit reliability."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Personal Finance",
+      "slug": "personal-finance",
+      "shortInfo": "Master your own money first",
+      "order": 3,
+      "color": "#10B981",
+      "darkColor": "#009159",
+      "isPublished": true,
+      "lessons": [
+        {
+          "title": "Income, Expenses & Budget",
+          "slug": "income-expenses-and-budget",
+          "summary": "Build a simple budget using income, expenses, and allocation rules.",
+          "order": 1,
+          "duration": 5,
+          "xp": 50,
+          "icon": "PieChart",
+          "color": "#10B981",
+          "isPublished": true,
+          "cards": [
+            {
+              "front": "After taxes are deducted from salary, what amount actually reaches you?",
+              "back": "Net Income: Your take-home pay AFTER taxes. If salary is Rs.60,000 and tax is Rs.5,000, net income = Rs.55,000.",
+              "label": "Net Income"
+            },
+            {
+              "front": "If you budget one month's income, how does the 50/30/20 rule divide it?",
+              "back": "50/30/20 Rule: 50% → Needs (rent, food, transport). 30% → Wants (eating out, Netflix). 20% → Savings & debt repayment.",
+              "label": "50/30/20 Rule"
+            },
+            {
+              "front": "Which expenses stay steady each month, and which ones can move around?",
+              "back": "Fixed expenses: Same every month (rent, loan EMI). Variable expenses: Changes monthly (groceries, entertainment). Control variable expenses to save more.",
+              "label": "Fixed expenses"
+            },
+            {
+              "front": "What does it mean to give every rupee a job before the month starts?",
+              "back": "Zero-based budgeting: Assign every rupee a job. Income - All Expenses = 0. Every rupee is allocated to SOMETHING (including savings).",
+              "label": "Zero-based budgeting"
+            }
+          ],
+          "quiz": [
+            {
+              "question": "In the 50/30/20 rule, 20% goes to:",
+              "choices": [
+                "Wants",
+                "Needs",
+                "Savings & debt",
+                "Entertainment"
+              ],
+              "correctIndex": 2,
+              "explanation": "In this rule, the last 20% is meant for saving money and reducing debt."
+            },
+            {
+              "question": "Which is a FIXED expense?",
+              "choices": [
+                "Grocery bill",
+                "Electricity bill",
+                "Monthly rent",
+                "Dining out"
+              ],
+              "correctIndex": 2,
+              "explanation": "Rent is usually a fixed expense because the amount normally stays the same from month to month."
+            },
+            {
+              "question": "Net income is:",
+              "choices": [
+                "Salary before tax",
+                "Salary after tax deductions",
+                "Business revenue",
+                "Bank interest earned"
+              ],
+              "correctIndex": 1,
+              "explanation": "Net income is the amount you actually take home after tax and other deductions are removed."
+            }
+          ]
+        },
+        {
+          "title": "Emergency Fund: Your Safety Net",
+          "slug": "emergency-fund-your-safety-net",
+          "summary": "Create a cash buffer for shocks before they become debt problems.",
+          "order": 2,
+          "duration": 4,
+          "xp": 50,
+          "icon": "PieChart",
+          "color": "#10B981",
+          "isPublished": true,
+          "cards": [
+            {
+              "front": "What kind of money should be used for a medical shock or sudden job loss?",
+              "back": "An emergency fund is money saved specifically for unexpected events: job loss, medical emergency, urgent repair. NOT for sales, trips, or impulse buys.",
+              "label": "Emergency Fund"
+            },
+            {
+              "front": "How big should an emergency fund be if you want a real safety buffer?",
+              "back": "Target: 3-6 months of your monthly expenses. If you spend Rs.30,000/month, target Rs.90,000–1,80,000 in emergency fund.",
+              "label": "Target"
+            },
+            {
+              "front": "Where should emergency money stay so it is both safe and quickly accessible?",
+              "back": "Keep it in: High-interest savings account or liquid mutual fund. NOT in stocks (can crash when you need it most). Must be accessible within 1-2 days.",
+              "label": "Keep it in"
+            },
+            {
+              "front": "Why is an emergency fund especially important for many households in Nepal?",
+              "back": "Nepal reality: Most Nepalis can't cover a Rs.10,000 emergency without borrowing. Remittance-dependent families are especially vulnerable if the main earner falls ill.",
+              "label": "Nepal reality"
+            }
+          ],
+          "quiz": [
+            {
+              "question": "Emergency fund should cover how many months of expenses?",
+              "choices": [
+                "1 month",
+                "3-6 months",
+                "10 months",
+                "12 months"
+              ],
+              "correctIndex": 1,
+              "explanation": "A 3 to 6 month cushion is a common safety target because it can cover many short-term emergencies or income shocks."
+            },
+            {
+              "question": "Where should you NOT keep your emergency fund?",
+              "choices": [
+                "Savings account",
+                "Liquid mutual fund",
+                "Stock market",
+                "Money market account"
+              ],
+              "correctIndex": 2,
+              "explanation": "The stock market is too volatile for emergency savings because prices can fall right when you need cash."
+            },
+            {
+              "question": "Emergency fund is for:",
+              "choices": [
+                "Vacations",
+                "Festival shopping",
+                "Medical emergencies and job loss",
+                "Buying a new phone"
+              ],
+              "correctIndex": 2,
+              "explanation": "An emergency fund is meant for real financial shocks like illness, repairs, or job loss, not optional spending."
+            }
+          ]
+        },
+        {
+          "title": "FOMO, Lifestyle Inflation & Traps",
+          "slug": "fomo-lifestyle-inflation-and-traps",
+          "summary": "Spot the behavior traps that quietly destroy savings.",
+          "order": 3,
+          "duration": 5,
+          "xp": 50,
+          "icon": "PieChart",
+          "color": "#10B981",
+          "isPublished": true,
+          "cards": [
+            {
+              "front": "When you see other people spending online, what emotional trap can push you to overspend?",
+              "back": "FOMO (Fear of Missing Out): Seeing friends buy iPhones, go to Maldives, drive new cars — and feeling pressure to match them. Leads to overspending and debt.",
+              "label": "FOMO (Fear of Missing Out)"
+            },
+            {
+              "front": "Why do some people earn more but still never feel ahead?",
+              "back": "Lifestyle Inflation: When income rises, expenses rise to match it. Earned Rs.10,000 more? Suddenly 'need' a better phone, fancier food, pricier rent. Net savings = same as before.",
+              "label": "Lifestyle Inflation"
+            },
+            {
+              "front": "Why is comparing your life to social media often financially dangerous?",
+              "back": "The Comparison Trap: Social media shows you the highlight reel. That friend in Maldives might have credit card debt. That new car might be on a 7-year loan. Compare outcomes, not appearances.",
+              "label": "The Comparison Trap"
+            },
+            {
+              "front": "Why can past spending trick you into continuing a bad decision?",
+              "back": "Sunk Cost Fallacy: Continuing something bad because you already invested in it. 'I paid Rs.5,000 for this course so I must finish it.' The Rs.5,000 is gone either way — make the best decision NOW.",
+              "label": "Sunk Cost Fallacy"
+            }
+          ],
+          "quiz": [
+            {
+              "question": "Lifestyle inflation means:",
+              "choices": [
+                "Prices rising due to imports",
+                "Expenses growing as fast as income, with no net savings gain",
+                "Earning more money",
+                "Paying more taxes"
+              ],
+              "correctIndex": 1,
+              "explanation": "Lifestyle inflation happens when your spending rises with your income, leaving little or no extra savings."
+            },
+            {
+              "question": "The sunk cost fallacy is:",
+              "choices": [
+                "Investing in stocks",
+                "Continuing a bad decision because of past investment",
+                "Paying off debt early",
+                "Compound interest"
+              ],
+              "correctIndex": 1,
+              "explanation": "The sunk cost fallacy is continuing a bad decision just because you have already spent money, time, or effort on it."
+            },
+            {
+              "question": "To avoid FOMO-spending, you should:",
+              "choices": [
+                "Copy your richest friend's lifestyle",
+                "Compare your financial progress to your own past self",
+                "Buy everything on EMI",
+                "Stop saving"
+              ],
+              "correctIndex": 1,
+              "explanation": "Comparing yourself to your own goals and progress helps reduce pressure to copy other people's spending."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Nepal Share Market",
+      "slug": "nepal-share-market",
+      "shortInfo": "NEPSE — Nepal's stock exchange",
+      "order": 4,
+      "color": "#8B5CF6",
+      "darkColor": "#6334ce",
+      "isPublished": true,
+      "lessons": [
+        {
+          "title": "What is the Share Market?",
+          "slug": "what-is-the-share-market",
+          "summary": "Understand shares, NEPSE, and why companies list on the market.",
+          "order": 1,
+          "duration": 5,
+          "xp": 50,
+          "icon": "TrendingUp",
+          "color": "#8B5CF6",
+          "isPublished": true,
+          "cards": [
+            {
+              "front": "If you buy shares of Nabil Bank, what do you actually own?",
+              "back": "A share is a small ownership piece of a company. If Nabil Bank has 1 crore shares and you own 100, you own 0.0001% of Nabil Bank and share in its profits.",
+              "label": "Share Ownership"
+            },
+            {
+              "front": "Where are listed shares actually bought and sold in Nepal?",
+              "back": "NEPSE: Nepal Stock Exchange. Nepal's only stock exchange where shares are bought and sold. Located in Kathmandu, established in 1993.",
+              "label": "NEPSE"
+            },
+            {
+              "front": "Why would a company raise money from the public instead of taking only loans?",
+              "back": "Why companies list: To raise capital (money) from the public without taking loans. You give them money; they give you ownership shares. Win-win if the company grows.",
+              "label": "Why companies list"
+            },
+            {
+              "front": "What do bull and bear markets tell you about prices and investor mood?",
+              "back": "Bull Market: Prices rising, optimism, everyone buying. Bear Market: Prices falling, fear, everyone selling. NEPSE has experienced both dramatically — 2020-21 was a major bull run.",
+              "label": "Bull Market"
+            }
+          ],
+          "quiz": [
+            {
+              "question": "NEPSE stands for:",
+              "choices": [
+                "Nepal Economic Policy System Exchange",
+                "Nepal Stock Exchange",
+                "National Exchange for Public Securities",
+                "Nepal Securities Exchange Platform"
+              ],
+              "correctIndex": 1,
+              "explanation": "NEPSE is short for Nepal Stock Exchange, the main market where listed shares are traded in Nepal."
+            },
+            {
+              "question": "If you buy 10 shares of a company, you become:",
+              "choices": [
+                "A lender",
+                "A creditor",
+                "A part owner",
+                "An employee"
+              ],
+              "correctIndex": 2,
+              "explanation": "Buying shares makes you a part owner of the company, even if your ownership is very small."
+            },
+            {
+              "question": "A bear market means:",
+              "choices": [
+                "Stock prices are rising",
+                "Stock prices are falling",
+                "A new stock is listed",
+                "Dividend is announced"
+              ],
+              "correctIndex": 1,
+              "explanation": "A bear market describes a period when prices are generally falling and investor sentiment is negative."
+            }
+          ]
+        },
+        {
+          "title": "IPO: Getting In Early",
+          "slug": "ipo-getting-in-early",
+          "summary": "Learn how IPOs work in Nepal from application to listing day.",
+          "order": 2,
+          "duration": 5,
+          "xp": 50,
+          "icon": "TrendingUp",
+          "color": "#8B5CF6",
+          "isPublished": true,
+          "cards": [
+            {
+              "front": "What is happening when a company offers shares to the public for the first time?",
+              "back": "IPO (Initial Public Offering): The FIRST time a company sells shares to the public. Nepal's IPO culture is massive — people apply hoping for allotment and quick profit.",
+              "label": "IPO (Initial Public Offering)"
+            },
+            {
+              "front": "If an IPO opens today, what steps would you follow to apply properly in Nepal?",
+              "back": "How to apply for IPO in Nepal: 1. Open DEMAT account (Mero Share) 2. Link bank account 3. Apply via Mero Share app during open window 4. Pay application amount 5. Wait for allotment lottery.",
+              "label": "How to apply for IPO in Nepal"
+            },
+            {
+              "front": "What account do you need in Nepal to hold shares electronically?",
+              "back": "DEMAT Account: Dematerialized account — stores your shares electronically. Like a bank account but for stocks. Required to trade on NEPSE. Opened through brokers or banks.",
+              "label": "DEMAT Account"
+            },
+            {
+              "front": "If an IPO is heavily oversubscribed in Nepal, does applying for more units improve your odds?",
+              "back": "In Nepal, IPOs are massively oversubscribed (10x-100x demand). So it's a lottery. Applying for more units doesn't help — it's 1 unit per application.",
+              "label": "Oversubscription"
+            },
+            {
+              "front": "After IPO shares are allotted and start trading, what can happen to the price?",
+              "back": "After allotment, shares start trading on NEPSE secondary market. Price can go up (profit) or down (loss) from issue price. Many Nepali IPOs list above issue price — but not always.",
+              "label": "Secondary Market"
+            }
+          ],
+          "quiz": [
+            {
+              "question": "What is Mero Share used for in Nepal?",
+              "choices": [
+                "Online banking",
+                "Applying for IPOs and managing shares",
+                "Filing taxes",
+                "Paying electricity bills"
+              ],
+              "correctIndex": 1,
+              "explanation": "Mero Share is used to apply for IPOs and to view or manage your share holdings electronically."
+            },
+            {
+              "question": "In Nepal's oversubscribed IPO, applying for more units:",
+              "choices": [
+                "Increases your chances",
+                "Doesn't increase chances — it's 1 application per person",
+                "Guarantees allotment",
+                "Gets you a better price"
+              ],
+              "correctIndex": 1,
+              "explanation": "In heavily oversubscribed Nepalese IPOs, applying for more units does not improve the basic allotment chance per applicant."
+            },
+            {
+              "question": "DEMAT account is:",
+              "choices": [
+                "A loan account",
+                "A tax account",
+                "An electronic account holding your shares",
+                "A trading algorithm"
+              ],
+              "correctIndex": 2,
+              "explanation": "A DEMAT account stores your shares electronically, similar to how a bank account stores money."
+            }
+          ]
+        },
+        {
+          "title": "Reading Share Prices & Indicators",
+          "slug": "reading-share-prices-and-indicators",
+          "summary": "Decode the core numbers investors use to read NEPSE stocks.",
+          "order": 3,
+          "duration": 6,
+          "xp": 50,
+          "icon": "TrendingUp",
+          "color": "#8B5CF6",
+          "isPublished": true,
+          "cards": [
+            {
+              "front": "When the NEPSE index rises or falls, what bigger market story is it telling?",
+              "back": "NEPSE Index: A number representing the overall value of all NEPSE-listed shares. If NEPSE index rises from 2000 to 2200, the market overall gained 10%.",
+              "label": "NEPSE Index"
+            },
+            {
+              "front": "How do you estimate the total market value of a listed company?",
+              "back": "Market Capitalization: Total value of a company = Share Price × Total Shares. E.g., if Nabil Bank has 10 crore shares at Rs.1000 each, market cap = Rs.10 arba.",
+              "label": "Market Capitalization"
+            },
+            {
+              "front": "If investors talk about P/E, what are they comparing?",
+              "back": "P/E Ratio (Price-to-Earnings): How much you pay per rupee of profit. P/E = Share Price ÷ Earnings Per Share. Lower P/E = potentially cheaper. High P/E = market expects high growth.",
+              "label": "P/E Ratio (Price-to-Earnings)"
+            },
+            {
+              "front": "If a company earns profit, how do you translate that into earnings per share?",
+              "back": "EPS (Earnings Per Share): Company's annual profit ÷ number of shares. EPS of Rs.50 means the company earned Rs.50 per share this year.",
+              "label": "EPS (Earnings Per Share)"
+            },
+            {
+              "front": "How does a company return part of its profit to shareholders?",
+              "back": "Dividend: A portion of company profit given to shareholders. Nepal banks often give 10-25% dividends. Types: Cash dividend (actual money) or Stock dividend (extra shares).",
+              "label": "Dividend"
+            }
+          ],
+          "quiz": [
+            {
+              "question": "If NEPSE index falls from 2500 to 2000, the market:",
+              "choices": [
+                "Grew by 20%",
+                "Fell by 20%",
+                "Stayed same",
+                "Doubled"
+              ],
+              "correctIndex": 1,
+              "explanation": "A fall of 500 points from 2500 is a 20% drop, so the market has fallen by one-fifth."
+            },
+            {
+              "question": "P/E ratio of 15 means:",
+              "choices": [
+                "15% annual return guaranteed",
+                "You're paying Rs.15 for every Rs.1 of company earnings",
+                "The company earned 15 lakhs",
+                "15 shares available"
+              ],
+              "correctIndex": 1,
+              "explanation": "A P/E of 15 means investors are paying Rs.15 in share price for every Rs.1 of the company's earnings."
+            },
+            {
+              "question": "A cash dividend means:",
+              "choices": [
+                "You receive extra shares",
+                "Company pays you actual money per share",
+                "Share price increases",
+                "You must buy more shares"
+              ],
+              "correctIndex": 1,
+              "explanation": "A cash dividend means the company distributes actual money to shareholders for each share they own."
+            }
+          ]
+        },
+        {
+          "title": "Types of Companies on NEPSE",
+          "slug": "types-of-companies-on-nepse",
+          "summary": "Recognize the major sectors that make up Nepal's stock market.",
+          "order": 4,
+          "duration": 5,
+          "xp": 50,
+          "icon": "TrendingUp",
+          "color": "#8B5CF6",
+          "isPublished": true,
+          "cards": [
+            {
+              "front": "If someone mentions the banking sector on NEPSE, what type of companies should you picture?",
+              "back": "Banking Sector: Largest sector on NEPSE. Commercial banks like Nabil, NIC Asia, Standard Chartered. Generally stable with regular dividends. Regulated by NRB.",
+              "label": "Banking Sector"
+            },
+            {
+              "front": "What makes hydropower companies an important Nepal-specific sector on NEPSE?",
+              "back": "Hydropower Sector: Nepal's growing sector. Companies like Upper Tamakoshi, NHPC. Long construction phase, then stable revenue. Connected to Nepal's energy future.",
+              "label": "Hydropower Sector"
+            },
+            {
+              "front": "Which companies belong to the insurance sector, and who regulates them?",
+              "back": "Insurance Sector: Life and non-life insurance companies. Life insurance: Nepal Life, NLGI. Regulated by Insurance Board (Beema Samiti).",
+              "label": "Insurance Sector"
+            },
+            {
+              "front": "How is the finance sector different from the biggest banking names on NEPSE?",
+              "back": "Finance Sector: Development banks and finance companies. Higher risk, potentially higher return. Microfinance serves rural Nepal — some listed on NEPSE.",
+              "label": "Finance Sector"
+            },
+            {
+              "front": "Which real-economy businesses fall under the manufacturing sector?",
+              "back": "Manufacturing Sector: Companies like Bottlers Nepal (Coca-Cola), Unilever Nepal. Smaller sector on NEPSE but growing.",
+              "label": "Manufacturing Sector"
+            }
+          ],
+          "quiz": [
+            {
+              "question": "Which sector dominates NEPSE by market cap?",
+              "choices": [
+                "Hydropower",
+                "Insurance",
+                "Banking",
+                "Manufacturing"
+              ],
+              "correctIndex": 2,
+              "explanation": "Banking has historically been one of the largest and most influential sectors in the Nepali market."
+            },
+            {
+              "question": "Hydropower companies in Nepal primarily generate revenue from:",
+              "choices": [
+                "Tourism",
+                "Selling electricity",
+                "Manufacturing goods",
+                "Banking services"
+              ],
+              "correctIndex": 1,
+              "explanation": "Hydropower firms earn by producing electricity and selling that power into the energy system."
+            },
+            {
+              "question": "Insurance companies in Nepal are regulated by:",
+              "choices": [
+                "Nepal Rastra Bank",
+                "Securities Board of Nepal",
+                "Insurance Board (Beema Samiti)",
+                "Ministry of Finance"
+              ],
+              "correctIndex": 2,
+              "explanation": "Insurance companies are overseen by the Insurance Board, also known as Beema Samiti."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Investing Principles",
+      "slug": "investing-principles",
+      "shortInfo": "Think like an investor",
+      "order": 5,
+      "color": "#EF4444",
+      "darkColor": "#c71c1c",
+      "isPublished": true,
+      "lessons": [
+        {
+          "title": "Risk & Return",
+          "slug": "risk-and-return",
+          "summary": "Learn why every return comes with risk and how to manage that trade-off.",
+          "order": 1,
+          "duration": 5,
+          "xp": 50,
+          "icon": "PieChart",
+          "color": "#EF4444",
+          "isPublished": true,
+          "cards": [
+            {
+              "front": "What trade-off do investors accept when they chase higher returns?",
+              "back": "Risk-Return Relationship: Higher potential return = higher risk. FD: Low risk, low return. Stocks: High risk, high potential return. No free lunch in investing.",
+              "label": "Risk-Return Relationship"
+            },
+            {
+              "front": "What different kinds of risk can hurt an investment even if the idea looked good?",
+              "back": "Types of risk: Market risk (overall market falls), Company risk (specific company fails), Liquidity risk (can't sell when you want), Inflation risk (returns don't beat inflation).",
+              "label": "Types of risk"
+            },
+            {
+              "front": "How do you reduce damage when one investment goes wrong?",
+              "back": "Diversification: Don't put all eggs in one basket. Spread across sectors (banking + hydro + insurance) and asset types (stocks + FD + gold). If one falls, others cushion the blow.",
+              "label": "Diversification"
+            },
+            {
+              "front": "Why does the amount of time you can stay invested change how much risk you can take?",
+              "back": "Time Horizon: How long you can leave money invested. Short term (under 3 years): Low risk instruments. Long term (10+ years): Can afford more volatility for higher returns.",
+              "label": "Time Horizon"
+            }
+          ],
+          "quiz": [
+            {
+              "question": "Which has the LOWEST risk?",
+              "choices": [
+                "Cryptocurrency",
+                "Single stock",
+                "Fixed Deposit",
+                "Penny stocks"
+              ],
+              "correctIndex": 2,
+              "explanation": "Fixed deposits are generally lower risk than stocks or crypto because returns are more predictable and capital is more protected."
+            },
+            {
+              "question": "Diversification helps by:",
+              "choices": [
+                "Guaranteeing profits",
+                "Spreading risk across different assets",
+                "Doubling your money",
+                "Avoiding all losses"
+              ],
+              "correctIndex": 1,
+              "explanation": "Diversification reduces damage from any single investment going wrong by spreading risk across different assets."
+            },
+            {
+              "question": "For a 20-year investment goal, you should:",
+              "choices": [
+                "Only keep in savings account",
+                "Take zero risk",
+                "Accept more volatility for higher returns",
+                "Buy lottery tickets"
+              ],
+              "correctIndex": 2,
+              "explanation": "A long time horizon allows investors to tolerate more short-term volatility in pursuit of stronger long-term returns."
+            }
+          ]
+        },
+        {
+          "title": "Mutual Funds in Nepal",
+          "slug": "mutual-funds-in-nepal",
+          "summary": "See how mutual funds help small investors diversify in Nepal.",
+          "order": 2,
+          "duration": 5,
+          "xp": 50,
+          "icon": "PieChart",
+          "color": "#EF4444",
+          "isPublished": true,
+          "cards": [
+            {
+              "front": "If you cannot pick stocks yourself, what structure lets many investors pool money together?",
+              "back": "A mutual fund is a pool of money from many investors, managed by a professional fund manager. They invest in stocks, bonds, etc. You get units representing your share.",
+              "label": "Mutual Fund"
+            },
+            {
+              "front": "If you want diversification without picking every stock yourself, what mutual fund options exist in Nepal?",
+              "back": "Nepal's mutual funds: NEPSE has listed mutual funds. Examples: Nabil Equity Fund, Laxmi Value Fund, NMB Saral Bachat. Minimum investment often as low as Rs.1,000.",
+              "label": "Nepal's mutual funds"
+            },
+            {
+              "front": "When a mutual fund quotes its NAV, what number are you really looking at?",
+              "back": "NAV (Net Asset Value): Price per unit of a mutual fund. If NAV is Rs.12 and you invest Rs.12,000, you get 1,000 units. NAV changes daily based on fund's portfolio.",
+              "label": "NAV (Net Asset Value)"
+            },
+            {
+              "front": "If two funds invest differently, how does active management compare with simply tracking an index?",
+              "back": "Active vs Passive: Active funds — manager picks stocks, trying to beat market, higher fees. Passive funds — tracks an index (like NEPSE index), lower fees. Research shows passive often outperforms active long-term.",
+              "label": "Active vs Passive"
+            }
+          ],
+          "quiz": [
+            {
+              "question": "NAV stands for:",
+              "choices": [
+                "Net Annual Value",
+                "National Asset Volume",
+                "Net Asset Value",
+                "New Account Value"
+              ],
+              "correctIndex": 2,
+              "explanation": "NAV means Net Asset Value, which is the per-unit value of a mutual fund after accounting for its holdings."
+            },
+            {
+              "question": "Which typically has lower management fees?",
+              "choices": [
+                "Active fund",
+                "Hedge fund",
+                "Passive index fund",
+                "Venture capital"
+              ],
+              "correctIndex": 2,
+              "explanation": "Passive index funds usually charge less because they track an index instead of paying managers to actively pick investments."
+            },
+            {
+              "question": "A mutual fund allows small investors to:",
+              "choices": [
+                "Buy real estate directly",
+                "Access diversified portfolio with less capital",
+                "Avoid all risk",
+                "Get guaranteed returns"
+              ],
+              "correctIndex": 1,
+              "explanation": "Mutual funds let smaller investors access a diversified portfolio without needing enough money to buy every asset individually."
+            }
+          ]
+        },
+        {
+          "title": "Warren Buffett's Rules",
+          "slug": "warren-buffetts-rules",
+          "summary": "Use Buffett's core principles to think more clearly about investing.",
+          "order": 3,
+          "duration": 6,
+          "xp": 50,
+          "icon": "PieChart",
+          "color": "#EF4444",
+          "isPublished": true,
+          "cards": [
+            {
+              "front": "What investing rule matters most if you want to survive long enough to compound?",
+              "back": "Rule #1: Never Lose Money. Rule #2: Never forget Rule #1. Protecting capital matters more than chasing gains. Losing 50% requires 100% gain just to recover.",
+              "label": "Rule #1"
+            },
+            {
+              "front": "Why should you avoid investing in businesses you do not understand?",
+              "back": "Buy What You Understand: Only invest in businesses you understand. Buffett avoided tech stocks for decades because he didn't understand their moat. He understood Coca-Cola — simple, consistent, global.",
+              "label": "Buy What You Understand"
+            },
+            {
+              "front": "What changes when you hold a great company for years instead of trading it constantly?",
+              "back": "Long-Term Thinking: 'Our favorite holding period is forever.' Great companies compound over decades. Short-term trading is expensive (taxes, fees) and emotionally exhausting.",
+              "label": "Long-Term Thinking"
+            },
+            {
+              "front": "How should you react when the market becomes euphoric or fearful?",
+              "back": "Mr. Market: Benjamin Graham's idea — imagine Mr. Market comes daily offering to buy or sell. He's sometimes euphoric (overpriced) and sometimes depressed (underpriced). Your job: Don't follow his mood. Buy when he's scared.",
+              "label": "Mr. Market"
+            },
+            {
+              "front": "Why is it safer to invest inside your own circle of competence?",
+              "back": "Circle of Competence: Know what you know. Know what you don't know. Only invest in areas within your competence. Expand the circle slowly but never pretend it's bigger than it is.",
+              "label": "Circle of Competence"
+            }
+          ],
+          "quiz": [
+            {
+              "question": "Buffett's most important investing rule is:",
+              "choices": [
+                "Buy growth stocks",
+                "Never lose money",
+                "Time the market",
+                "Diversify into crypto"
+              ],
+              "correctIndex": 1,
+              "explanation": "Buffett emphasizes protecting capital first, because large losses are very hard to recover from."
+            },
+            {
+              "question": "Mr. Market is depressed and selling shares cheaply. You should:",
+              "choices": [
+                "Panic and sell too",
+                "Consider buying — it's a potential opportunity",
+                "Ignore the market forever",
+                "Borrow money to short-sell"
+              ],
+              "correctIndex": 1,
+              "explanation": "If prices are low for emotional reasons rather than business weakness, that can create a buying opportunity."
+            },
+            {
+              "question": "Buffett prefers to hold great companies:",
+              "choices": [
+                "For 3-6 months",
+                "Until next earnings",
+                "Forever (long term)",
+                "Until price doubles"
+              ],
+              "correctIndex": 2,
+              "explanation": "Buffett favors long holding periods so strong businesses can compound value over many years."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Advanced NEPSE",
+      "slug": "advanced-nepse",
+      "shortInfo": "Trade smart, not hard",
+      "order": 6,
+      "color": "#F97316",
+      "darkColor": "#d14b00",
+      "isPublished": true,
+      "lessons": [
+        {
+          "title": "Technical Analysis Basics",
+          "slug": "technical-analysis-basics",
+          "summary": "Read the main chart signals traders watch in the market.",
+          "order": 1,
+          "duration": 6,
+          "xp": 50,
+          "icon": "TrendingUp",
+          "color": "#F97316",
+          "isPublished": true,
+          "cards": [
+            {
+              "front": "What are traders trying to learn when they study charts and patterns?",
+              "back": "Technical Analysis: Studying past price charts and patterns to predict future price movements. Based on the idea that price patterns repeat. Used by traders (not long-term investors).",
+              "label": "Technical Analysis"
+            },
+            {
+              "front": "When traders talk about support and resistance, what price behavior are they watching?",
+              "back": "Support & Resistance: Support = price level where stock tends to stop falling (buyers step in). Resistance = price level where stock tends to stop rising (sellers step in). Breaking these levels is significant.",
+              "label": "Support & Resistance"
+            },
+            {
+              "front": "What does a moving average help you see on a price chart?",
+              "back": "Moving Averages: Average price over a period (50-day MA, 200-day MA). If short-term MA crosses above long-term MA = 'Golden Cross' (bullish). Opposite = 'Death Cross' (bearish).",
+              "label": "Moving Averages"
+            },
+            {
+              "front": "Why does heavy or light trading volume matter when a stock moves?",
+              "back": "Volume: Number of shares traded. High volume on price rise = strong move. High volume on price fall = panic selling. Low volume moves are less reliable.",
+              "label": "Volume"
+            },
+            {
+              "front": "What does RSI try to tell you about whether a stock is overbought or oversold?",
+              "back": "RSI (Relative Strength Index): Measures if stock is overbought or oversold. RSI above 70 = overbought (may fall). RSI below 30 = oversold (may rise). Range: 0-100.",
+              "label": "RSI (Relative Strength Index)"
+            }
+          ],
+          "quiz": [
+            {
+              "question": "Support level is where:",
+              "choices": [
+                "Prices tend to stop falling",
+                "Prices tend to stop rising",
+                "Volume is highest",
+                "Dividends are paid"
+              ],
+              "correctIndex": 0,
+              "explanation": "Support is the price zone where buying interest often becomes strong enough to slow or stop a decline."
+            },
+            {
+              "question": "A Golden Cross occurs when:",
+              "choices": [
+                "Stock hits all-time high",
+                "Short-term MA crosses above long-term MA",
+                "Volume is zero",
+                "RSI hits 100"
+              ],
+              "correctIndex": 1,
+              "explanation": "A Golden Cross happens when a shorter moving average rises above a longer one, often seen as a bullish signal."
+            },
+            {
+              "question": "RSI below 30 suggests the stock is:",
+              "choices": [
+                "Overbought",
+                "Oversold",
+                "At fair value",
+                "About to crash"
+              ],
+              "correctIndex": 1,
+              "explanation": "An RSI below 30 usually signals the stock may be oversold after heavy selling pressure."
+            }
+          ]
+        },
+        {
+          "title": "Fundamental Analysis for NEPSE",
+          "slug": "fundamental-analysis-for-nepse",
+          "summary": "Check business quality and valuation before buying a stock.",
+          "order": 2,
+          "duration": 7,
+          "xp": 50,
+          "icon": "TrendingUp",
+          "color": "#F97316",
+          "isPublished": true,
+          "cards": [
+            {
+              "front": "If you ignore the chart for a moment, what business facts should you study instead?",
+              "back": "Fundamental Analysis: Evaluating a company's actual business health — revenues, profits, debt, management quality. Used to find undervalued stocks to buy and hold.",
+              "label": "Fundamental Analysis"
+            },
+            {
+              "front": "Which banking ratios should you check before trusting a Nepali bank's fundamentals?",
+              "back": "Key ratios for Nepal banks: NPA (Non-Performing Assets %) — lower is better. CDR (Credit to Deposit Ratio) — NRB mandates under 90%. ROE (Return on Equity) — how efficiently using shareholder money.",
+              "label": "Key ratios for Nepal banks"
+            },
+            {
+              "front": "If a stock trades below its book value, what might that signal?",
+              "back": "Book Value per Share: Company's net assets ÷ shares. If BV = Rs.200 and share price = Rs.150, it's trading BELOW book value — potentially undervalued. Price-to-Book ratio < 1 often seen as cheap.",
+              "label": "Book Value per Share"
+            },
+            {
+              "front": "If you open an annual report, which sections deserve the most attention first?",
+              "back": "Reading Annual Reports: Key sections — Chairman's message (vision), Financial statements (profit/loss), Notes to accounts (hidden details), Auditor's report (red flags). Available on NEPSE website.",
+              "label": "Reading Annual Reports"
+            }
+          ],
+          "quiz": [
+            {
+              "question": "High NPA ratio in a bank means:",
+              "choices": [
+                "High profits",
+                "More loans going bad — bad sign",
+                "Better dividends",
+                "Lower risk"
+              ],
+              "correctIndex": 1,
+              "explanation": "A high NPA ratio means more loans are not being repaid properly, which is a warning sign for the bank."
+            },
+            {
+              "question": "If Price-to-Book ratio is below 1, the stock:",
+              "choices": [
+                "Is overpriced",
+                "May be trading below its asset value",
+                "Will definitely crash",
+                "Pays no dividend"
+              ],
+              "correctIndex": 1,
+              "explanation": "A price-to-book ratio below 1 can suggest the market values the company below its net asset base."
+            },
+            {
+              "question": "Annual reports in Nepal are available on:",
+              "choices": [
+                "Company's Instagram",
+                "NEPSE website",
+                "Ministry of Finance only",
+                "Paid subscription services"
+              ],
+              "correctIndex": 1,
+              "explanation": "Listed company reports are commonly published through NEPSE and related official disclosures."
+            }
+          ]
+        },
+        {
+          "title": "Rights Shares & Bonus Shares",
+          "slug": "rights-shares-and-bonus-shares",
+          "summary": "Understand how common corporate actions change your holdings.",
+          "order": 3,
+          "duration": 5,
+          "xp": 50,
+          "icon": "TrendingUp",
+          "color": "#F97316",
+          "isPublished": true,
+          "cards": [
+            {
+              "front": "What right do existing shareholders get in a rights issue?",
+              "back": "Rights Shares: Existing shareholders get the 'right' to buy new shares at a discounted price. E.g., 1:10 rights means for every 10 shares you own, you can buy 1 new share at Rs.100 (vs market price of Rs.500).",
+              "label": "Rights Shares"
+            },
+            {
+              "front": "What happens when a company gives shareholders bonus shares from reserves?",
+              "back": "Bonus Shares: Free shares given from company's reserves. 20% bonus = for every 100 shares, you get 20 more free. Share price adjusts down proportionally — but you have more shares.",
+              "label": "Bonus Shares"
+            },
+            {
+              "front": "If a company gives bonus shares, are you instantly richer or does the price adjust?",
+              "back": "Is bonus really free money? Not exactly. If 20% bonus, share price drops ~20% on ex-date. Your total value stays roughly same. But long-term, if company keeps earning well, more shares = more dividends later.",
+              "label": "Bonus Share Reality"
+            },
+            {
+              "front": "What date decides whether you qualify for a dividend or bonus share?",
+              "back": "Book Closure Date: Date when company records who owns shares for dividends/bonuses. Own shares BEFORE this date to qualify. After this, price drops by roughly dividend amount (ex-dividend date).",
+              "label": "Book Closure Date"
+            }
+          ],
+          "quiz": [
+            {
+              "question": "A 1:5 rights share offer means:",
+              "choices": [
+                "You get 1 free share for every 5 owned",
+                "For every 5 shares, you can BUY 1 new at discounted price",
+                "Stock price rises 5x",
+                "5% dividend announced"
+              ],
+              "correctIndex": 1,
+              "explanation": "A 1:5 rights issue means an existing shareholder can buy 1 new share for every 5 shares already owned."
+            },
+            {
+              "question": "After 20% bonus share, the share price typically:",
+              "choices": [
+                "Rises 20%",
+                "Stays the same",
+                "Drops proportionally (~20%)",
+                "Goes to zero"
+              ],
+              "correctIndex": 2,
+              "explanation": "Bonus shares increase the number of shares outstanding, so the market price usually adjusts downward proportionally."
+            },
+            {
+              "question": "You must own shares BEFORE which date to receive dividend?",
+              "choices": [
+                "Annual meeting date",
+                "Book closure date",
+                "IPO date",
+                "Fiscal year end"
+              ],
+              "correctIndex": 1,
+              "explanation": "You need to hold the shares before the book closure date so your name is recorded as eligible for the dividend."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

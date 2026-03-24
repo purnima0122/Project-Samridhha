@@ -1,6 +1,20 @@
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 import { Document } from "mongoose";
 
+@Schema({ _id: false })
+export class BadgeProgress {
+  @Prop({ required: true })
+  badgeId: string;
+
+  @Prop({ required: true, default: Date.now })
+  earnedAt: Date;
+
+  @Prop({ required: true, default: false })
+  seen: boolean;
+}
+
+export const BadgeProgressSchema = SchemaFactory.createForClass(BadgeProgress);
+
 @Schema()
 export class User extends Document{
   @Prop({ required: true })
@@ -59,8 +73,14 @@ streakDays: number;
 @Prop()
 lastLearningAt?: Date;
 
-@Prop({ type: [String], default: [] })
-badges: string[];
+@Prop()
+lastActivityDate?: Date;
+
+@Prop()
+lastLessonDate?: Date;
+
+@Prop({ type: [BadgeProgressSchema], default: [] })
+badges: BadgeProgress[];
 
 @Prop({ default: 0 })
 lessonsCompletedCount: number;
@@ -68,7 +88,7 @@ lessonsCompletedCount: number;
 @Prop({ default: 0 })
 correctQuizAnswers: number;
 
-@Prop({ default: 3 })
+@Prop({ default: 2 })
 streakFreezes: number;
 
 @Prop({ default: 3 })

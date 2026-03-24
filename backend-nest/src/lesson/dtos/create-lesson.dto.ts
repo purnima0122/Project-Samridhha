@@ -53,15 +53,35 @@ class CreateVaultFactDto {
 }
 
 export class CreateLessonDto {
+  @IsOptional()
+  @IsString()
+  slug?: string;
+
   @IsString()
   title: string;
+
+  @IsOptional()
+  @IsString()
+  topic?: string;
+
+  @IsOptional()
+  @IsString()
+  topicSlug?: string;
 
   @IsString()
   module: string;
 
   @IsOptional()
+  @IsString()
+  moduleSlug?: string;
+
+  @IsOptional()
   @IsMongoId()
   moduleId?: string;
+
+  @IsOptional()
+  @IsString()
+  summary?: string;
 
   @IsString()
   content: string;

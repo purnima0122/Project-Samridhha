@@ -36,9 +36,9 @@
         "asyncRoutes": true
       },
       "eas": {
-        "projectId": "2631d437-ad73-49ed-95cc-fcc053850ed9"
+        "projectId": "${EAS_PROJECT_ID}"
       }
     },
-    "owner": "purnima0122s-organization"
+    "owner": "${OWNER_ID}"
   }
 }

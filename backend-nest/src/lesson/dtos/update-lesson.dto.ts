@@ -55,15 +55,35 @@ class UpdateVaultFactDto {
 export class UpdateLessonDto {
   @IsOptional()
   @IsString()
+  slug?: string;
+
+  @IsOptional()
+  @IsString()
   title?: string;
+
+  @IsOptional()
+  @IsString()
+  topic?: string;
+
+  @IsOptional()
+  @IsString()
+  topicSlug?: string;
 
   @IsOptional()
   @IsString()
   module?: string;
 
   @IsOptional()
+  @IsString()
+  moduleSlug?: string;
+
+  @IsOptional()
   @IsMongoId()
   moduleId?: string;
+
+  @IsOptional()
+  @IsString()
+  summary?: string;
 
   @IsOptional()
   @IsString()

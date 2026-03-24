@@ -1,8 +1,12 @@
 import { Slot, useRouter, useSegments } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { ActivityIndicator, LogBox, StyleSheet, View } from "react-native";
 import { AuthProvider, useAuth } from "./context/AuthContext";
-import { apiFetch } from "./lib/api";
+import {
+  GamificationProvider,
+  useGamification,
+} from "./context/GamificationContext";
+import BadgeCongratulations from "./components/BadgeCongratulations";
 
 const SUPPRESSED_NOT_MOUNTED_UPDATE =
   "Can't perform a React state update on a component that hasn't mounted yet.";
@@ -30,30 +34,30 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
-      <AppGate />
+      <GamificationProvider>
+        <AppGate />
+      </GamificationProvider>
     </AuthProvider>
   );
+}
+
+function GlobalGamificationOverlays() {
+  const { currentBadge, markCurrentBadgeSeen } = useGamification();
+
+  return <BadgeCongratulations badge={currentBadge} onClose={markCurrentBadgeSeen} />;
 }
 
 function AppGate() {
   const router = useRouter();
   const segments = useSegments();
   const {
-    accessToken,
-    refreshToken,
-    userId,
-    email,
-    userName,
-    isAdmin,
     isAuthenticated,
     isHydrated,
-    signIn,
-    signOut,
+    isProfileResolved,
+    isProfileComplete,
   } = useAuth();
-  const [profileResolved, setProfileResolved] = useState(false);
-  const [isProfileComplete, setIsProfileComplete] = useState<boolean | null>(null);
 
-  const currentRoute = useMemo(() => {
+  const currentRoute = useMemo<string>(() => {
     if (segments[0] === "(tabs)") {
       return segments[1] ?? "";
     }
@@ -62,84 +66,8 @@ function AppGate() {
 
   const isAuthRoute = currentRoute === "auth";
   const isLoginOrSignupRoute = currentRoute === "login" || currentRoute === "signup";
-  const isCompleteProfileRoute = currentRoute === "complete-profile";
-
-  useEffect(() => {
-    if (!isHydrated) {
-      return;
-    }
-
-    if (!accessToken) {
-      setIsProfileComplete(null);
-      setProfileResolved(true);
-      return;
-    }
-
-    let active = true;
-    const resolveProfile = async () => {
-      setProfileResolved(false);
-      try {
-        const profile = await apiFetch<{
-          isProfileComplete: boolean;
-          name?: string;
-          number?: string;
-          address?: string;
-          wardNo?: string;
-          isAdmin?: boolean;
-        }>("/users/me", {}, accessToken);
-
-        if (!active) return;
-        const complete =
-          Boolean(profile.isProfileComplete) &&
-          Boolean(profile.name) &&
-          Boolean(profile.number) &&
-          Boolean(profile.address) &&
-          Boolean(profile.wardNo);
-        setIsProfileComplete(complete);
-      } catch (error: any) {
-        if (!active) return;
-        if (error?.status === 401) {
-          if (refreshToken && userId) {
-            try {
-              const refreshed = await apiFetch<{
-                accessToken: string;
-                RefreshToken: string;
-              }>("/auth/refresh", {
-                method: "POST",
-                body: JSON.stringify({ refreshToken }),
-              });
-              if (!active) return;
-              signIn({
-                accessToken: refreshed.accessToken,
-                refreshToken: refreshed.RefreshToken,
-                userId,
-                email: email ?? undefined,
-                userName: userName ?? undefined,
-                isAdmin,
-              });
-              return;
-            } catch {
-              if (!active) return;
-            }
-          }
-          signOut();
-          setIsProfileComplete(null);
-        } else {
-          // Fail closed for onboarding: unresolved profile is treated as incomplete.
-          setIsProfileComplete(false);
-        }
-      } finally {
-        if (active) {
-          setProfileResolved(true);
-        }
-      }
-    };
-
-    void resolveProfile();
-    return () => {
-      active = false;
-    };
-  }, [accessToken, email, isAdmin, isHydrated, refreshToken, signIn, signOut, userId, userName]);
+  const isProfileSetupRoute =
+    currentRoute === "profile-setup" || currentRoute === "complete-profile";
 
   useEffect(() => {
     if (!isHydrated) {
@@ -147,33 +75,36 @@ function AppGate() {
     }
 
     if (!isAuthenticated) {
+      if (isProfileSetupRoute) {
+        router.replace("/login");
+      }
       return;
     }
 
-    if (!profileResolved) {
+    if (!isProfileResolved) {
       return;
     }
 
-    if (isProfileComplete === false && !isCompleteProfileRoute) {
-      router.replace("/complete-profile");
+    if (isProfileComplete === false && !isProfileSetupRoute) {
+      router.replace("/profile-setup" as any);
       return;
     }
 
-    if (isProfileComplete === true && (isCompleteProfileRoute || isAuthRoute || isLoginOrSignupRoute)) {
+    if (isProfileComplete === true && (isProfileSetupRoute || isAuthRoute || isLoginOrSignupRoute)) {
       router.replace("/dashboard");
     }
   }, [
     isAuthRoute,
     isAuthenticated,
-    isCompleteProfileRoute,
     isHydrated,
     isLoginOrSignupRoute,
     isProfileComplete,
-    profileResolved,
+    isProfileSetupRoute,
+    isProfileResolved,
     router,
   ]);
 
-  if (!isHydrated || (isAuthenticated && !profileResolved)) {
+  if (!isHydrated || (isAuthenticated && !isProfileResolved)) {
     return (
       <View style={styles.loadingScreen}>
         <ActivityIndicator color="#0B3B78" />
@@ -181,7 +112,12 @@ function AppGate() {
     );
   }
 
-  return <Slot />;
+  return (
+    <>
+      <Slot />
+      <GlobalGamificationOverlays />
+    </>
+  );
 }
 
 const styles = StyleSheet.create({

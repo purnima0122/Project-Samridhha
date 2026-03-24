@@ -78,17 +78,16 @@ function TabLayoutInner() {
           ),
         }}
       />
-      {showRegulatorTab && (
-        <Tabs.Screen
-          name="regulator"
-          options={{
-            title: "Regulator",
-            tabBarIcon: ({ color, size, focused }: TabBarIconRenderProps) => (
-              <TabIcon name="shield" color={color} size={size} focused={focused} />
-            ),
-          }}
-        />
-      )}
+      <Tabs.Screen
+        name="regulator"
+        options={{
+          href: showRegulatorTab ? undefined : null,
+          title: "Regulator",
+          tabBarIcon: ({ color, size, focused }: TabBarIconRenderProps) => (
+            <TabIcon name="shield" color={color} size={size} focused={focused} />
+          ),
+        }}
+      />
       <Tabs.Screen
         name="learn"
         options={{

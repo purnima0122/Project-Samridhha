@@ -5,8 +5,17 @@ export type LearningModuleDocument = LearningModule & Document;
 
 @Schema({ timestamps: true })
 export class LearningModule {
+  @Prop()
+  slug?: string;
+
   @Prop({ required: true })
   title: string;
+
+  @Prop()
+  topic?: string;
+
+  @Prop()
+  topicSlug?: string;
 
   @Prop()
   emoji?: string;
@@ -29,3 +38,13 @@ export class LearningModule {
 
 export const LearningModuleSchema =
   SchemaFactory.createForClass(LearningModule);
+
+LearningModuleSchema.index(
+  { slug: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      slug: { $type: 'string' },
+    },
+  },
+);

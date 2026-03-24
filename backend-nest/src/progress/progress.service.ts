@@ -3,7 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Progress, ProgressDocument } from './schemas/progress.schema';
 import { Lesson, LessonDocument } from '../lesson/schemas/lesson.schema';
-import { User } from '../auth/schemas/user.schema';
+import { BadgeProgress, User } from '../auth/schemas/user.schema';
 
 const LESSON_COMPLETION_XP = 20;
 const UNIT_COMPLETION_XP = 50;
@@ -16,6 +16,76 @@ const LEVEL_XP_STEP = 120;
 const QUIZ_BONUS_XP = 15;
 const MAX_ACTIVITY_DAYS = 35;
 const DEFAULT_MAX_HEARTS = 5;
+
+type StreakStatus = 'active' | 'at_risk' | 'freeze_used' | 'streak_lost';
+
+type BadgeDefinition = {
+  badgeId: string;
+  name: string;
+  description: string;
+  icon: string;
+};
+
+type BadgeSummary = BadgeDefinition & {
+  earnedAt: Date;
+  seen: boolean;
+};
+
+type StreakReconciliation = {
+  changed: boolean;
+  status: StreakStatus;
+};
+
+const BADGE_DEFINITIONS: Record<string, BadgeDefinition> = {
+  first_lesson: {
+    badgeId: 'first_lesson',
+    name: 'First Step',
+    description: 'Complete your first lesson.',
+    icon: '🌱',
+  },
+  lessons_5: {
+    badgeId: 'lessons_5',
+    name: 'Momentum Builder',
+    description: 'Complete 5 lessons.',
+    icon: '🏃',
+  },
+  lessons_10: {
+    badgeId: 'lessons_10',
+    name: 'Knowledge Seeker',
+    description: 'Complete 10 lessons.',
+    icon: '📚',
+  },
+  streak_7: {
+    badgeId: 'streak_7',
+    name: 'Week Warrior',
+    description: 'Reach a 7-day streak.',
+    icon: '🔥',
+  },
+  streak_14_refill: {
+    badgeId: 'streak_14_refill',
+    name: 'Freeze Refill',
+    description: 'Reach 14 streak days after using a freeze.',
+    icon: '🧊',
+  },
+  streak_30: {
+    badgeId: 'streak_30',
+    name: 'Monthly Master',
+    description: 'Reach a 30-day streak.',
+    icon: '⚡',
+  },
+  quiz_50: {
+    badgeId: 'quiz_50',
+    name: 'Quiz Ace',
+    description: 'Answer 50 quiz questions correctly.',
+    icon: '🎯',
+  },
+  course_completed: {
+    badgeId: 'course_completed',
+    name: 'Course Completed',
+    description: 'Finish every published lesson.',
+    icon: '🎓',
+  },
+};
 
 @Injectable()
 export class ProgressService {
@@ -37,6 +107,14 @@ export class ProgressService {
   private diffInDays(from: Date, to: Date): number {
     const dayMs = 24 * 60 * 60 * 1000;
     return Math.floor((this.getDayStart(to).getTime() - this.getDayStart(from).getTime()) / dayMs);
+  }
+
+  private isSameDay(left?: Date | null, right?: Date | null): boolean {
+    if (!left || !right) {
+      return false;
+    }
+
+    return this.getDayStart(left).getTime() === this.getDayStart(right).getTime();
   }
 
   private getDateKey(date: Date): string {
@@ -97,16 +175,172 @@ export class ProgressService {
     return false;
   }
 
-  private applyFreezeRefillMilestones(user: User, newBadges: string[]) {
+  private normalizeLegacyBadgeId(label: string): string {
+    if (!label?.trim()) {
+      return '';
+    }
+
+    switch (label) {
+      case 'First Lesson Completed':
+        return 'first_lesson';
+      case '5 Lessons Completed':
+        return 'lessons_5';
+      case '7 Day Streak':
+        return 'streak_7';
+      case '14 Day Streak Freeze Refill':
+        return 'streak_14_refill';
+      case '30 Day Streak':
+        return 'streak_30';
+      case '50 Quiz Questions Correct':
+        return 'quiz_50';
+      case 'Course Completed':
+        return 'course_completed';
+      default:
+        if (label.startsWith('Unit Completed: ')) {
+          return `unit_${label.slice('Unit Completed: '.length)}`;
+        }
+        if (label.startsWith('Chapter Badge: ')) {
+          return `unit_${label.slice('Chapter Badge: '.length)}`;
+        }
+        return label;
+    }
+  }
+
+  private ensureBadgeRecords(user: User): { badges: BadgeProgress[]; changed: boolean } {
+    const rawBadges = Array.isArray((user as any).badges) ? ((user as any).badges as any[]) : [];
+    const deduped = new Map<string, BadgeProgress>();
+    let changed = !Array.isArray((user as any).badges);
+
+    for (const entry of rawBadges) {
+      let badgeId = '';
+      let earnedAt = new Date();
+      let seen = true;
+
+      if (typeof entry === 'string') {
+        badgeId = this.normalizeLegacyBadgeId(entry);
+        changed = true;
+      } else if (entry && typeof entry === 'object') {
+        badgeId =
+          typeof entry.badgeId === 'string' && entry.badgeId.trim()
+            ? entry.badgeId.trim()
+            : this.normalizeLegacyBadgeId(entry.name ?? '');
+        earnedAt = entry.earnedAt ? new Date(entry.earnedAt) : new Date();
+        seen = typeof entry.seen === 'boolean' ? entry.seen : true;
+        if (!entry.earnedAt || typeof entry.seen !== 'boolean') {
+          changed = true;
+        }
+      } else {
+        changed = true;
+      }
+
+      if (!badgeId) {
+        continue;
+      }
+
+      const existing = deduped.get(badgeId);
+      if (!existing) {
+        deduped.set(
+          badgeId,
+          {
+            badgeId,
+            earnedAt,
+            seen,
+          } as BadgeProgress,
+        );
+        continue;
+      }
+
+      existing.earnedAt =
+        existing.earnedAt.getTime() <= earnedAt.getTime() ? existing.earnedAt : earnedAt;
+      existing.seen = existing.seen && seen;
+      changed = true;
+    }
+
+    const badges = Array.from(deduped.values()).sort(
+      (left, right) => left.earnedAt.getTime() - right.earnedAt.getTime(),
+    );
+
+    if (changed || badges.length !== rawBadges.length) {
+      user.badges = badges as BadgeProgress[];
+      changed = true;
+    }
+
+    return {
+      badges: (user.badges ?? []) as BadgeProgress[],
+      changed,
+    };
+  }
+
+  private hasBadge(user: User, badgeId: string): boolean {
+    const { badges } = this.ensureBadgeRecords(user);
+    return badges.some((entry) => entry.badgeId === badgeId);
+  }
+
+  private getBadgeDefinition(badgeId: string): BadgeDefinition {
+    if (BADGE_DEFINITIONS[badgeId]) {
+      return BADGE_DEFINITIONS[badgeId];
+    }
+
+    if (badgeId.startsWith('unit_')) {
+      const moduleName = badgeId.slice('unit_'.length);
+      return {
+        badgeId,
+        name: `${moduleName} Champ`,
+        description: `Complete ${moduleName}.`,
+        icon: '🏆',
+      };
+    }
+
+    return {
+      badgeId,
+      name: badgeId.replace(/_/g, ' '),
+      description: 'Badge earned.',
+      icon: '🏅',
+    };
+  }
+
+  private toBadgeSummary(badge: BadgeProgress): BadgeSummary {
+    return {
+      ...this.getBadgeDefinition(badge.badgeId),
+      earnedAt: badge.earnedAt,
+      seen: badge.seen,
+    };
+  }
+
+  private awardBadge(user: User, badgeId: string, newBadges: BadgeSummary[]) {
+    const { badges } = this.ensureBadgeRecords(user);
+    if (badges.some((entry) => entry.badgeId === badgeId)) {
+      return;
+    }
+
+    const badge = {
+      badgeId,
+      earnedAt: new Date(),
+      seen: false,
+    } as BadgeProgress;
+
+    user.badges = [...badges, badge] as BadgeProgress[];
+    newBadges.push(this.toBadgeSummary(badge));
+  }
+
+  private getUnseenBadges(user: User): BadgeSummary[] {
+    const { badges } = this.ensureBadgeRecords(user);
+    return badges
+      .filter((entry) => !entry.seen)
+      .sort((left, right) => left.earnedAt.getTime() - right.earnedAt.getTime())
+      .map((entry) => this.toBadgeSummary(entry));
+  }
+
+  private applyFreezeRefillMilestones(user: User, newBadges: BadgeSummary[]) {
     const maxFreezes = user.maxStreakFreezes ?? 3;
     const currentFreezes = user.streakFreezes ?? 0;
     const streakDays = user.streakDays ?? 0;
     const freezeUsed = (user.streakFreezeUsedCount ?? 0) > 0;
 
-    const rewards: Array<{ minDays: number; freeze: number; badge: string; requiresFreezeUse?: boolean }> = [
-      { minDays: 7, freeze: 1, badge: '7 Day Streak' },
-      { minDays: 14, freeze: 1, badge: '14 Day Streak Freeze Refill', requiresFreezeUse: true },
-      { minDays: 30, freeze: 2, badge: '30 Day Streak' },
+    const rewards: Array<{ minDays: number; freeze: number; badgeId: string; requiresFreezeUse?: boolean }> = [
+      { minDays: 7, freeze: 1, badgeId: 'streak_7' },
+      { minDays: 14, freeze: 1, badgeId: 'streak_14_refill', requiresFreezeUse: true },
+      { minDays: 30, freeze: 2, badgeId: 'streak_30' },
     ];
 
     let updatedFreezes = currentFreezes;
@@ -117,105 +351,159 @@ export class ProgressService {
       if (reward.requiresFreezeUse && !freezeUsed) {
         continue;
       }
-      if ((user.badges ?? []).includes(reward.badge)) {
+      if (this.hasBadge(user, reward.badgeId)) {
         continue;
       }
       updatedFreezes = Math.min(maxFreezes, updatedFreezes + reward.freeze);
-      this.addBadge(user, reward.badge, newBadges);
+      this.awardBadge(user, reward.badgeId, newBadges);
     }
 
     user.streakFreezes = updatedFreezes;
-  }
-
-  private updateStreak(user: User, now: Date) {
-    let freezeUsed = 0;
-    if (!user.lastLearningAt) {
-      user.streakDays = 1;
-      user.lastLearningAt = now;
-      this.appendLearningDay(user, now);
-      return { freezeUsed };
-    }
-
-    const dayDiff = this.diffInDays(user.lastLearningAt, now);
-    if (dayDiff === 0) {
-      user.lastLearningAt = now;
-      this.appendLearningDay(user, now);
-      return { freezeUsed };
-    }
-
-    if (dayDiff === 1) {
-      user.streakDays = (user.streakDays ?? 0) + 1;
-    } else {
-      const missedDays = dayDiff - 1;
-      const freezes = user.streakFreezes ?? 0;
-      if (missedDays > 0 && freezes >= missedDays) {
-        user.streakFreezes = freezes - missedDays;
-        user.streakFreezeUsedCount = (user.streakFreezeUsedCount ?? 0) + missedDays;
-        freezeUsed = missedDays;
-        user.streakDays = (user.streakDays ?? 0) + 1;
-      } else {
-        user.streakDays = 1;
-      }
-    }
-
-    user.lastLearningAt = now;
-    this.appendLearningDay(user, now);
-    return { freezeUsed };
   }
 
   private getLevel(xp: number): number {
     return Math.floor(Math.max(0, xp) / LEVEL_XP_STEP) + 1;
   }
 
-  private addBadge(user: User, badge: string, newBadges: string[]) {
-    if (!user.badges) {
-      user.badges = [];
-    }
-
-    if (!user.badges.includes(badge)) {
-      user.badges.push(badge);
-      newBadges.push(badge);
-    }
-  }
-
-  private applyMilestoneBadges(user: User, newBadges: string[]) {
+  private applyMilestoneBadges(user: User, newBadges: BadgeSummary[]) {
     if ((user.lessonsCompletedCount ?? 0) >= 1) {
-      this.addBadge(user, 'First Lesson Completed', newBadges);
+      this.awardBadge(user, 'first_lesson', newBadges);
     }
 
     if ((user.lessonsCompletedCount ?? 0) >= 5) {
-      this.addBadge(user, '5 Lessons Completed', newBadges);
+      this.awardBadge(user, 'lessons_5', newBadges);
     }
 
-    if ((user.streakDays ?? 0) >= 7) {
-      this.addBadge(user, '7 Day Streak', newBadges);
+    if ((user.lessonsCompletedCount ?? 0) >= 10) {
+      this.awardBadge(user, 'lessons_10', newBadges);
     }
 
     if ((user.correctQuizAnswers ?? 0) >= 50) {
-      this.addBadge(user, '50 Quiz Questions Correct', newBadges);
+      this.awardBadge(user, 'quiz_50', newBadges);
     }
   }
 
-  private gamificationSnapshot(user: User) {
+  private getCurrentStreakStatus(user: User, now: Date): StreakStatus {
+    if (this.isSameDay(user.lastLessonDate, now)) {
+      return 'active';
+    }
+
+    const lastActivity = user.lastActivityDate ?? user.lastLessonDate ?? user.lastLearningAt;
+    if (!lastActivity) {
+      return 'active';
+    }
+
+    const diff = this.diffInDays(lastActivity, now);
+    if (diff <= 0) {
+      return 'active';
+    }
+
+    if (diff === 1) {
+      return 'at_risk';
+    }
+
+    return (user.streakDays ?? 0) > 0 ? 'streak_lost' : 'active';
+  }
+
+  private getStreakMessage(user: User, status: StreakStatus, now: Date): string {
+    if (status === 'freeze_used') {
+      return 'A freeze saved your streak today.';
+    }
+
+    if (status === 'streak_lost') {
+      return 'Start fresh today with a lesson.';
+    }
+
+    if (this.isSameDay(user.lastLessonDate, now)) {
+      return 'You finished a lesson today. Keep going!';
+    }
+
+    if (status === 'at_risk') {
+      return 'Finish a lesson today to protect your streak.';
+    }
+
+    return 'Do not forget me today!';
+  }
+
+  private gamificationSnapshot(user: User, status?: StreakStatus) {
     const xp = user.xp ?? 0;
     const progressInLevel = xp % LEVEL_XP_STEP;
     const now = new Date();
     this.ensureHeartsFresh(user, now);
+    const streakStatus = status ?? this.getCurrentStreakStatus(user, now);
     return {
       xp,
       level: this.getLevel(xp),
       streakDays: user.streakDays ?? 0,
-      streakFreezes: user.streakFreezes ?? 3,
+      streakFreezes: user.streakFreezes ?? 2,
       maxStreakFreezes: user.maxStreakFreezes ?? 3,
-      badges: user.badges ?? [],
+      badges: this.ensureBadgeRecords(user).badges.map((entry) => entry.badgeId),
+      badgeDetails: this.ensureBadgeRecords(user).badges.map((entry) => this.toBadgeSummary(entry)),
+      unseenBadgeCount: this.getUnseenBadges(user).length,
       hearts: user.hearts ?? DEFAULT_MAX_HEARTS,
       maxHearts: user.maxHearts ?? DEFAULT_MAX_HEARTS,
       lessonsCompletedCount: user.lessonsCompletedCount ?? 0,
       correctQuizAnswers: user.correctQuizAnswers ?? 0,
       xpToNextLevel: LEVEL_XP_STEP - progressInLevel,
       weeklyProgress: this.getCurrentWeekProgress(user, now),
-      streakMessage: 'Do not forget me today!',
+      streakStatus,
+      streakMessage: this.getStreakMessage(user, streakStatus, now),
     };
+  }
+
+  private reconcileDailyStreak(user: User, now: Date): StreakReconciliation {
+    const today = this.getDayStart(now);
+    const lastActivity = user.lastActivityDate ?? user.lastLessonDate ?? user.lastLearningAt;
+
+    if (!lastActivity) {
+      return { changed: false, status: 'active' };
+    }
+
+    const dayDiff = this.diffInDays(lastActivity, today);
+
+    if (dayDiff <= 0) {
+      return { changed: false, status: 'active' };
+    }
+
+    if (dayDiff === 1) {
+      return { changed: false, status: 'at_risk' };
+    }
+
+    if (dayDiff === 2) {
+      if ((user.streakFreezes ?? 0) > 0) {
+        user.streakFreezes = Math.max(0, (user.streakFreezes ?? 0) - 1);
+        user.streakFreezeUsedCount = (user.streakFreezeUsedCount ?? 0) + 1;
+        user.lastActivityDate = today;
+        user.lastLearningAt = today;
+        return { changed: true, status: 'freeze_used' };
+      }
+
+      user.streakDays = 0;
+      user.lastActivityDate = today;
+      user.lastLearningAt = today;
+      return { changed: true, status: 'streak_lost' };
+    }
+
+    user.streakDays = 0;
+    user.lastActivityDate = today;
+    user.lastLearningAt = today;
+    return { changed: true, status: 'streak_lost' };
+  }
+
+  private buildStreakCheckResponse(user: User, status: StreakStatus) {
+    return {
+      streak: user.streakDays ?? 0,
+      freezes: user.streakFreezes ?? 2,
+      maxFreezes: user.maxStreakFreezes ?? 3,
+      status,
+      lessonCompletedToday: this.isSameDay(user.lastLessonDate, new Date()),
+      showSadEmoji: status === 'streak_lost' && (user.streakFreezes ?? 0) === 0,
+      gamification: this.gamificationSnapshot(user, status),
+    };
+  }
+
+  private buildUnitBadgeId(moduleName: string): string {
+    return `unit_${moduleName}`;
   }
 
   private async ensureUnlocked(userObjectId: Types.ObjectId, lesson: LessonDocument) {
@@ -275,9 +563,75 @@ export class ProgressService {
     });
   }
 
+  async checkAndUpdateStreak(userId: string) {
+    const userObjectId = new Types.ObjectId(userId);
+    const user = await this.userModel.findById(userObjectId).exec();
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const badgeNormalization = this.ensureBadgeRecords(user);
+    const streakMeta = this.reconcileDailyStreak(user, new Date());
+
+    if (badgeNormalization.changed || streakMeta.changed) {
+      await user.save();
+    }
+
+    return this.buildStreakCheckResponse(user, streakMeta.status);
+  }
+
+  async checkBadges(userId: string) {
+    const userObjectId = new Types.ObjectId(userId);
+    const user = await this.userModel.findById(userObjectId).exec();
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const newBadges: BadgeSummary[] = [];
+    const badgeNormalization = this.ensureBadgeRecords(user);
+    const streakMeta = this.reconcileDailyStreak(user, new Date());
+    this.applyMilestoneBadges(user, newBadges);
+    this.applyFreezeRefillMilestones(user, newBadges);
+
+    if (badgeNormalization.changed || streakMeta.changed || newBadges.length > 0) {
+      await user.save();
+    }
+
+    return this.getUnseenBadges(user);
+  }
+
+  async markBadgeSeen(userId: string, badgeId: string) {
+    const userObjectId = new Types.ObjectId(userId);
+    const user = await this.userModel.findById(userObjectId).exec();
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const { badges, changed } = this.ensureBadgeRecords(user);
+    const badge = badges.find((entry) => entry.badgeId === badgeId);
+
+    if (!badge) {
+      throw new NotFoundException('Badge not found');
+    }
+
+    if (!badge.seen) {
+      badge.seen = true;
+      user.badges = badges as BadgeProgress[];
+      await user.save();
+    } else if (changed) {
+      await user.save();
+    }
+
+    return { success: true };
+  }
+
   // Called when user completes a lesson
   async completeLesson(userId: string, lessonId: string) {
     const now = new Date();
+    const today = this.getDayStart(now);
     const userObjectId = new Types.ObjectId(userId);
     const lessonObjectId = new Types.ObjectId(lessonId);
 
@@ -314,19 +668,26 @@ export class ProgressService {
       throw new NotFoundException('User not found');
     }
 
+    this.ensureBadgeRecords(user);
     this.ensureHeartsFresh(user, now);
+    const streakMeta = this.reconcileDailyStreak(user, now);
+    const lessonCompletedToday = this.isSameDay(user.lastLessonDate, today);
     let xpAwarded = 0;
-    const newBadges: string[] = [];
+    const newBadges: BadgeSummary[] = [];
 
-    const streakMeta = this.updateStreak(user, now);
+    if (!lessonCompletedToday) {
+      user.streakDays = (user.streakDays ?? 0) + 1;
+      user.lastLessonDate = today;
+      user.lastActivityDate = today;
+      user.lastLearningAt = today;
+      this.appendLearningDay(user, now);
+    }
 
     if (!wasCompleted) {
       user.lessonsCompletedCount = (user.lessonsCompletedCount ?? 0) + 1;
       user.xp = (user.xp ?? 0) + LESSON_COMPLETION_XP;
       xpAwarded += LESSON_COMPLETION_XP;
-    }
 
-    if (!wasCompleted) {
       const moduleLessons = await this.lessonModel
         .find({ module: lesson.module, isPublished: true })
         .select('_id')
@@ -339,17 +700,12 @@ export class ProgressService {
         lessonId: { $in: moduleLessonIds },
       });
 
-      if (
-        moduleLessonIds.length > 0 &&
-        completedInModule === moduleLessonIds.length
-      ) {
-        const unitBadge = `Unit Completed: ${lesson.module}`;
-        const chapterBadge = `Chapter Badge: ${lesson.module}`;
-        if (!(user.badges ?? []).includes(unitBadge)) {
+      if (moduleLessonIds.length > 0 && completedInModule === moduleLessonIds.length) {
+        const unitBadge = this.buildUnitBadgeId(lesson.module);
+        if (!this.hasBadge(user, unitBadge)) {
           user.xp = (user.xp ?? 0) + UNIT_COMPLETION_XP;
           xpAwarded += UNIT_COMPLETION_XP;
-          this.addBadge(user, unitBadge, newBadges);
-          this.addBadge(user, chapterBadge, newBadges);
+          this.awardBadge(user, unitBadge, newBadges);
         }
       }
 
@@ -364,11 +720,11 @@ export class ProgressService {
       if (
         allLessonIds.length > 0 &&
         completedAllLessons === allLessonIds.length &&
-        !(user.badges ?? []).includes('Course Completed')
+        !this.hasBadge(user, 'course_completed')
       ) {
         user.xp = (user.xp ?? 0) + COURSE_COMPLETION_XP;
         xpAwarded += COURSE_COMPLETION_XP;
-        this.addBadge(user, 'Course Completed', newBadges);
+        this.awardBadge(user, 'course_completed', newBadges);
       }
     }
 
@@ -376,12 +732,15 @@ export class ProgressService {
     this.applyFreezeRefillMilestones(user, newBadges);
     await user.save();
 
+    const status = streakMeta.status === 'freeze_used' ? 'freeze_used' : 'active';
+
     return {
       progress,
       xpAwarded,
-      freezeUsed: streakMeta.freezeUsed,
+      freezeUsed: streakMeta.status === 'freeze_used',
+      streakStatus: status,
       newBadges,
-      gamification: this.gamificationSnapshot(user),
+      gamification: this.gamificationSnapshot(user, status),
     };
   }
 
@@ -424,14 +783,14 @@ export class ProgressService {
       throw new NotFoundException('User not found');
     }
 
+    this.ensureBadgeRecords(user);
     this.ensureHeartsFresh(user, now);
-    const streakMeta = this.updateStreak(user, now);
 
     if (xpAwarded > 0) {
       user.xp = (user.xp ?? 0) + xpAwarded;
     }
 
-    const newBadges: string[] = [];
+    const newBadges: BadgeSummary[] = [];
     this.applyMilestoneBadges(user, newBadges);
     this.applyFreezeRefillMilestones(user, newBadges);
     await user.save();
@@ -439,7 +798,8 @@ export class ProgressService {
     return {
       grantedCount,
       xpAwarded,
-      freezeUsed: streakMeta.freezeUsed,
+      freezeUsed: false,
+      streakStatus: this.getCurrentStreakStatus(user, now),
       newBadges,
       gamification: this.gamificationSnapshot(user),
     };
@@ -512,8 +872,14 @@ export class ProgressService {
     }
 
     const now = new Date();
+    const badgeNormalization = this.ensureBadgeRecords(user);
     const heartsUpdated = this.ensureHeartsFresh(user, now);
-    if (heartsUpdated) {
+    const streakMeta = this.reconcileDailyStreak(user, now);
+    const newBadges: BadgeSummary[] = [];
+    this.applyMilestoneBadges(user, newBadges);
+    this.applyFreezeRefillMilestones(user, newBadges);
+
+    if (badgeNormalization.changed || heartsUpdated || streakMeta.changed || newBadges.length > 0) {
       await user.save();
     }
 
@@ -561,7 +927,7 @@ export class ProgressService {
     const completedLessons = completedSet.size;
 
     return {
-      ...this.gamificationSnapshot(user),
+      ...this.gamificationSnapshot(user, streakMeta.status),
       nextLessonId,
       nextLessonTitle,
       totalLessons,
@@ -671,8 +1037,8 @@ export class ProgressService {
       throw new NotFoundException('User not found');
     }
 
+    this.ensureBadgeRecords(user);
     this.ensureHeartsFresh(user, now);
-    const streakMeta = this.updateStreak(user, now);
 
     const previousBestCorrectAnswers = existing?.bestCorrectAnswers ?? 0;
     const newlyImprovedCorrectAnswers = Math.max(0, correctAnswers - previousBestCorrectAnswers);
@@ -686,7 +1052,7 @@ export class ProgressService {
     const wrongAnswers = Math.max(0, quiz.length - correctAnswers);
     user.hearts = Math.max(0, (user.hearts ?? DEFAULT_MAX_HEARTS) - wrongAnswers);
 
-    const newBadges: string[] = [];
+    const newBadges: BadgeSummary[] = [];
     this.applyMilestoneBadges(user, newBadges);
     this.applyFreezeRefillMilestones(user, newBadges);
     await user.save();
@@ -699,7 +1065,8 @@ export class ProgressService {
       bestScore,
       xpAwarded,
       bonusXpAwarded,
-      freezeUsed: streakMeta.freezeUsed,
+      freezeUsed: false,
+      streakStatus: this.getCurrentStreakStatus(user, now),
       feedback,
       newBadges,
       gamification: this.gamificationSnapshot(user),

@@ -1,5 +1,14 @@
-import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import * as FileSystem from "expo-file-system/legacy";
+import { apiFetch } from "../lib/api";
 
 type StorageLike = {
   getItem: (key: string) => string | null;
@@ -16,9 +25,18 @@ type AuthState = {
   isAdmin: boolean;
 };
 
+type UserProfileResponse = {
+  isProfileComplete: boolean;
+  name?: string;
+  email?: string;
+  isAdmin?: boolean;
+};
+
 type AuthContextValue = AuthState & {
   isAuthenticated: boolean;
   isHydrated: boolean;
+  isProfileResolved: boolean;
+  isProfileComplete: boolean | null;
   signIn: (params: {
     accessToken: string;
     refreshToken: string;
@@ -28,7 +46,13 @@ type AuthContextValue = AuthState & {
     isAdmin?: boolean | null;
   }) => void;
   signOut: () => void;
-  updateUser: (params: { userName?: string | null; email?: string | null; isAdmin?: boolean | null }) => void;
+  updateUser: (params: {
+    userName?: string | null;
+    email?: string | null;
+    isAdmin?: boolean | null;
+    isProfileComplete?: boolean | null;
+  }) => void;
+  refreshProfile: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -58,8 +82,7 @@ async function loadStoredAuth(): Promise<AuthState | null> {
     try {
       const raw = storage.getItem(AUTH_STORAGE_KEY);
       if (!raw) return null;
-      const parsed = JSON.parse(raw) as AuthState;
-      return parsed;
+      return JSON.parse(raw) as AuthState;
     } catch {
       return null;
     }
@@ -72,8 +95,7 @@ async function loadStoredAuth(): Promise<AuthState | null> {
   try {
     const raw = await FileSystem.readAsStringAsync(AUTH_STORAGE_FILE);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as AuthState;
-    return parsed;
+    return JSON.parse(raw) as AuthState;
   } catch {
     return null;
   }
@@ -126,15 +148,184 @@ async function clearAuth() {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [auth, setAuth] = useState<AuthState>(initialState);
   const [isHydrated, setIsHydrated] = useState(false);
+  const [isProfileResolved, setIsProfileResolved] = useState(false);
+  const [isProfileComplete, setIsProfileComplete] = useState<boolean | null>(null);
   const hasRuntimeAuthMutation = useRef(false);
+
+  const applyAuthState = useCallback((next: AuthState) => {
+    setAuth(next);
+    void storeAuth(next);
+  }, []);
+
+  const signOut = useCallback(() => {
+    hasRuntimeAuthMutation.current = true;
+    setIsHydrated(true);
+    setIsProfileComplete(null);
+    setIsProfileResolved(true);
+    setAuth(initialState);
+    void clearAuth();
+  }, []);
+
+  const signIn = useCallback(
+    ({
+      accessToken,
+      refreshToken,
+      userId,
+      userName,
+      email,
+      isAdmin,
+    }: {
+      accessToken: string;
+      refreshToken: string;
+      userId: string;
+      userName?: string | null;
+      email?: string | null;
+      isAdmin?: boolean | null;
+    }) => {
+      hasRuntimeAuthMutation.current = true;
+      setIsHydrated(true);
+      setIsProfileComplete(null);
+      setIsProfileResolved(false);
+
+      applyAuthState({
+        accessToken,
+        refreshToken,
+        userId,
+        userName: userName ?? null,
+        email: email ?? null,
+        isAdmin: Boolean(isAdmin),
+      });
+    },
+    [applyAuthState],
+  );
+
+  const updateUser = useCallback(
+    ({
+      userName,
+      email,
+      isAdmin,
+      isProfileComplete: nextProfileComplete,
+    }: {
+      userName?: string | null;
+      email?: string | null;
+      isAdmin?: boolean | null;
+      isProfileComplete?: boolean | null;
+    }) => {
+      setAuth((prev) => {
+        const resolvedUserName = userName ?? prev.userName;
+        const resolvedEmail = email ?? prev.email;
+        const resolvedIsAdmin = isAdmin ?? prev.isAdmin;
+
+        if (
+          resolvedUserName === prev.userName &&
+          resolvedEmail === prev.email &&
+          resolvedIsAdmin === prev.isAdmin
+        ) {
+          return prev;
+        }
+
+        const next = {
+          ...prev,
+          userName: resolvedUserName,
+          email: resolvedEmail,
+          isAdmin: resolvedIsAdmin,
+        };
+        void storeAuth(next);
+        return next;
+      });
+
+      if (typeof nextProfileComplete === "boolean") {
+        setIsProfileComplete(nextProfileComplete);
+        setIsProfileResolved(true);
+      } else if (nextProfileComplete === null) {
+        setIsProfileComplete(null);
+        setIsProfileResolved(false);
+      }
+    },
+    [],
+  );
+
+  const refreshProfile = useCallback(async () => {
+    if (!auth.accessToken) {
+      setIsProfileComplete(null);
+      setIsProfileResolved(true);
+      return;
+    }
+
+    setIsProfileResolved(false);
+
+    const applyProfile = (profile: UserProfileResponse, token = auth.accessToken) => {
+      setAuth((prev) => {
+        const next = {
+          ...prev,
+          accessToken: token,
+          userName: profile.name ?? prev.userName,
+          email: profile.email ?? prev.email,
+          isAdmin: Boolean(profile.isAdmin ?? prev.isAdmin),
+        };
+        void storeAuth(next);
+        return next;
+      });
+      setIsProfileComplete(Boolean(profile.isProfileComplete));
+      setIsProfileResolved(true);
+    };
+
+    try {
+      const profile = await apiFetch<UserProfileResponse>("/users/me", {}, auth.accessToken);
+      applyProfile(profile);
+      return;
+    } catch (error: any) {
+      if (error?.status === 401 && auth.refreshToken && auth.userId) {
+        try {
+          const refreshed = await apiFetch<{
+            accessToken: string;
+            RefreshToken: string;
+          }>("/auth/refresh", {
+            method: "POST",
+            body: JSON.stringify({ refreshToken: auth.refreshToken }),
+          });
+
+          const refreshedToken = refreshed.accessToken;
+          const refreshedRefreshToken = refreshed.RefreshToken;
+
+          setAuth((prev) => {
+            const next = {
+              ...prev,
+              accessToken: refreshedToken,
+              refreshToken: refreshedRefreshToken,
+            };
+            void storeAuth(next);
+            return next;
+          });
+
+          const profile = await apiFetch<UserProfileResponse>(
+            "/users/me",
+            {},
+            refreshedToken,
+          );
+          applyProfile(profile, refreshedToken);
+          return;
+        } catch {
+          signOut();
+          return;
+        }
+      }
+
+      // Avoid trapping valid sessions in onboarding when profile lookup fails transiently.
+      setIsProfileComplete((prev) => prev ?? true);
+      setIsProfileResolved(true);
+    }
+  }, [auth.accessToken, auth.refreshToken, auth.userId, signOut]);
 
   useEffect(() => {
     let active = true;
+
     const hydrateAuth = async () => {
       const stored = await loadStoredAuth();
       if (!active) {
         return;
       }
+
       setAuth((prev) => {
         if (hasRuntimeAuthMutation.current || prev.accessToken) {
           return prev;
@@ -151,6 +342,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           isAdmin: Boolean(stored.isAdmin),
         };
       });
+
+      setIsProfileComplete(null);
+      setIsProfileResolved(!stored?.accessToken);
       setIsHydrated(true);
     };
 
@@ -160,54 +354,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  useEffect(() => {
+    if (!isHydrated) {
+      return;
+    }
+
+    if (!auth.accessToken) {
+      setIsProfileComplete(null);
+      setIsProfileResolved(true);
+      return;
+    }
+
+    void refreshProfile();
+  }, [auth.accessToken, auth.refreshToken, auth.userId, isHydrated, refreshProfile]);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       ...auth,
       isAuthenticated: Boolean(auth.accessToken),
       isHydrated,
-      signIn: ({ accessToken, refreshToken, userId, userName, email, isAdmin }) => {
-        hasRuntimeAuthMutation.current = true;
-        setIsHydrated(true);
-        const next = {
-          accessToken,
-          refreshToken,
-          userId,
-          userName: userName ?? null,
-          email: email ?? null,
-          isAdmin: Boolean(isAdmin),
-        };
-        setAuth(next);
-        void storeAuth(next);
-      },
-      signOut: () => {
-        hasRuntimeAuthMutation.current = true;
-        setIsHydrated(true);
-        setAuth(initialState);
-        void clearAuth();
-      },
-      updateUser: ({ userName, email, isAdmin }) =>
-        setAuth((prev) => {
-          const resolvedUserName = userName ?? prev.userName;
-          const resolvedEmail = email ?? prev.email;
-          const resolvedIsAdmin = isAdmin ?? prev.isAdmin;
-          if (
-            resolvedUserName === prev.userName &&
-            resolvedEmail === prev.email &&
-            resolvedIsAdmin === prev.isAdmin
-          ) {
-            return prev;
-          }
-          const next = {
-            ...prev,
-            userName: resolvedUserName,
-            email: resolvedEmail,
-            isAdmin: resolvedIsAdmin,
-          };
-          void storeAuth(next);
-          return next;
-        }),
+      isProfileResolved,
+      isProfileComplete,
+      signIn,
+      signOut,
+      updateUser,
+      refreshProfile,
     }),
-    [auth, isHydrated],
+    [
+      auth,
+      isHydrated,
+      isProfileComplete,
+      isProfileResolved,
+      refreshProfile,
+      signIn,
+      signOut,
+      updateUser,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
