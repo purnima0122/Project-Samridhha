@@ -1,15 +1,13 @@
 {
   "expo": {
     "name": "TechProject",
-    "slug": "techproject",
+    "slug": "stocklearn",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "stocklearn",
     "userInterfaceStyle": "light",
-    "ios": {
-      
-    },
+    "ios": {},
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
@@ -31,6 +29,16 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {
+        "origin": false,
+        "asyncRoutes": true
+      },
+      "eas": {
+        "projectId": "2631d437-ad73-49ed-95cc-fcc053850ed9"
+      }
+    },
+    "owner": "purnima0122s-organization"
   }
 }
