@@ -1,4 +1,23 @@
 services:
+  mongo:
+    image: mongo:7
+    container_name: samridhha-mongo
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=admin
+      - MONGO_INITDB_DATABASE=stocklearn
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: mongosh --eval "db.adminCommand('ping')" --quiet
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
   backend:
     build:
       context: ./backend-nest
@@ -10,7 +29,26 @@ services:
       - ./backend-nest/.env
     environment:
       - PORT=3000
+      - MONGO_URI=mongodb://admin:admin@mongo:27017/stocklearn?authSource=admin
+    depends_on:
+      mongo:
+        condition: service_healthy
+      seed:
+        condition: service_completed_successfully
     restart: unless-stopped
+
+  seed:
+    build:
+      context: ./backend-nest
+      dockerfile: Dockerfile
+    container_name: samridhha-seed
+    environment:
+      - MONGO_URI=mongodb://admin:admin@mongo:27017/stocklearn?authSource=admin
+    depends_on:
+      mongo:
+        condition: service_healthy
+    command: ["node", "seed/run-lesson-seed.js", "--mode", "upsert"]
+    restart: "no"
 
   frontend:
     build:
@@ -27,3 +65,6 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
+
+volumes:
+  mongo_data:
