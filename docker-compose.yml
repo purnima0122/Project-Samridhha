@@ -1,0 +1,29 @@
+services:
+  backend:
+    build:
+      context: ./backend-nest
+      dockerfile: Dockerfile
+    container_name: samridhha-backend
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./backend-nest/.env
+    environment:
+      - PORT=3000
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./StockLaern
+      dockerfile: Dockerfile
+    container_name: samridhha-frontend
+    ports:
+      - "8092:8092"
+    environment:
+      - EXPO_PUBLIC_API_BASE_URL=http://localhost:3000
+      - EXPO_PUBLIC_DATA_SERVER_URL=https://samridhha-data.manasi.com.np
+    stdin_open: true
+    tty: true
+    depends_on:
+      - backend
+    restart: unless-stopped
