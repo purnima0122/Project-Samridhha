@@ -3,3 +3,4 @@ report.pdf
 .env
 .venv
 venv
+node_modules/
