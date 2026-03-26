@@ -65,7 +65,7 @@ export default function MarketScreen({ onNavigate }: BrowseMarketProps) {
     if (tick) {
       return {
         ...stock,
-        price: tick.current_price ?? stock.price ?? stock.current_price ?? stock.ltp ?? 0,
+        price: tick.price ?? tick.current_price ?? stock.price ?? stock.current_price ?? stock.ltp ?? 0,
         change: tick.change_pct ?? stock.change_pct ?? stock.change ?? 0,
         volume: tick.volume ?? stock.volume ?? 0,
       };

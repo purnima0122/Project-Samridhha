@@ -143,7 +143,9 @@ export default function HomeScreen() {
         const symbol = String(item.symbol ?? "").toUpperCase();
         const stock = stockLookup[symbol] ?? {};
         const tick = ticks[symbol] ?? {};
-        const livePrice = Number(tick.current_price ?? stock.price ?? NaN);
+        const livePrice = Number(
+          tick.price ?? tick.current_price ?? stock.price ?? stock.current_price ?? stock.ltp ?? NaN,
+        );
         const liveChangePct = Number(tick.change_pct ?? stock.change_pct ?? NaN);
         const fallbackPrice =
           typeof item.price === "string" && item.price.trim()
