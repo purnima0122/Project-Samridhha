@@ -5,17 +5,21 @@ import { Progress, ProgressDocument } from './schemas/progress.schema';
 import { Lesson, LessonDocument } from '../lesson/schemas/lesson.schema';
 import { BadgeProgress, User } from '../auth/schemas/user.schema';
 
-const LESSON_COMPLETION_XP = 20;
+const DEFAULT_STREAK_FREEZES = 3;
 const UNIT_COMPLETION_XP = 50;
 const COURSE_COMPLETION_XP = 200;
 const FLASHCARD_VIEW_XP = 2;
-const QUIZ_CORRECT_XP = 5;
 const MAX_FLASHCARDS_PER_LESSON = 4;
 const PASSING_SCORE_PERCENT = 70;
 const LEVEL_XP_STEP = 120;
-const QUIZ_BONUS_XP = 15;
 const MAX_ACTIVITY_DAYS = 35;
 const DEFAULT_MAX_HEARTS = 5;
+const LESSON_COMPLETION_XP_BY_STARS: Record<number, number> = {
+  0: 5,
+  1: 25,
+  2: 35,
+  3: 50,
+};
 
 type StreakStatus = 'active' | 'at_risk' | 'freeze_used' | 'streak_lost';
 
@@ -34,6 +38,11 @@ type BadgeSummary = BadgeDefinition & {
 type StreakReconciliation = {
   changed: boolean;
   status: StreakStatus;
+};
+
+type CompletionReward = {
+  stars: number;
+  lessonXp: number;
 };
 
 const BADGE_DEFINITIONS: Record<string, BadgeDefinition> = {
@@ -129,6 +138,64 @@ export class ProgressService {
     }
   }
 
+  private appendFreezeDay(user: User, date: Date) {
+    const freezeKey = this.getDateKey(date);
+    const existing = user.streakFreezeDates ?? [];
+    if (!existing.includes(freezeKey)) {
+      user.streakFreezeDates = [...existing, freezeKey].slice(-MAX_ACTIVITY_DAYS);
+    }
+  }
+
+  private ensureInitialFreezeState(user: User): boolean {
+    let changed = false;
+    const maxFreezes =
+      typeof user.maxStreakFreezes === 'number' && user.maxStreakFreezes > 0
+        ? user.maxStreakFreezes
+        : DEFAULT_STREAK_FREEZES;
+
+    if (user.maxStreakFreezes !== maxFreezes) {
+      user.maxStreakFreezes = maxFreezes;
+      changed = true;
+    }
+
+    const isFreshUser =
+      (user.streakDays ?? 0) === 0 &&
+      (user.lessonsCompletedCount ?? 0) === 0 &&
+      (user.correctQuizAnswers ?? 0) === 0 &&
+      (user.streakFreezeUsedCount ?? 0) === 0 &&
+      !user.lastLessonDate &&
+      !user.lastActivityDate &&
+      !user.lastLearningAt &&
+      (user.learningActivityDates?.length ?? 0) === 0 &&
+      (user.streakFreezeDates?.length ?? 0) === 0;
+
+    const currentFreezes =
+      typeof user.streakFreezes === 'number' && Number.isFinite(user.streakFreezes)
+        ? user.streakFreezes
+        : null;
+
+    if (currentFreezes === null) {
+      user.streakFreezes = maxFreezes;
+      changed = true;
+    } else if (isFreshUser && currentFreezes < maxFreezes) {
+      user.streakFreezes = maxFreezes;
+      changed = true;
+    } else if (currentFreezes > maxFreezes) {
+      user.streakFreezes = maxFreezes;
+      changed = true;
+    } else if (currentFreezes < 0) {
+      user.streakFreezes = 0;
+      changed = true;
+    }
+
+    if (!Array.isArray(user.streakFreezeDates)) {
+      user.streakFreezeDates = [];
+      changed = true;
+    }
+
+    return changed;
+  }
+
   private getCurrentWeekProgress(user: User, now: Date) {
     const currentDay = now.getDay();
     const mondayOffset = currentDay === 0 ? -6 : 1 - currentDay;
@@ -138,6 +205,7 @@ export class ProgressService {
 
     const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     const activity = new Set(user.learningActivityDates ?? []);
+    const freezeActivity = new Set(user.streakFreezeDates ?? []);
 
     return labels.map((label, index) => {
       const date = new Date(monday);
@@ -145,15 +213,118 @@ export class ProgressService {
       const dateKey = this.getDateKey(date);
       const isToday = this.getDateKey(now) === dateKey;
       const completed = activity.has(dateKey);
+      const freezeUsed = freezeActivity.has(dateKey);
 
       return {
         label,
         date: dateKey,
         completed,
         isToday,
-        status: completed ? 'done' : date > now ? 'locked' : isToday ? 'today' : 'missed',
+        status: completed
+          ? 'done'
+          : freezeUsed
+            ? 'freeze'
+            : date > now
+              ? 'locked'
+              : isToday
+                ? 'today'
+                : 'missed',
       };
     });
+  }
+
+  private getStarsForScore(scorePercent?: number | null): number {
+    const score = Number.isFinite(scorePercent as number) ? Number(scorePercent) : 0;
+    if (score >= 100) {
+      return 3;
+    }
+    if (score >= 67) {
+      return 2;
+    }
+    if (score > 0) {
+      return 1;
+    }
+    return 0;
+  }
+
+  private getCompletionReward(scorePercent?: number | null, hasQuiz = true): CompletionReward {
+    if (!hasQuiz) {
+      return {
+        stars: 1,
+        lessonXp: LESSON_COMPLETION_XP_BY_STARS[1],
+      };
+    }
+
+    const stars = this.getStarsForScore(scorePercent);
+    return {
+      stars,
+      lessonXp: LESSON_COMPLETION_XP_BY_STARS[stars] ?? LESSON_COMPLETION_XP_BY_STARS[0],
+    };
+  }
+
+  private markLessonCompletedForToday(user: User, now: Date) {
+    const today = this.getDayStart(now);
+    const lessonCompletedToday = this.isSameDay(user.lastLessonDate, today);
+
+    if (!lessonCompletedToday) {
+      user.streakDays = (user.streakDays ?? 0) + 1;
+      user.lastLessonDate = today;
+      user.lastActivityDate = today;
+      user.lastLearningAt = today;
+      this.appendLearningDay(user, now);
+    }
+
+    return { today, lessonCompletedToday };
+  }
+
+  private async applyUnitAndCourseCompletionBonuses(
+    user: User,
+    userObjectId: Types.ObjectId,
+    lesson: LessonDocument,
+    newBadges: BadgeSummary[],
+  ) {
+    let bonusXpAwarded = 0;
+
+    const moduleLessons = await this.lessonModel
+      .find({ module: lesson.module, isPublished: true })
+      .select('_id')
+      .exec();
+
+    const moduleLessonIds = moduleLessons.map((item) => item._id);
+    const completedInModule = await this.progressModel.countDocuments({
+      userId: userObjectId,
+      completed: true,
+      lessonId: { $in: moduleLessonIds },
+    });
+
+    if (moduleLessonIds.length > 0 && completedInModule === moduleLessonIds.length) {
+      const unitBadge = this.buildUnitBadgeId(lesson.module);
+      if (!this.hasBadge(user, unitBadge)) {
+        user.xp = (user.xp ?? 0) + UNIT_COMPLETION_XP;
+        bonusXpAwarded += UNIT_COMPLETION_XP;
+        this.awardBadge(user, unitBadge, newBadges);
+      }
+    }
+
+    const allLessons = await this.lessonModel.find({ isPublished: true }).select('_id').exec();
+    const allLessonIds = allLessons.map((item) => item._id);
+    const completedAllLessons = await this.progressModel.countDocuments({
+      userId: userObjectId,
+      completed: true,
+      lessonId: { $in: allLessonIds },
+    });
+
+    if (
+      allLessonIds.length > 0 &&
+      completedAllLessons === allLessonIds.length &&
+      !this.hasBadge(user, 'course_completed')
+    ) {
+      user.xp = (user.xp ?? 0) + COURSE_COMPLETION_XP;
+      bonusXpAwarded += COURSE_COMPLETION_XP;
+      this.awardBadge(user, 'course_completed', newBadges);
+    }
+
+    return bonusXpAwarded;
   }
 
   private ensureHeartsFresh(user: User, now: Date) {
@@ -429,13 +600,14 @@ export class ProgressService {
     const xp = user.xp ?? 0;
     const progressInLevel = xp % LEVEL_XP_STEP;
     const now = new Date();
+    this.ensureInitialFreezeState(user);
     this.ensureHeartsFresh(user, now);
     const streakStatus = status ?? this.getCurrentStreakStatus(user, now);
     return {
       xp,
       level: this.getLevel(xp),
       streakDays: user.streakDays ?? 0,
-      streakFreezes: user.streakFreezes ?? 2,
+      streakFreezes: user.streakFreezes ?? DEFAULT_STREAK_FREEZES,
       maxStreakFreezes: user.maxStreakFreezes ?? 3,
       badges: this.ensureBadgeRecords(user).badges.map((entry) => entry.badgeId),
       badgeDetails: this.ensureBadgeRecords(user).badges.map((entry) => this.toBadgeSummary(entry)),
@@ -473,6 +645,9 @@ export class ProgressService {
       if ((user.streakFreezes ?? 0) > 0) {
         user.streakFreezes = Math.max(0, (user.streakFreezes ?? 0) - 1);
         user.streakFreezeUsedCount = (user.streakFreezeUsedCount ?? 0) + 1;
+        const frozenDate = new Date(today);
+        frozenDate.setDate(today.getDate() - 1);
+        this.appendFreezeDay(user, frozenDate);
         user.lastActivityDate = today;
         user.lastLearningAt = today;
         return { changed: true, status: 'freeze_used' };
@@ -493,7 +668,7 @@ export class ProgressService {
   private buildStreakCheckResponse(user: User, status: StreakStatus) {
     return {
       streak: user.streakDays ?? 0,
-      freezes: user.streakFreezes ?? 2,
+      freezes: user.streakFreezes ?? DEFAULT_STREAK_FREEZES,
       maxFreezes: user.maxStreakFreezes ?? 3,
       status,
       lessonCompletedToday: this.isSameDay(user.lastLessonDate, new Date()),
@@ -572,9 +747,10 @@ export class ProgressService {
     }
 
     const badgeNormalization = this.ensureBadgeRecords(user);
+    const freezeNormalization = this.ensureInitialFreezeState(user);
     const streakMeta = this.reconcileDailyStreak(user, new Date());
 
-    if (badgeNormalization.changed || streakMeta.changed) {
+    if (badgeNormalization.changed || freezeNormalization || streakMeta.changed) {
       await user.save();
     }
 
@@ -591,11 +767,12 @@ export class ProgressService {
 
     const newBadges: BadgeSummary[] = [];
     const badgeNormalization = this.ensureBadgeRecords(user);
+    const freezeNormalization = this.ensureInitialFreezeState(user);
     const streakMeta = this.reconcileDailyStreak(user, new Date());
     this.applyMilestoneBadges(user, newBadges);
     this.applyFreezeRefillMilestones(user, newBadges);
 
-    if (badgeNormalization.changed || streakMeta.changed || newBadges.length > 0) {
+    if (badgeNormalization.changed || freezeNormalization || streakMeta.changed || newBadges.length > 0) {
       await user.save();
     }
 
@@ -631,7 +808,6 @@ export class ProgressService {
   // Called when user completes a lesson
   async completeLesson(userId: string, lessonId: string) {
     const now = new Date();
-    const today = this.getDayStart(now);
     const userObjectId = new Types.ObjectId(userId);
     const lessonObjectId = new Types.ObjectId(lessonId);
 
@@ -648,6 +824,9 @@ export class ProgressService {
     });
 
     const wasCompleted = existing?.completed ?? false;
+    const reward = this.getCompletionReward(existing?.bestScore ?? existing?.lastScore ?? 0, (lesson.quiz ?? []).length > 0);
+    const previousCompletionXp = existing?.completionXpAwarded ?? 0;
+    const targetCompletionXp = Math.max(previousCompletionXp, reward.lessonXp);
 
     const progress = await this.progressModel.findOneAndUpdate(
       {
@@ -659,6 +838,7 @@ export class ProgressService {
         lessonId: lessonObjectId,
         completed: true,
         completedAt: existing?.completedAt ?? now,
+        completionXpAwarded: targetCompletionXp,
       },
       { new: true, upsert: true },
     );
@@ -669,63 +849,27 @@ export class ProgressService {
     }
 
     this.ensureBadgeRecords(user);
+    this.ensureInitialFreezeState(user);
     this.ensureHeartsFresh(user, now);
     const streakMeta = this.reconcileDailyStreak(user, now);
-    const lessonCompletedToday = this.isSameDay(user.lastLessonDate, today);
-    let xpAwarded = 0;
+    const { lessonCompletedToday } = this.markLessonCompletedForToday(user, now);
+    let lessonXpAwarded = 0;
+    let bonusXpAwarded = 0;
     const newBadges: BadgeSummary[] = [];
 
-    if (!lessonCompletedToday) {
-      user.streakDays = (user.streakDays ?? 0) + 1;
-      user.lastLessonDate = today;
-      user.lastActivityDate = today;
-      user.lastLearningAt = today;
-      this.appendLearningDay(user, now);
+    if (reward.lessonXp > previousCompletionXp) {
+      lessonXpAwarded = reward.lessonXp - previousCompletionXp;
+      user.xp = (user.xp ?? 0) + lessonXpAwarded;
     }
 
     if (!wasCompleted) {
       user.lessonsCompletedCount = (user.lessonsCompletedCount ?? 0) + 1;
-      user.xp = (user.xp ?? 0) + LESSON_COMPLETION_XP;
-      xpAwarded += LESSON_COMPLETION_XP;
-
-      const moduleLessons = await this.lessonModel
-        .find({ module: lesson.module, isPublished: true })
-        .select('_id')
-        .exec();
-
-      const moduleLessonIds = moduleLessons.map((item) => item._id);
-      const completedInModule = await this.progressModel.countDocuments({
-        userId: userObjectId,
-        completed: true,
-        lessonId: { $in: moduleLessonIds },
-      });
-
-      if (moduleLessonIds.length > 0 && completedInModule === moduleLessonIds.length) {
-        const unitBadge = this.buildUnitBadgeId(lesson.module);
-        if (!this.hasBadge(user, unitBadge)) {
-          user.xp = (user.xp ?? 0) + UNIT_COMPLETION_XP;
-          xpAwarded += UNIT_COMPLETION_XP;
-          this.awardBadge(user, unitBadge, newBadges);
-        }
-      }
-
-      const allLessons = await this.lessonModel.find({ isPublished: true }).select('_id').exec();
-      const allLessonIds = allLessons.map((item) => item._id);
-      const completedAllLessons = await this.progressModel.countDocuments({
-        userId: userObjectId,
-        completed: true,
-        lessonId: { $in: allLessonIds },
-      });
-
-      if (
-        allLessonIds.length > 0 &&
-        completedAllLessons === allLessonIds.length &&
-        !this.hasBadge(user, 'course_completed')
-      ) {
-        user.xp = (user.xp ?? 0) + COURSE_COMPLETION_XP;
-        xpAwarded += COURSE_COMPLETION_XP;
-        this.awardBadge(user, 'course_completed', newBadges);
-      }
+      bonusXpAwarded = await this.applyUnitAndCourseCompletionBonuses(
+        user,
+        userObjectId,
+        lesson,
+        newBadges,
+      );
     }
 
     this.applyMilestoneBadges(user, newBadges);
@@ -733,14 +877,20 @@ export class ProgressService {
     await user.save();
 
     const status = streakMeta.status === 'freeze_used' ? 'freeze_used' : 'active';
+    const xpAwarded = lessonXpAwarded + bonusXpAwarded;
 
     return {
       progress,
       xpAwarded,
+      lessonXpAwarded,
+      bonusXpAwarded,
+      completionStars: reward.stars,
+      scorePercent: existing?.bestScore ?? existing?.lastScore ?? 0,
       freezeUsed: streakMeta.status === 'freeze_used',
       streakStatus: status,
       newBadges,
       gamification: this.gamificationSnapshot(user, status),
+      lessonCompletedToday,
     };
   }
 
@@ -784,6 +934,7 @@ export class ProgressService {
     }
 
     this.ensureBadgeRecords(user);
+    this.ensureInitialFreezeState(user);
     this.ensureHeartsFresh(user, now);
 
     if (xpAwarded > 0) {
@@ -873,13 +1024,20 @@ export class ProgressService {
 
     const now = new Date();
     const badgeNormalization = this.ensureBadgeRecords(user);
+    const freezeNormalization = this.ensureInitialFreezeState(user);
     const heartsUpdated = this.ensureHeartsFresh(user, now);
     const streakMeta = this.reconcileDailyStreak(user, now);
     const newBadges: BadgeSummary[] = [];
     this.applyMilestoneBadges(user, newBadges);
     this.applyFreezeRefillMilestones(user, newBadges);
 
-    if (badgeNormalization.changed || heartsUpdated || streakMeta.changed || newBadges.length > 0) {
+    if (
+      badgeNormalization.changed ||
+      freezeNormalization ||
+      heartsUpdated ||
+      streakMeta.changed ||
+      newBadges.length > 0
+    ) {
       await user.save();
     }
 
@@ -994,6 +1152,7 @@ export class ProgressService {
       (correctAnswers / quiz.length) * 100,
     );
     const passed = scorePercent >= PASSING_SCORE_PERCENT;
+    const reward = this.getCompletionReward(scorePercent, quiz.length > 0);
 
     const lessonObjectId = new Types.ObjectId(lessonId);
     const existing = await this.progressModel.findOne({
@@ -1004,13 +1163,13 @@ export class ProgressService {
     const bestScore = Math.max(existing?.bestScore ?? 0, scorePercent);
     const bestCorrectAnswers = Math.max(existing?.bestCorrectAnswers ?? 0, correctAnswers);
     const quizPassed = (existing?.quizPassed ?? false) || passed;
-    const completed = quizPassed
-      ? true
-      : existing?.completed ?? false;
+    const completed = true;
     const completedAt =
       completed && !existing?.completedAt
         ? now
         : existing?.completedAt;
+    const previousCompletionXp = existing?.completionXpAwarded ?? 0;
+    const completionXpAwarded = Math.max(previousCompletionXp, reward.lessonXp);
 
     await this.progressModel.findOneAndUpdate(
       {
@@ -1028,6 +1187,7 @@ export class ProgressService {
         lastQuizAttemptAt: now,
         completed,
         completedAt,
+        completionXpAwarded,
       },
       { new: true, upsert: true },
     );
@@ -1038,24 +1198,41 @@ export class ProgressService {
     }
 
     this.ensureBadgeRecords(user);
+    this.ensureInitialFreezeState(user);
     this.ensureHeartsFresh(user, now);
+    const streakMeta = this.reconcileDailyStreak(user, now);
+    const wasCompleted = existing?.completed ?? false;
+    const { lessonCompletedToday } = this.markLessonCompletedForToday(user, now);
 
     const previousBestCorrectAnswers = existing?.bestCorrectAnswers ?? 0;
-    const newlyImprovedCorrectAnswers = Math.max(0, correctAnswers - previousBestCorrectAnswers);
-    const bonusThreshold = Math.ceil(quiz.length * 0.75);
-    const earnedBonus = correctAnswers >= bonusThreshold && (existing?.bestScore ?? 0) < 75;
-    const bonusXpAwarded = earnedBonus ? QUIZ_BONUS_XP : 0;
-    const xpAwarded = newlyImprovedCorrectAnswers * QUIZ_CORRECT_XP + bonusXpAwarded;
+    const improvedCorrectAnswers = Math.max(0, bestCorrectAnswers - previousBestCorrectAnswers);
+    let lessonXpAwarded = 0;
+    let bonusXpAwarded = 0;
 
-    user.xp = (user.xp ?? 0) + xpAwarded;
-    user.correctQuizAnswers = (user.correctQuizAnswers ?? 0) + correctAnswers;
+    if (reward.lessonXp > previousCompletionXp) {
+      lessonXpAwarded = reward.lessonXp - previousCompletionXp;
+      user.xp = (user.xp ?? 0) + lessonXpAwarded;
+    }
+
+    user.correctQuizAnswers = (user.correctQuizAnswers ?? 0) + improvedCorrectAnswers;
     const wrongAnswers = Math.max(0, quiz.length - correctAnswers);
     user.hearts = Math.max(0, (user.hearts ?? DEFAULT_MAX_HEARTS) - wrongAnswers);
 
     const newBadges: BadgeSummary[] = [];
+    if (!wasCompleted) {
+      user.lessonsCompletedCount = (user.lessonsCompletedCount ?? 0) + 1;
+      bonusXpAwarded = await this.applyUnitAndCourseCompletionBonuses(
+        user,
+        userObjectId,
+        lesson as LessonDocument,
+        newBadges,
+      );
+    }
     this.applyMilestoneBadges(user, newBadges);
     this.applyFreezeRefillMilestones(user, newBadges);
     await user.save();
+    const xpAwarded = lessonXpAwarded + bonusXpAwarded;
+    const status = streakMeta.status === 'freeze_used' ? 'freeze_used' : 'active';
 
     return {
       totalQuestions: quiz.length,
@@ -1064,12 +1241,15 @@ export class ProgressService {
       passed,
       bestScore,
       xpAwarded,
+      lessonXpAwarded,
       bonusXpAwarded,
-      freezeUsed: false,
-      streakStatus: this.getCurrentStreakStatus(user, now),
+      completionStars: reward.stars,
+      freezeUsed: streakMeta.status === 'freeze_used',
+      streakStatus: status,
       feedback,
       newBadges,
-      gamification: this.gamificationSnapshot(user),
+      gamification: this.gamificationSnapshot(user, status),
+      lessonCompletedToday,
     };
   }
 }

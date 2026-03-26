@@ -33,6 +33,9 @@ export class Progress {
   bestCorrectAnswers: number;
 
   @Prop({ default: 0 })
+  completionXpAwarded: number;
+
+  @Prop({ default: 0 })
   flashcardsViewed: number;
 
   @Prop()

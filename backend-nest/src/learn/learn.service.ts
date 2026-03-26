@@ -30,7 +30,7 @@ const DEFAULT_GAMIFICATION = {
   xp: 0,
   level: 1,
   streakDays: 0,
-  streakFreezes: 0,
+  streakFreezes: 3,
   maxStreakFreezes: 3,
   badges: [],
   hearts: 5,

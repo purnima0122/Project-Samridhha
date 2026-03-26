@@ -133,8 +133,32 @@ interface GameState {
   totalFlips: number;
   vaultsOpened: number;
   badges: string[];
-  weeklyProgress: { label: string; completed: boolean }[];
+  weeklyProgress: WeeklyProgressDayState[];
 }
+
+type WeeklyProgressDayState = {
+  label: string;
+  date?: string;
+  completed: boolean;
+  isToday?: boolean;
+  status?: "done" | "today" | "missed" | "locked" | "freeze";
+};
+
+type LessonCelebrationState = {
+  step: "xp" | "streak";
+  lessonTitle: string;
+  stars: number;
+  xpAwarded: number;
+  bonusXpAwarded: number;
+  scorePercent: number;
+  correctAnswers: number;
+  totalQuestions: number;
+  streakDays: number;
+  freezes: number;
+  maxFreezes: number;
+  weeklyProgress: WeeklyProgressDayState[];
+  streakMessage: string;
+};
 
 type BadgeDef = {
   id: string;
@@ -292,9 +316,69 @@ function resolveIcon(title: string, fallback: string) {
 
 function calcStars(score: number) {
   if (!score || score <= 0) return 0;
-  if (score >= 90) return 3;
-  if (score >= 70) return 2;
-  return 1;
+  if (score >= 100) return 3;
+  if (score >= 67) return 2;
+  if (score > 0) return 1;
+  return 0;
+}
+
+function getMotivationCopy(stars: number) {
+  if (stars >= 3) {
+    return {
+      title: "Legendary!",
+      subtitle: "You nailed it.",
+    };
+  }
+  if (stars === 2) {
+    return {
+      title: "You're a superstar!",
+      subtitle: "That lesson landed really well.",
+    };
+  }
+  if (stars === 1) {
+    return {
+      title: "Good start!",
+      subtitle: "Keep going. You are building momentum.",
+    };
+  }
+  return {
+    title: "Let's try again, shall we?",
+    subtitle: "Stronger this time. Consistency still counts.",
+  };
+}
+
+function buildFallbackWeeklyProgress(streak: number): WeeklyProgressDayState[] {
+  return ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((label, index) => ({
+    label,
+    completed: index < Math.min(streak, 7),
+    status: index < Math.min(streak, 7) ? "done" : "locked",
+  }));
+}
+
+function normalizeWeeklyProgress(
+  weeklyProgress: any[] | undefined,
+  streak: number,
+): WeeklyProgressDayState[] {
+  if (!Array.isArray(weeklyProgress) || weeklyProgress.length !== 7) {
+    return buildFallbackWeeklyProgress(streak);
+  }
+
+  return weeklyProgress.map((day, index) => ({
+    label: ps(day?.label, ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][index] || "Day"),
+    date: typeof day?.date === "string" ? day.date : undefined,
+    completed: Boolean(day?.completed),
+    isToday: Boolean(day?.isToday),
+    status:
+      day?.status === "done" ||
+      day?.status === "today" ||
+      day?.status === "missed" ||
+      day?.status === "locked" ||
+      day?.status === "freeze"
+        ? day.status
+        : Boolean(day?.completed)
+          ? "done"
+          : "locked",
+  }));
 }
 
 function normalizeQuest(quest: any, index: number, chapterKey: string): Quest {
@@ -740,6 +824,147 @@ function LearnTab({
   );
 }
 
+function WeeklyStreakTrack({
+  days,
+  compact = false,
+}: {
+  days: WeeklyProgressDayState[];
+  compact?: boolean;
+}) {
+  const resolvedDays = days.length === 7 ? days : buildFallbackWeeklyProgress(0);
+
+  return (
+    <View style={compact ? s.weeklyTrackCompact : s.weeklyTrack}>
+      <View style={s.weeklyTrackLabelRow}>
+        {resolvedDays.map((day) => (
+          <Text key={day.label} style={s.weeklyTrackLabel}>
+            {day.label}
+          </Text>
+        ))}
+      </View>
+      <View style={s.weeklyTrackIconRow}>
+        {resolvedDays.map((day) => {
+          const status = day.status ?? (day.completed ? "done" : "locked");
+          const isDone = status === "done";
+          const isFreeze = status === "freeze";
+          const isToday = status === "today";
+          const iconName = isDone
+            ? "mdi:fire"
+            : isFreeze
+              ? "mdi:snowflake"
+              : isToday
+                ? "mdi:fire"
+                : "mdi:circle-small";
+          const iconColor = isDone
+            ? "#F97316"
+            : isFreeze
+              ? "#93C5FD"
+              : isToday
+                ? "#FDBA74"
+                : "#64748B";
+
+          return (
+            <View
+              key={`${day.label}-${day.date ?? day.label}`}
+              style={[
+                s.weeklyTrackBubble,
+                compact && s.weeklyTrackBubbleCompact,
+                isDone && s.weeklyTrackBubbleDone,
+                isToday && s.weeklyTrackBubbleToday,
+                isFreeze && s.weeklyTrackBubbleFreeze,
+              ]}
+            >
+              <Ico name={iconName} size={compact ? 16 : 18} color={iconColor} />
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+function LessonCelebrationModal({
+  celebration,
+  onAdvance,
+  onClose,
+}: {
+  celebration: LessonCelebrationState | null;
+  onAdvance: () => void;
+  onClose: () => void;
+}) {
+  if (!celebration) return null;
+
+  const motivation = getMotivationCopy(celebration.stars);
+  const hasPerfectWeek = celebration.weeklyProgress.every((day) => day.status === "done");
+
+  return (
+    <Modal visible animationType="fade" presentationStyle="fullScreen">
+      <View style={[s.fullScreen, s.celebrationScreen]}>
+        {celebration.step === "xp" ? (
+          <View style={s.celebrationContent}>
+            <View style={s.celebrationBurst}>
+              <Ico
+                name={
+                  celebration.stars >= 3
+                    ? "mdi:trophy"
+                    : celebration.stars >= 2
+                      ? "mdi:star-circle"
+                      : "mdi:rocket-launch"
+                }
+                size={72}
+                color={celebration.stars >= 3 ? "#FACC15" : "#FB923C"}
+              />
+            </View>
+            <Text style={s.celebrationHeading}>Lesson complete!</Text>
+            <Text style={s.celebrationXpValue}>+{celebration.xpAwarded} XP</Text>
+            {celebration.bonusXpAwarded > 0 && (
+              <Text style={s.celebrationBonusText}>Bonus XP included: +{celebration.bonusXpAwarded}</Text>
+            )}
+            <View style={s.starRow2}>
+              {[1, 2, 3].map((i) => (
+                <Ico key={i} name="mdi:star" size={26} color={i <= celebration.stars ? C.gold : C.border} />
+              ))}
+            </View>
+            <Text style={s.resultTitle}>{motivation.title}</Text>
+            <Text style={s.resultSub}>{motivation.subtitle}</Text>
+            {celebration.totalQuestions > 0 && (
+              <Text style={s.resultScore}>
+                {celebration.correctAnswers}/{celebration.totalQuestions} correct - {celebration.scorePercent}%
+              </Text>
+            )}
+            <Pressable onPress={onAdvance} style={[s.primaryBtn, s.celebrationButton]}>
+              <Text style={s.primaryBtnText}>See streak</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <View style={s.celebrationContent}>
+            <View style={s.streakHero}>
+              <Ico name="mdi:fire" size={74} color="#FB923C" />
+            </View>
+            <Text style={s.streakHeroCount}>{celebration.streakDays}</Text>
+            <Text style={s.streakHeroLabel}>day streak</Text>
+            <WeeklyStreakTrack days={celebration.weeklyProgress} />
+            <Text style={s.streakHeroMessage}>
+              {hasPerfectWeek
+                ? "You kept a perfect streak for a whole week."
+                : celebration.streakMessage}
+            </Text>
+            <View style={s.freezeCounter}>
+              <Ico name="mdi:snowflake" size={18} color="#93C5FD" />
+              <Text style={s.freezeCounterText}>
+                Freezes: {celebration.freezes}/{celebration.maxFreezes}
+              </Text>
+            </View>
+            <Pressable onPress={onClose} style={[s.primaryBtn, s.celebrationButton]}>
+              <Text style={s.primaryBtnText}>Continue</Text>
+            </Pressable>
+          </View>
+        )}
+      </View>
+    </Modal>
+  );
+}
+
 function ScreenPreviewCard({
   slide,
   width,
@@ -1133,7 +1358,7 @@ function BadgesTab({ gs, badgeCatalog }: { gs: GameState; badgeCatalog: BadgeDef
   const earnedCount = badgeCatalog.filter((b) => earnedBadgeIds.has(b.id)).length;
   const weekly = gs.weeklyProgress.length === 7
     ? gs.weeklyProgress
-    : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((label, i) => ({ label, completed: i < gs.streak }));
+    : buildFallbackWeeklyProgress(gs.streak);
 
   return (
     <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
@@ -1153,14 +1378,7 @@ function BadgesTab({ gs, badgeCatalog }: { gs: GameState; badgeCatalog: BadgeDef
       </View>
       <View style={[s.activityCard, { borderColor: C.border, backgroundColor: C.card }]}> 
         <Text style={s.activityTitle}>Activity - last 7 days</Text>
-        <View style={s.activityRow}>
-          {weekly.map((day, i) => (
-            <View key={i} style={{ alignItems: "center", gap: 4 }}>
-              <View style={[s.activityDot, { backgroundColor: day.completed ? C.gold : C.border }]} />
-              <Text style={s.activityDotLabel}>{day.label}</Text>
-            </View>
-          ))}
-        </View>
+        <WeeklyStreakTrack days={weekly} compact />
       </View>
       <Text style={[s.placeholderSub, { marginBottom: 12 }]}>Badges - {earnedCount}/{badgeCatalog.length} earned</Text>
       <View style={s.badgeGrid}>
@@ -1517,6 +1735,7 @@ export default function LearnScreen() {
   const [quizDone, setQuizDone] = useState(false);
   const [quizStars, setQuizStars] = useState(0);
   const [quizAnswers, setQuizAnswers] = useState<number[]>([]);
+  const [celebration, setCelebration] = useState<LessonCelebrationState | null>(null);
 
   const flashcardViewedRef = useRef(new Set<string>());
 
@@ -1524,7 +1743,7 @@ export default function LearnScreen() {
     xp: 0,
     level: 1,
     streak: 0,
-    freezes: 0,
+    freezes: 3,
     hearts: 5,
     maxHearts: 5,
     completedQuests: new Set(),
@@ -1533,7 +1752,7 @@ export default function LearnScreen() {
     totalFlips: 0,
     vaultsOpened: 0,
     badges: [],
-    weeklyProgress: [],
+    weeklyProgress: buildFallbackWeeklyProgress(0),
   });
 
   const badgeCatalog = useMemo(() => {
@@ -1549,17 +1768,23 @@ export default function LearnScreen() {
   const applyGamification = useCallback((snap: any) => {
     if (!snap) return;
     applyGamificationSnapshot(snap);
-    setGs((prev) => ({
-      ...prev,
-      xp: pn(snap.xp, prev.xp),
-      level: pn(snap.level, prev.level),
-      streak: pn(snap.streakDays, prev.streak),
-      freezes: pn(snap.streakFreezes, prev.freezes),
-      hearts: pn(snap.hearts, prev.hearts),
-      maxHearts: pn(snap.maxHearts, prev.maxHearts),
-      badges: pa(snap.badges, prev.badges),
-      weeklyProgress: pa(snap.weeklyProgress, prev.weeklyProgress),
-    }));
+    setGs((prev) => {
+      const nextStreak = pn(snap.streakDays, prev.streak);
+      return {
+        ...prev,
+        xp: pn(snap.xp, prev.xp),
+        level: pn(snap.level, prev.level),
+        streak: nextStreak,
+        freezes: pn(snap.streakFreezes, prev.freezes),
+        hearts: pn(snap.hearts, prev.hearts),
+        maxHearts: pn(snap.maxHearts, prev.maxHearts),
+        badges: pa(snap.badges, prev.badges),
+        weeklyProgress: normalizeWeeklyProgress(
+          pa(snap.weeklyProgress, prev.weeklyProgress),
+          nextStreak,
+        ),
+      };
+    });
   }, [applyGamificationSnapshot]);
 
   const hydrateProgress = useCallback((progress: any[], gamification: any) => {
@@ -1636,6 +1861,51 @@ export default function LearnScreen() {
     setQuestScreen("none");
   }
 
+  function launchCelebration(
+    result: any,
+    quest: Quest,
+    fallback: {
+      totalQuestions: number;
+      correctAnswers: number;
+      scorePercent: number;
+      stars: number;
+    },
+  ) {
+    const snap = result?.gamification || {};
+    const streakDays = pn(snap?.streakDays, gs.streak);
+    const weeklyProgress = normalizeWeeklyProgress(
+      pa(snap?.weeklyProgress, gs.weeklyProgress),
+      streakDays,
+    );
+
+    setCelebration({
+      step: "xp",
+      lessonTitle: quest.title,
+      stars:
+        typeof result?.completionStars === "number"
+          ? result.completionStars
+          : fallback.stars,
+      xpAwarded: pn(result?.lessonXpAwarded, pn(result?.xpAwarded, 0)),
+      bonusXpAwarded: pn(result?.bonusXpAwarded, 0),
+      scorePercent: pn(result?.scorePercent, fallback.scorePercent),
+      correctAnswers: pn(result?.correctAnswers, fallback.correctAnswers),
+      totalQuestions: pn(result?.totalQuestions, fallback.totalQuestions),
+      streakDays,
+      freezes: pn(snap?.streakFreezes, gs.freezes),
+      maxFreezes: pn(snap?.maxStreakFreezes, 3),
+      weeklyProgress,
+      streakMessage: ps(snap?.streakMessage, "Finish another lesson tomorrow to keep the fire glowing."),
+    });
+  }
+
+  function advanceCelebration() {
+    setCelebration((prev) => (prev ? { ...prev, step: "streak" } : prev));
+  }
+
+  function closeCelebration() {
+    setCelebration(null);
+  }
+
   async function openQuest(quest: Quest) {
     const ch = chapters.find((c) => c.quests.some((q) => q.id === quest.id)) || null;
     setActiveChapter(ch);
@@ -1676,6 +1946,7 @@ export default function LearnScreen() {
       startQuiz();
       return;
     }
+    const quest = activeQuest;
     try {
       const result: any = await apiFetch(
         `/progress/complete/${activeQuest!.id}`,
@@ -1684,8 +1955,26 @@ export default function LearnScreen() {
       );
       if (result?.gamification) applyGamification(result.gamification);
       if (result?.newBadges) queueBadges(result.newBadges);
+      if (quest) {
+        const stars = pn(result?.completionStars, 1);
+        setGs((prev) => ({
+          ...prev,
+          completedQuests: new Set([...prev.completedQuests, quest.id]),
+          questStars: {
+            ...prev.questStars,
+            [quest.id]: Math.max(stars, prev.questStars[quest.id] || 0),
+          },
+        }));
+        closeQuest();
+        launchCelebration(result, quest, {
+          totalQuestions: 0,
+          correctAnswers: 0,
+          scorePercent: pn(result?.scorePercent, 0),
+          stars,
+        });
+        return;
+      }
     } catch {}
-    setGs((prev) => ({ ...prev, completedQuests: new Set([...prev.completedQuests, activeQuest!.id]) }));
     closeQuest();
   }
 
@@ -1709,6 +1998,7 @@ export default function LearnScreen() {
       setQuizAns(null);
       return;
     }
+    const quest = activeQuest;
     const localScore = quizScore + (quizAns === activeQuest.quiz[quizIdx].ans ? 1 : 0);
     const answers = quizAnswers.map((a, i) => (i === quizIdx ? quizAns : a));
     try {
@@ -1721,28 +2011,30 @@ export default function LearnScreen() {
         typeof result.scorePercent === "number"
           ? result.scorePercent
           : Math.round((localScore / activeQuest.quiz.length) * 100);
-      const stars = calcStars(pct);
+      const stars =
+        typeof result?.completionStars === "number"
+          ? result.completionStars
+          : calcStars(pct);
       setQuizStars(stars);
       setQuizScore(localScore);
-      setQuizDone(true);
       setGs((prev) => ({
         ...prev,
+        completedQuests: new Set([...prev.completedQuests, activeQuest.id]),
         questStars: { ...prev.questStars, [activeQuest.id]: Math.max(stars, prev.questStars[activeQuest.id] || 0) },
         perfectQuizzes: prev.perfectQuizzes + (pct === 100 ? 1 : 0),
       }));
-      applyGamification(result.gamification);
+      if (result?.gamification) {
+        applyGamification(result.gamification);
+      }
       if (result?.newBadges) queueBadges(result.newBadges);
-      if (result.passed) {
-        try {
-          const completion: any = await apiFetch(
-            `/progress/complete/${activeQuest.id}`,
-            { method: "POST" },
-            accessToken,
-          );
-          if (completion?.gamification) applyGamification(completion.gamification);
-          if (completion?.newBadges) queueBadges(completion.newBadges);
-        } catch {}
-        setGs((prev) => ({ ...prev, completedQuests: new Set([...prev.completedQuests, activeQuest.id]) }));
+      if (quest) {
+        closeQuest();
+        launchCelebration(result, quest, {
+          totalQuestions: quest.quiz.length,
+          correctAnswers: pn(result?.correctAnswers, localScore),
+          scorePercent: pct,
+          stars,
+        });
       }
     } catch {
       setQuizStars(1);
@@ -1830,6 +2122,11 @@ export default function LearnScreen() {
         quest={activeQuest}
         onExit={closeQuest}
         onComplete={handleVaultComplete}
+      />
+      <LessonCelebrationModal
+        celebration={celebration}
+        onAdvance={advanceCelebration}
+        onClose={closeCelebration}
       />
     </View>
   );
@@ -2499,6 +2796,156 @@ const s = StyleSheet.create({
   xpBox: { backgroundColor: "#F59E0B18", borderRadius: 22, padding: 20, marginBottom: 16, alignItems: "center", width: "100%", borderWidth: 2 },
   xpBoxLabel: { fontSize: 11, color: "#4B5680", marginBottom: 4, letterSpacing: 2, textTransform: "uppercase" },
   xpBoxValue: { fontSize: 44, fontWeight: "900", color: "#F59E0B" },
+  celebrationScreen: { backgroundColor: "#111C24" },
+  celebrationContent: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 28,
+    paddingVertical: 36,
+  },
+  celebrationBurst: {
+    width: 132,
+    height: 132,
+    borderRadius: 66,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(249,115,22,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(251,146,60,0.16)",
+    marginBottom: 22,
+  },
+  celebrationHeading: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#FACC15",
+    marginBottom: 10,
+  },
+  celebrationXpValue: {
+    fontSize: 58,
+    lineHeight: 66,
+    fontWeight: "900",
+    color: "#FB923C",
+  },
+  celebrationBonusText: {
+    marginTop: 8,
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#93C5FD",
+  },
+  celebrationButton: {
+    backgroundColor: "#4FC3F7",
+    borderBottomWidth: 4,
+    borderBottomColor: "#0EA5E9",
+    marginTop: 18,
+  },
+  streakHero: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(249,115,22,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(251,146,60,0.15)",
+    marginBottom: 14,
+  },
+  streakHeroCount: {
+    fontSize: 76,
+    lineHeight: 82,
+    fontWeight: "900",
+    color: "#FB923C",
+  },
+  streakHeroLabel: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#FB923C",
+    marginBottom: 18,
+  },
+  streakHeroMessage: {
+    marginTop: 18,
+    fontSize: 17,
+    lineHeight: 25,
+    color: "#E2E8F0",
+    textAlign: "center",
+  },
+  freezeCounter: {
+    marginTop: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: "rgba(147,197,253,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(147,197,253,0.2)",
+  },
+  freezeCounterText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#BFDBFE",
+  },
+  weeklyTrack: {
+    width: "100%",
+    borderRadius: 24,
+    padding: 18,
+    backgroundColor: "#131B24",
+    borderWidth: 1,
+    borderColor: "rgba(148,163,184,0.16)",
+  },
+  weeklyTrackCompact: {
+    width: "100%",
+  },
+  weeklyTrackLabelRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 8,
+    marginBottom: 12,
+  },
+  weeklyTrackLabel: {
+    flex: 1,
+    textAlign: "center",
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#94A3B8",
+  },
+  weeklyTrackIconRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  weeklyTrackBubble: {
+    flex: 1,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(100,116,139,0.24)",
+    backgroundColor: "#1A2334",
+  },
+  weeklyTrackBubbleCompact: {
+    height: 36,
+    borderRadius: 18,
+  },
+  weeklyTrackBubbleDone: {
+    backgroundColor: "rgba(249,115,22,0.22)",
+    borderColor: "rgba(251,146,60,0.45)",
+    shadowColor: "#FB923C",
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
+  weeklyTrackBubbleToday: {
+    backgroundColor: "rgba(251,146,60,0.08)",
+    borderColor: "rgba(251,146,60,0.32)",
+  },
+  weeklyTrackBubbleFreeze: {
+    backgroundColor: "rgba(147,197,253,0.12)",
+    borderColor: "rgba(147,197,253,0.3)",
+  },
 
   // Primary button
   primaryBtn: { borderRadius: 18, padding: 18, alignItems: "center", width: "100%" },

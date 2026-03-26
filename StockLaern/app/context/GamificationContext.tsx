@@ -10,7 +10,7 @@ export type WeeklyProgressDay = {
   date: string;
   completed: boolean;
   isToday?: boolean;
-  status: "done" | "today" | "missed" | "locked";
+  status: "done" | "today" | "missed" | "locked" | "freeze";
 };
 
 export type BadgeItem = {

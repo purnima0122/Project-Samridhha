@@ -67,6 +67,8 @@ export class AuthService {
     password: hashedPassword,
     isGoogleUser: false,
     isProfileComplete: true,
+    streakFreezes: 3,
+    maxStreakFreezes: 3,
     });
   } catch (error: any) {
     if (error?.code === 11000) {
@@ -165,6 +167,8 @@ export class AuthService {
         isGoogleUser: false,
         isProfileComplete: true,
         isAdmin: true,
+        streakFreezes: 3,
+        maxStreakFreezes: 3,
       });
 
       return {
@@ -340,6 +344,8 @@ async validateGoogleUser(googleUser: {
         password: null,          // Google users don't have passwords
         isGoogleUser: true,
         isProfileComplete: false,
+        streakFreezes: 3,
+        maxStreakFreezes: 3,
       });
     } catch (error: any) {
       if (error?.code === 11000) {
