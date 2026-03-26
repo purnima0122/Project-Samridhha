@@ -125,7 +125,7 @@ export default function HomeScreen() {
       watchlistSymbols.map((symbol) => {
         const stock = stockLookup[symbol] ?? {};
         const tick = ticks[symbol] ?? {};
-        const price = Number(tick.current_price ?? stock.price ?? 0);
+        const price = Number(tick.price ?? tick.current_price ?? stock.price ?? 0);
         const changePct = Number(tick.change_pct ?? stock.change_pct ?? 0);
 
         return {

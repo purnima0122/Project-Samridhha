@@ -60,7 +60,7 @@ export default function InsightsScreen() {
       const t = ticks[s.symbol];
       return {
         ...s,
-        price: t?.current_price ?? s.price,
+        price: t?.price ?? t?.current_price ?? s.price,
         change_pct: t?.change_pct ?? s.change_pct ?? 0,
         volume: t?.volume ?? s.volume ?? 0,
       };
