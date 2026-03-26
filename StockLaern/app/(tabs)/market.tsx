@@ -65,15 +65,15 @@ export default function MarketScreen({ onNavigate }: BrowseMarketProps) {
     if (tick) {
       return {
         ...stock,
-        price: tick.current_price ?? stock.current_price ?? stock.ltp ?? 0,
-        change: tick.change_pct ?? stock.change_pct ?? 0,
+        price: tick.current_price ?? stock.price ?? stock.current_price ?? stock.ltp ?? 0,
+        change: tick.change_pct ?? stock.change_pct ?? stock.change ?? 0,
         volume: tick.volume ?? stock.volume ?? 0,
       };
     }
     return {
       ...stock,
-      price: stock.current_price ?? stock.ltp ?? 0,
-      change: stock.change_pct ?? 0,
+      price: stock.price ?? stock.current_price ?? stock.ltp ?? 0,
+      change: stock.change_pct ?? stock.change ?? 0,
       volume: stock.volume ?? 0,
     };
   };
