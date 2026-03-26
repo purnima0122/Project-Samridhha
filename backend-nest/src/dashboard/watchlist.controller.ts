@@ -10,10 +10,9 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from 'src/guards/auth.guard';
-import { AdminGuard } from 'src/guards/admin.guard';
 import { WatchlistService } from './watchlist.service';
 
-@UseGuards(AuthGuard, AdminGuard)
+@UseGuards(AuthGuard)
 @Controller('watchlist')
 export class WatchlistController {
   constructor(private readonly watchlistService: WatchlistService) {}

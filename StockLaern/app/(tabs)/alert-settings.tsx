@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   ScrollView,
@@ -15,6 +15,7 @@ import HeaderBar from "../components/HeaderBar";
 import TopRightMenu from "../components/TopRightMenu";
 import { useAuth } from "../context/AuthContext";
 import { useDataServer } from "../context/DataServerContext";
+import { apiFetch } from "../lib/api";
 import { checkAlertThreshold, type AlertRecommendation } from "../lib/dataServer";
 
 type AlertTemplateKey = "volume" | "jump" | "drop" | "trend";
@@ -43,6 +44,15 @@ type ActiveAlertItem = {
   color: string;
   channels: string;
   activeHours: ActiveHours;
+};
+
+type SavedAlertItem = {
+  _id?: string;
+  symbol?: string;
+  type?: string;
+  price?: string;
+  units?: string;
+  status?: string;
 };
 
 type LessonCard = {
@@ -224,23 +234,44 @@ function buildThresholdPayload(template: AlertTemplate, value: number) {
   };
 }
 
-function resolveTemplateFromThreshold(threshold: {
-  price_threshold_pct?: number;
-  volume_threshold_multiplier?: number;
-}): AlertTemplate {
-  const price = Number(threshold.price_threshold_pct ?? 0);
-  const volume = Number(threshold.volume_threshold_multiplier ?? 0);
+function resolveTemplateFromSavedAlert(alert: Pick<SavedAlertItem, "type">): AlertTemplate {
+  const rawType = String(alert.type ?? "").trim().toLowerCase();
 
-  if (volume > 0 && volume <= 2.5) {
+  if (rawType === "volume" || rawType.includes("volume")) {
     return ALERT_TEMPLATES[0];
   }
-  if (price > 0 && price <= 2) {
+  if (rawType === "drop" || rawType.includes("drop") || rawType.includes("down")) {
+    return ALERT_TEMPLATES[2];
+  }
+  if (rawType === "trend" || rawType.includes("trend")) {
     return ALERT_TEMPLATES[3];
   }
-  if (price > 0) {
+  if (
+    rawType === "jump" ||
+    rawType.includes("jump") ||
+    rawType.includes("greater") ||
+    rawType.includes("up")
+  ) {
     return ALERT_TEMPLATES[1];
   }
+
   return ALERT_TEMPLATES[0];
+}
+
+function formatSavedAlertThreshold(alert: SavedAlertItem, template: AlertTemplate): string {
+  const value = String(alert.price ?? "").trim();
+  const units = String(alert.units ?? "").trim().toLowerCase();
+
+  if (!value) {
+    return formatThresholdLabel(template, template.defaultInput);
+  }
+  if (units === "sensitivity") {
+    return `Sensitivity ${value}`;
+  }
+  if (units === "%") {
+    return `${value}%`;
+  }
+  return units ? `${value} ${units}` : value;
 }
 
 export default function AlertSettingsScreen() {
@@ -256,7 +287,6 @@ export default function AlertSettingsScreen() {
     unsubscribe,
     addAlertEvent,
     loadSubscriptions,
-    thresholds,
   } = useDataServer();
 
   const [selectedTemplateKey, setSelectedTemplateKey] = useState<AlertTemplateKey>("volume");
@@ -270,6 +300,8 @@ export default function AlertSettingsScreen() {
   });
   const [latestRecommendation, setLatestRecommendation] = useState<AlertRecommendation | null>(null);
   const [checkingRecommendation, setCheckingRecommendation] = useState(false);
+  const [savedAlerts, setSavedAlerts] = useState<SavedAlertItem[]>([]);
+  const [loadingSavedAlerts, setLoadingSavedAlerts] = useState(false);
 
   const selectedTemplate = useMemo(
     () => ALERT_TEMPLATES.find((item) => item.key === selectedTemplateKey) ?? ALERT_TEMPLATES[0],
@@ -284,9 +316,31 @@ export default function AlertSettingsScreen() {
   }, [stocks]);
 
   const sampleSymbolsKey = sampleSymbols.join(",");
+
+  const refreshSavedAlerts = useCallback(async () => {
+    if (!accessToken) {
+      setSavedAlerts([]);
+      return;
+    }
+
+    try {
+      setLoadingSavedAlerts(true);
+      const items = await apiFetch<SavedAlertItem[]>("/alerts", {}, accessToken);
+      setSavedAlerts(Array.isArray(items) ? items : []);
+    } catch (error) {
+      console.warn("Unable to load saved alerts", error);
+    } finally {
+      setLoadingSavedAlerts(false);
+    }
+  }, [accessToken]);
+
+  useEffect(() => {
+    void refreshSavedAlerts();
+  }, [refreshSavedAlerts]);
+
   const activeAlertSymbols = useMemo(
-    () => dedupeSymbols(thresholds.map((item) => normalizeSymbol(item.symbol))),
-    [thresholds],
+    () => dedupeSymbols(savedAlerts.map((item) => normalizeSymbol(item.symbol))),
+    [savedAlerts],
   );
 
   useEffect(() => {
@@ -383,27 +437,23 @@ export default function AlertSettingsScreen() {
 
   const activeAlerts = useMemo<ActiveAlertItem[]>(
     () =>
-      thresholds.map((threshold, index) => {
-        const symbol = normalizeSymbol(threshold.symbol);
-        const template = resolveTemplateFromThreshold(threshold);
-        const thresholdValue =
-          template.key === "volume"
-            ? Number(threshold.volume_threshold_multiplier ?? 2) * 100
-            : Number(threshold.price_threshold_pct ?? 3);
+      savedAlerts.map((alert, index) => {
+        const symbol = normalizeSymbol(alert.symbol);
+        const template = resolveTemplateFromSavedAlert(alert);
 
         return {
-          id: `${symbol}-${index}`,
+          id: alert._id || `${symbol}-${index}`,
           symbol,
           title: template.title,
-          thresholdLabel: formatThresholdLabel(template, thresholdValue),
-          status: "active",
+          thresholdLabel: formatSavedAlertThreshold(alert, template),
+          status: alert.status === "paused" ? "paused" : "active",
           icon: template.icon,
           color: template.color,
           channels: "In-App",
           activeHours: "24/7",
         };
       }),
-    [thresholds],
+    [savedAlerts],
   );
 
   const recentNotifications = useMemo(() => alerts.slice(0, 8), [alerts]);
@@ -442,6 +492,31 @@ export default function AlertSettingsScreen() {
 
     const payload = buildThresholdPayload(selectedTemplate, thresholdValue);
     setCheckingRecommendation(true);
+
+    try {
+      await apiFetch(
+        "/alerts",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            symbol,
+            type: selectedTemplate.key,
+            price: String(thresholdValue),
+            units: selectedTemplate.key === "trend" ? "sensitivity" : "%",
+            status: "active",
+          }),
+        },
+        accessToken,
+      );
+      await refreshSavedAlerts();
+    } catch (error: any) {
+      setCheckingRecommendation(false);
+      Alert.alert(
+        "Unable to create alert",
+        error?.message || "Please try again.",
+      );
+      return;
+    }
 
     try {
       setAlertThreshold({
@@ -689,7 +764,9 @@ export default function AlertSettingsScreen() {
                 <Text style={styles.blockCount}>{activeAlerts.length} alerts</Text>
               </View>
 
-              {activeAlerts.length === 0 ? (
+              {loadingSavedAlerts ? (
+                <Text style={styles.emptyText}>Loading your saved alerts...</Text>
+              ) : activeAlerts.length === 0 ? (
                 <Text style={styles.emptyText}>
                   No active alerts yet. Create your first alert from the selected template above.
                 </Text>

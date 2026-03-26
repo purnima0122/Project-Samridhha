@@ -23,14 +23,30 @@ export class WatchlistService {
       isPositive?: boolean;
     },
   ) {
-    return this.watchlistModel.create({
-      userId: new Types.ObjectId(userId),
-      symbol: data.symbol,
-      price: data.price,
-      change: data.change,
-      alertType: data.alertType,
-      isPositive: data.isPositive ?? true,
-    });
+    const userObjectId = new Types.ObjectId(userId);
+    const symbol = String(data.symbol ?? '').trim().toUpperCase();
+
+    return this.watchlistModel
+      .findOneAndUpdate(
+        {
+          userId: userObjectId,
+          symbol,
+        },
+        {
+          $set: {
+            price: data.price,
+            change: data.change,
+            alertType: data.alertType,
+            isPositive: data.isPositive ?? true,
+          },
+          $setOnInsert: {
+            userId: userObjectId,
+            symbol,
+          },
+        },
+        { new: true, upsert: true },
+      )
+      .exec();
   }
 
   async findAll(userId: string) {
@@ -66,13 +82,18 @@ export class WatchlistService {
       isPositive: boolean;
     }>,
   ) {
+    const updates = {
+      ...data,
+      ...(data.symbol ? { symbol: String(data.symbol).trim().toUpperCase() } : {}),
+    };
+
     const item = await this.watchlistModel
       .findOneAndUpdate(
         {
           _id: new Types.ObjectId(id),
           userId: new Types.ObjectId(userId),
         },
-        { $set: data },
+        { $set: updates },
         { new: true },
       )
       .exec();

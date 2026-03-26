@@ -1,9 +1,10 @@
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Link, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -38,15 +39,20 @@ type DashboardData = {
   userName: string;
   spikeAlertsEnabled: boolean;
   stockAlerts: {
+    _id?: string;
     symbol?: string;
     type?: string;
     price?: string;
+    units?: string;
+    status?: string;
   }[];
   watchlistItems: {
+    _id?: string;
     symbol?: string;
     price?: string;
     change?: string;
     isPositive?: boolean;
+    alertType?: string;
   }[];
 };
 
@@ -65,35 +71,37 @@ export default function HomeScreen() {
     thresholds,
     notifications,
     unreadNotificationCount,
-    watchlistSymbols,
-    addWatchlistSymbols,
-    removeWatchlistSymbol,
-    clearWatchlist,
     isConnected: isDataServerConnected,
     loadSubscriptions,
   } = useDataServer();
   const [loadingDashboard, setLoadingDashboard] = useState(false);
+  const [updatingWatchlist, setUpdatingWatchlist] = useState(false);
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [showTools, setShowTools] = useState(false);
   const [watchlistSelection, setWatchlistSelection] = useState<string[]>([]);
   const inUserMode = isAuthenticated;
 
-  useEffect(() => {
-    const loadDashboard = async () => {
-      if (!accessToken) return;
-      try {
-        setLoadingDashboard(true);
-        const data = await apiFetch<DashboardData>("/dashboard/me", {}, accessToken);
-        setDashboardData(data);
-      } catch (error) {
-        console.warn("Unable to load home dashboard data", error);
-      } finally {
-        setLoadingDashboard(false);
-      }
-    };
-
-    loadDashboard();
+  const loadDashboard = useCallback(async () => {
+    if (!accessToken) {
+      setDashboardData(null);
+      return null;
+    }
+    try {
+      setLoadingDashboard(true);
+      const data = await apiFetch<DashboardData>("/dashboard/me", {}, accessToken);
+      setDashboardData(data);
+      return data;
+    } catch (error) {
+      console.warn("Unable to load home dashboard data", error);
+      return null;
+    } finally {
+      setLoadingDashboard(false);
+    }
   }, [accessToken]);
+
+  useEffect(() => {
+    void loadDashboard();
+  }, [loadDashboard]);
 
   useEffect(() => {
     if (!accessToken || !isDataServerConnected) {
@@ -120,24 +128,48 @@ export default function HomeScreen() {
     return Array.from(new Set([...fromServer, ...FALLBACK_WATCHLIST_SYMBOLS])).slice(0, 12);
   }, [stocks]);
 
+  const persistedWatchlistItems = dashboardData?.watchlistItems ?? [];
+  const persistedWatchlistSymbols = useMemo(
+    () =>
+      persistedWatchlistItems
+        .map((item) => String(item.symbol ?? "").toUpperCase())
+        .filter((item) => Boolean(item)),
+    [persistedWatchlistItems],
+  );
+
   const watchlistItems = useMemo<DashboardData["watchlistItems"]>(
     () =>
-      watchlistSymbols.map((symbol) => {
+      persistedWatchlistItems.map((item) => {
+        const symbol = String(item.symbol ?? "").toUpperCase();
         const stock = stockLookup[symbol] ?? {};
         const tick = ticks[symbol] ?? {};
-        const price = Number(tick.current_price ?? stock.price ?? 0);
-        const changePct = Number(tick.change_pct ?? stock.change_pct ?? 0);
+        const livePrice = Number(tick.current_price ?? stock.price ?? NaN);
+        const liveChangePct = Number(tick.change_pct ?? stock.change_pct ?? NaN);
+        const fallbackPrice =
+          typeof item.price === "string" && item.price.trim()
+            ? item.price.replace(/^NPR\s*/i, "")
+            : "--";
+        const fallbackChange =
+          typeof item.change === "string" && item.change.trim() ? item.change : "--";
 
         return {
+          ...item,
           symbol,
-          price: Number.isFinite(price) && price > 0 ? price.toFixed(2) : "--",
-          change: `${changePct >= 0 ? "+" : ""}${changePct.toFixed(2)}%`,
-          isPositive: changePct >= 0,
+          price:
+            Number.isFinite(livePrice) && livePrice > 0
+              ? livePrice.toFixed(2)
+              : fallbackPrice,
+          change: Number.isFinite(liveChangePct)
+            ? `${liveChangePct >= 0 ? "+" : ""}${liveChangePct.toFixed(2)}%`
+            : fallbackChange,
+          isPositive: Number.isFinite(liveChangePct)
+            ? liveChangePct >= 0
+            : Boolean(item.isPositive),
         };
       }),
-    [watchlistSymbols, stockLookup, ticks],
+    [persistedWatchlistItems, stockLookup, ticks],
   );
-  const activeAlertCount = thresholds.length;
+  const activeAlertCount = dashboardData?.stockAlerts?.length ?? thresholds.length;
 
   const toggleWatchlistSelection = (symbol: string) => {
     setWatchlistSelection((prev) =>
@@ -170,6 +202,94 @@ export default function HomeScreen() {
 
   const displayName =
     dashboardData?.userName || userName || email?.split("@")[0] || "User";
+
+  const handleAddSelectedWatchlist = useCallback(async () => {
+    if (!accessToken) {
+      router.push("/login");
+      return;
+    }
+
+    const nextSymbols = watchlistSelection.filter(
+      (symbol) => !persistedWatchlistSymbols.includes(symbol),
+    );
+
+    if (nextSymbols.length === 0) {
+      if (watchlistSelection.length > 0) {
+        Alert.alert("Already added", "Those symbols are already in your watchlist.");
+      }
+      setWatchlistSelection([]);
+      return;
+    }
+
+    try {
+      setUpdatingWatchlist(true);
+      await Promise.all(
+        nextSymbols.map((symbol) =>
+          apiFetch(
+            "/watchlist",
+            {
+              method: "POST",
+              body: JSON.stringify({ symbol }),
+            },
+            accessToken,
+          ),
+        ),
+      );
+      setWatchlistSelection([]);
+      await loadDashboard();
+    } catch (error: any) {
+      Alert.alert(
+        "Unable to save watchlist",
+        error?.message || "Please try again.",
+      );
+    } finally {
+      setUpdatingWatchlist(false);
+    }
+  }, [accessToken, loadDashboard, persistedWatchlistSymbols, router, watchlistSelection]);
+
+  const handleRemoveWatchlistItem = useCallback(async (itemId: string) => {
+    if (!accessToken || !itemId) {
+      return;
+    }
+
+    try {
+      setUpdatingWatchlist(true);
+      await apiFetch(`/watchlist/${encodeURIComponent(itemId)}`, { method: "DELETE" }, accessToken);
+      await loadDashboard();
+    } catch (error: any) {
+      Alert.alert(
+        "Unable to remove item",
+        error?.message || "Please try again.",
+      );
+    } finally {
+      setUpdatingWatchlist(false);
+    }
+  }, [accessToken, loadDashboard]);
+
+  const handleClearWatchlist = useCallback(async () => {
+    if (!accessToken || persistedWatchlistItems.length === 0) {
+      return;
+    }
+
+    try {
+      setUpdatingWatchlist(true);
+      await Promise.all(
+        persistedWatchlistItems
+          .filter((item) => item._id)
+          .map((item) =>
+            apiFetch(`/watchlist/${encodeURIComponent(String(item._id))}`, { method: "DELETE" }, accessToken),
+          ),
+      );
+      await loadDashboard();
+    } catch (error: any) {
+      Alert.alert(
+        "Unable to clear watchlist",
+        error?.message || "Please try again.",
+      );
+    } finally {
+      setUpdatingWatchlist(false);
+    }
+  }, [accessToken, loadDashboard, persistedWatchlistItems]);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
@@ -304,15 +424,15 @@ export default function HomeScreen() {
               </View>
               <View style={styles.statCard}>
                 <Text style={styles.statLabel}>Watchlist</Text>
-                <Text style={styles.statValue}>{watchlistSymbols.length}</Text>
+                <Text style={styles.statValue}>{persistedWatchlistSymbols.length}</Text>
               </View>
             </View>
 
             <View style={styles.panelCard}>
               <View style={styles.panelHeader}>
                 <Text style={styles.panelTitle}>Create Watchlist</Text>
-                {watchlistSymbols.length > 0 && (
-                  <TouchableOpacity onPress={clearWatchlist}>
+                {persistedWatchlistSymbols.length > 0 && (
+                  <TouchableOpacity onPress={handleClearWatchlist} disabled={updatingWatchlist}>
                     <Text style={styles.panelLink}>Clear all</Text>
                   </TouchableOpacity>
                 )}
@@ -320,16 +440,27 @@ export default function HomeScreen() {
               <Text style={styles.emptyText}>Select sample markets and add them to your watchlist.</Text>
               <View style={styles.watchlistChipWrap}>
                 {sampleSymbols.map((symbol) => {
+                  const isSaved = persistedWatchlistSymbols.includes(symbol);
                   const selected = watchlistSelection.includes(symbol);
                   return (
                     <TouchableOpacity
                       key={symbol}
-                      style={[styles.watchlistChip, selected ? styles.watchlistChipSelected : null]}
-                      onPress={() => toggleWatchlistSelection(symbol)}
+                      style={[
+                        styles.watchlistChip,
+                        isSaved ? styles.watchlistChipSaved : null,
+                        selected ? styles.watchlistChipSelected : null,
+                      ]}
+                      onPress={() => {
+                        if (!isSaved) {
+                          toggleWatchlistSelection(symbol);
+                        }
+                      }}
+                      disabled={isSaved}
                     >
                       <Text
                         style={[
                           styles.watchlistChipText,
+                          isSaved ? styles.watchlistChipTextSaved : null,
                           selected ? styles.watchlistChipTextSelected : null,
                         ]}
                       >
@@ -342,14 +473,52 @@ export default function HomeScreen() {
               <View style={styles.watchlistActionRow}>
                 <TouchableOpacity
                   style={styles.watchlistActionButton}
-                  onPress={() => {
-                    addWatchlistSymbols(watchlistSelection);
-                    setWatchlistSelection([]);
-                  }}
+                  onPress={handleAddSelectedWatchlist}
+                  disabled={updatingWatchlist}
                 >
-                  <Text style={styles.watchlistActionText}>Add Selected</Text>
+                  <Text style={styles.watchlistActionText}>
+                    {updatingWatchlist ? "Saving..." : "Add Selected"}
+                  </Text>
                 </TouchableOpacity>
               </View>
+            </View>
+
+            <View style={styles.panelCard}>
+              <View style={styles.panelHeader}>
+                <Text style={styles.panelTitle}>Watchlist Preview</Text>
+                <TouchableOpacity onPress={() => router.push("/market")}>
+                  <Text style={styles.panelLink}>Open market</Text>
+                </TouchableOpacity>
+              </View>
+              {loadingDashboard && watchlistItems.length === 0 ? (
+                <View style={styles.loadingInlineRow}>
+                  <ActivityIndicator color="#0B3B78" />
+                  <Text style={styles.loadingText}>Loading your watchlist...</Text>
+                </View>
+              ) : watchlistItems.length === 0 ? (
+                <Text style={styles.emptyText}>No watchlist items yet.</Text>
+              ) : (
+                watchlistItems.slice(0, 5).map((item, index) => (
+                  <View key={item._id || `${item.symbol}-${index}`} style={styles.watchRow}>
+                    <Text style={styles.watchSymbol}>{item.symbol || "--"}</Text>
+                    <Text style={styles.watchPrice}>{item.price || "--"}</Text>
+                    <Text
+                      style={[
+                        styles.watchChange,
+                        { color: item.isPositive ? "#16A34A" : "#DC2626" },
+                      ]}
+                    >
+                      {item.change || "--"}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => item._id && handleRemoveWatchlistItem(String(item._id))}
+                      disabled={updatingWatchlist}
+                    >
+                      <Feather name="x" size={14} color="#94A3B8" />
+                    </TouchableOpacity>
+                  </View>
+                ))
+              )}
             </View>
 
             {loadingDashboard ? (
@@ -377,38 +546,6 @@ export default function HomeScreen() {
                         <Text style={styles.rowText}>
                           {item.title} - {item.detail}
                         </Text>
-                      </View>
-                    ))
-                  )}
-                </View>
-
-                <View style={styles.panelCard}>
-                  <View style={styles.panelHeader}>
-                    <Text style={styles.panelTitle}>Watchlist Preview</Text>
-                    <TouchableOpacity onPress={() => router.push("/market")}>
-                      <Text style={styles.panelLink}>Open market</Text>
-                    </TouchableOpacity>
-                  </View>
-                  {watchlistItems.length === 0 ? (
-                    <Text style={styles.emptyText}>No watchlist items yet.</Text>
-                  ) : (
-                    watchlistItems.slice(0, 5).map((item, index) => (
-                      <View key={index} style={styles.watchRow}>
-                        <Text style={styles.watchSymbol}>{item.symbol || "--"}</Text>
-                        <Text style={styles.watchPrice}>{item.price || "--"}</Text>
-                        <Text
-                          style={[
-                            styles.watchChange,
-                            { color: item.isPositive ? "#16A34A" : "#DC2626" },
-                          ]}
-                        >
-                          {item.change || "--"}
-                        </Text>
-                        <TouchableOpacity
-                          onPress={() => item.symbol && removeWatchlistSymbol(item.symbol)}
-                        >
-                          <Feather name="x" size={14} color="#94A3B8" />
-                        </TouchableOpacity>
                       </View>
                     ))
                   )}
@@ -615,6 +752,12 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 16,
   },
+  loadingInlineRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 6,
+  },
   loadingText: { color: "#64748B", fontSize: 13 },
   panelCard: {
     backgroundColor: "#fff",
@@ -652,10 +795,17 @@ const styles = StyleSheet.create({
     borderColor: "#4338CA",
     backgroundColor: "#EEF2FF",
   },
+  watchlistChipSaved: {
+    borderColor: "#0B3B78",
+    backgroundColor: "#DBEAFE",
+  },
   watchlistChipText: {
     color: "#0F172A",
     fontSize: 12,
     fontWeight: "700",
+  },
+  watchlistChipTextSaved: {
+    color: "#0B3B78",
   },
   watchlistChipTextSelected: {
     color: "#3730A3",

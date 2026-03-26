@@ -10,10 +10,9 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from 'src/guards/auth.guard';
-import { AdminGuard } from 'src/guards/admin.guard';
 import { StockAlertsService } from './stock-alerts.service';
 
-@UseGuards(AuthGuard, AdminGuard)
+@UseGuards(AuthGuard)
 @Controller('alerts')
 export class StockAlertsController {
   constructor(private readonly stockAlertsService: StockAlertsService) {}

@@ -112,9 +112,6 @@ export default function ProfileScreen() {
       <View style={styles.headerGradient}>
         <HeaderBar tint="dark" rightSlot={<TopRightMenu theme="dark" />} />
         <View style={styles.headerContent}>
-          <View style={styles.iconContainer}>
-            <Feather name="trending-up" size={24} color="#fff" />
-          </View>
           <Text style={styles.headerTitle}>Welcome to StockLearn</Text>
           <Text style={styles.headerSubtitle}>Log in or create your account to continue</Text>
         </View>

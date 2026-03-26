@@ -23,14 +23,32 @@ export class StockAlertsService {
       status?: string;
     },
   ) {
-    return this.stockAlertModel.create({
-      userId: new Types.ObjectId(userId),
-      symbol: data.symbol,
-      type: data.type,
-      price: data.price,
-      units: data.units,
-      status: data.status ?? 'active',
-    });
+    const userObjectId = new Types.ObjectId(userId);
+    const symbol = String(data.symbol ?? '').trim().toUpperCase();
+    const type = String(data.type ?? '').trim().toLowerCase();
+
+    return this.stockAlertModel
+      .findOneAndUpdate(
+        {
+          userId: userObjectId,
+          symbol,
+          type,
+        },
+        {
+          $set: {
+            price: data.price,
+            units: data.units,
+            status: data.status ?? 'active',
+          },
+          $setOnInsert: {
+            userId: userObjectId,
+            symbol,
+            type,
+          },
+        },
+        { new: true, upsert: true },
+      )
+      .exec();
   }
 
   async findAll(userId: string) {
@@ -66,6 +84,12 @@ export class StockAlertsService {
       status: string;
     }>,
   ) {
+    const updates = {
+      ...data,
+      ...(data.symbol ? { symbol: String(data.symbol).trim().toUpperCase() } : {}),
+      ...(data.type ? { type: String(data.type).trim().toLowerCase() } : {}),
+    };
+
     const alert = await this.stockAlertModel
       .findOneAndUpdate(
         {
@@ -73,7 +97,7 @@ export class StockAlertsService {
           userId: new Types.ObjectId(userId),
         },
         {
-          $set: data,
+          $set: updates,
         },
         { new: true },
       )
