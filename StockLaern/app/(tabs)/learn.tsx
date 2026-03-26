@@ -1,5 +1,6 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "expo-router";
 import {
   ActivityIndicator,
   Animated,
@@ -10,10 +11,12 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import GuestAuthActions from "../components/GuestAuthActions";
 import HeaderBar from "../components/HeaderBar";
 import TopRightMenu from "../components/TopRightMenu";
 import { useAuth } from "../context/AuthContext";
@@ -90,6 +93,32 @@ interface Chapter {
   xpTotal: number;
   quests: Quest[];
 }
+
+interface LessonPreviewSlide {
+  kind: "lesson";
+  id: string;
+  chapterTitle: string;
+  chapterTagline: string;
+  chapterColor: string;
+  chapterDarkColor: string;
+  lessonTitle: string;
+  lessonIcon: string;
+  prompt: string;
+  answer: string;
+  flashcardCount: number;
+  quizCount: number;
+}
+
+interface ScreenPreviewSlide {
+  kind: "screen";
+  id: string;
+  title: string;
+  subtitle: string;
+  accentColor: string;
+  darkColor: string;
+}
+
+type PreviewSlide = LessonPreviewSlide | ScreenPreviewSlide;
 
 interface GameState {
   xp: number;
@@ -185,6 +214,66 @@ const MODULE_ICONS = [
   "mdi:brain",
   "mdi:rocket-launch",
   "mdi:book-open-page-variant",
+];
+
+const GUEST_PREVIEW_FALLBACK: LessonPreviewSlide[] = [
+  {
+    kind: "lesson",
+    id: "preview-budget-basics",
+    chapterTitle: "Money Basics",
+    chapterTagline: "Build confidence with clear, bite-sized lessons",
+    chapterColor: "#10B981",
+    chapterDarkColor: "#065F46",
+    lessonTitle: "Budgeting Without Guesswork",
+    lessonIcon: "mdi:wallet",
+    prompt: "Track where your money goes first. Awareness is the foundation of every good budget.",
+    answer:
+      "Inside the full lesson you move card by card, then finish with a short quiz to lock in the idea.",
+    flashcardCount: 4,
+    quizCount: 3,
+  },
+  {
+    kind: "lesson",
+    id: "preview-market-intro",
+    chapterTitle: "Market Foundations",
+    chapterTagline: "See how lessons mix simple explanations with practice",
+    chapterColor: "#3B82F6",
+    chapterDarkColor: "#1E3A8A",
+    lessonTitle: "How the Share Market Works",
+    lessonIcon: "mdi:chart-line",
+    prompt: "A share represents ownership. Prices move because expectations about the company keep changing.",
+    answer:
+      "Logging in unlocks the full flashcard flow, quiz feedback, streak tracking, and your saved progress.",
+    flashcardCount: 5,
+    quizCount: 4,
+  },
+  {
+    kind: "lesson",
+    id: "preview-risk-control",
+    chapterTitle: "Smart Decisions",
+    chapterTagline: "Learn to slow down before making emotional moves",
+    chapterColor: "#F59E0B",
+    chapterDarkColor: "#92400E",
+    lessonTitle: "Managing Risk Before You Invest",
+    lessonIcon: "mdi:shield-check",
+    prompt: "The first job of a beginner is not chasing gains. It is protecting capital while learning.",
+    answer:
+      "Members can open the full lesson path, complete quizzes, and collect badges as they finish modules.",
+    flashcardCount: 4,
+    quizCount: 3,
+  },
+];
+
+const GUEST_SCREEN_PREVIEWS: ScreenPreviewSlide[] = [
+  {
+    kind: "screen",
+    id: "preview-full-learning-path",
+    title: "See the full learning screen",
+    subtitle:
+      "This shows the actual learning path style users unlock after login: progress, chapter cards, and the guided lesson path.",
+    accentColor: "#F59E0B",
+    darkColor: "#0B3B78",
+  },
 ];
 
 /* -- Helpers ---------------------------------------------- */
@@ -283,6 +372,36 @@ function normalizeFlow(payload: any) {
     return { ...item, lessonId: lid ? String(lid) : null };
   });
   return { chapters, progress, gamification: s.gamification || {} };
+}
+
+function buildPreviewSlides(chapters: Chapter[]): LessonPreviewSlide[] {
+  return chapters
+    .flatMap((chapter) =>
+      chapter.quests
+        .filter((quest) => quest.type === "lesson")
+        .slice(0, 2)
+        .map((quest) => ({
+          kind: "lesson" as const,
+          id: `${chapter.key}-${quest.id}`,
+          chapterTitle: chapter.title,
+          chapterTagline: chapter.tagline,
+          chapterColor: chapter.color,
+          chapterDarkColor: chapter.darkColor,
+          lessonTitle: quest.title,
+          lessonIcon: quest.iconKey,
+          prompt:
+            quest.flashcards[0]?.prompt ||
+            quest.quiz[0]?.q ||
+            `Preview how ${quest.title} is broken into short, easy lesson cards.`,
+          answer:
+            quest.flashcards[0]?.answer ||
+            quest.quiz[0]?.exp ||
+            "Create an account to open the full lesson, quiz walkthrough, and saved progress.",
+          flashcardCount: quest.flashcards.length,
+          quizCount: quest.quiz.length,
+        })),
+    )
+    .slice(0, 6);
 }
 
 /* -- Icon Component --------------------------------------- */
@@ -617,6 +736,363 @@ function LearnTab({
           onOpenQuest={onOpenQuest}
         />
       ))}
+    </ScrollView>
+  );
+}
+
+function ScreenPreviewCard({
+  slide,
+  width,
+  marginRight,
+}: {
+  slide: ScreenPreviewSlide;
+  width: number;
+  marginRight: number;
+}) {
+  return (
+    <View key={slide.id} style={[s.previewSlide, { width, marginRight }]}>
+      <LinearGradient
+        colors={[slide.darkColor, "#071425"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={s.previewSlideTop}
+      >
+        <View style={s.previewSlideTopRow}>
+          <Text style={s.previewModuleText}>Full Screen Preview</Text>
+          <View style={s.previewChip}>
+            <Ico name="mdi:cellphone" size={12} color="#F8FAFC" />
+            <Text style={s.previewChipText}>After login</Text>
+          </View>
+        </View>
+        <Text style={s.screenSlideTitle}>{slide.title}</Text>
+        <Text style={s.screenSlideSubtitle}>{slide.subtitle}</Text>
+      </LinearGradient>
+
+      <View style={s.previewSlideBody}>
+        <View style={s.phoneMockupFrame}>
+          <View style={s.phoneMockupHeader}>
+            <View style={s.phoneMockupBrand}>
+              <View style={s.phoneMockupLogo}>
+                <Ico name="mdi:trending-up" size={12} color="#FFFFFF" />
+              </View>
+              <Text style={s.phoneMockupBrandText}>StockLearn</Text>
+            </View>
+            <View style={s.phoneMockupProfilePill}>
+              <Ico name="mdi:account-outline" size={13} color="#0B3B78" />
+              <Text style={s.phoneMockupProfileText}>Purnima</Text>
+            </View>
+          </View>
+
+          <View style={s.phoneMockupStatsRow}>
+            <View style={[s.phoneMockupStatPill, { borderColor: "rgba(245,158,11,0.35)" }]}>
+              <Ico name="mdi:fire" size={12} color="#F59E0B" />
+              <Text style={[s.phoneMockupStatText, { color: "#F59E0B" }]}>2</Text>
+            </View>
+            <View style={[s.phoneMockupStatPill, { borderColor: "rgba(244,114,182,0.35)" }]}>
+              <Ico name="mdi:heart" size={12} color="#FB7185" />
+              <Text style={[s.phoneMockupStatText, { color: "#FB7185" }]}>5</Text>
+            </View>
+            <View style={[s.phoneMockupStatPill, { borderColor: "rgba(250,204,21,0.35)" }]}>
+              <Ico name="mdi:star" size={12} color="#FACC15" />
+              <Text style={[s.phoneMockupStatText, { color: "#FACC15" }]}>5</Text>
+            </View>
+          </View>
+
+          <View style={s.phoneMockupProgress}>
+            <View style={s.phoneMockupProgressRow}>
+              <Text style={s.phoneMockupProgressLabel}>Overall Progress</Text>
+              <Text style={s.phoneMockupProgressCount}>6/32 quests</Text>
+            </View>
+            <View style={s.phoneMockupProgressBar}>
+              <View style={s.phoneMockupProgressFill} />
+            </View>
+          </View>
+
+          <View style={s.phoneMockupLessonCard}>
+            <View style={s.phoneMockupLessonCardTop}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.phoneMockupLessonTitle}>Money 101</Text>
+                <Text style={s.phoneMockupLessonSubtitle}>What even is money?</Text>
+              </View>
+              <View style={s.phoneMockupDoneBadge}>
+                <Text style={s.phoneMockupDoneValue}>1/4</Text>
+              </View>
+            </View>
+            <View style={s.phoneMockupLessonProgress}>
+              <View style={s.phoneMockupLessonProgressFill} />
+            </View>
+          </View>
+
+          <View style={s.phoneMockupPathArea}>
+            <View style={s.phoneMockupNode}>
+              <Ico name="mdi:cash-multiple" size={26} color="#FFFFFF" />
+            </View>
+            <View style={s.phoneMockupDots}>
+              {[0, 1, 2, 3].map((idx) => (
+                <View key={idx} style={s.phoneMockupDot} />
+              ))}
+            </View>
+            <View style={s.phoneMockupNodeSmall}>
+              <Ico name="mdi:bank" size={22} color="#FFFFFF" />
+            </View>
+          </View>
+
+          <View style={s.phoneMockupBottomNav}>
+            {[
+              { icon: "mdi:home-outline", active: false },
+              { icon: "mdi:chart-bar", active: false },
+              { icon: "mdi:chart-line", active: false },
+              { icon: "mdi:book-open-page-variant", active: true },
+            ].map((item) => (
+              <View key={item.icon} style={s.phoneMockupNavItem}>
+                <Ico
+                  name={item.icon}
+                  size={16}
+                  color={item.active ? "#0B3B78" : "#94A3B8"}
+                />
+              </View>
+            ))}
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function GuestLearnPreview({
+  chapters,
+  isLoading,
+  loadError,
+}: {
+  chapters: Chapter[];
+  isLoading: boolean;
+  loadError: string;
+}) {
+  const router = useRouter();
+  const { width } = useWindowDimensions();
+  const [activeSlide, setActiveSlide] = useState(0);
+
+  const lessonSlides = useMemo(() => {
+    const slides = buildPreviewSlides(chapters);
+    return slides.length > 0 ? slides : GUEST_PREVIEW_FALLBACK;
+  }, [chapters]);
+
+  const previewSlides = useMemo(
+    () => [...GUEST_SCREEN_PREVIEWS, ...lessonSlides],
+    [lessonSlides],
+  );
+
+  const lessonCount = useMemo(() => {
+    const count = chapters.reduce(
+      (sum, chapter) =>
+        sum + chapter.quests.filter((quest) => quest.type === "lesson").length,
+      0,
+    );
+    return count || lessonSlides.length;
+  }, [chapters, lessonSlides.length]);
+
+  const quizCount = useMemo(() => {
+    const count = chapters.reduce(
+      (sum, chapter) =>
+        sum +
+        chapter.quests.reduce(
+          (chapterSum, quest) =>
+            chapterSum + (quest.type === "lesson" ? quest.quiz.length : 0),
+          0,
+        ),
+      0,
+    );
+    return count || lessonSlides.reduce((sum, slide) => sum + slide.quizCount, 0);
+  }, [chapters, lessonSlides]);
+
+  const moduleCount = useMemo(() => {
+    const count = new Set(lessonSlides.map((slide) => slide.chapterTitle)).size;
+    return count || 1;
+  }, [lessonSlides]);
+
+  const slideWidth = Math.min(Math.max(width - 56, 280), 420);
+  const slideGap = 16;
+  const slideSpan = slideWidth + slideGap;
+
+  useEffect(() => {
+    if (activeSlide >= previewSlides.length) {
+      setActiveSlide(0);
+    }
+  }, [activeSlide, previewSlides.length]);
+
+  const handleSlideSnap = useCallback(
+    (event: any) => {
+      const nextIndex = Math.round(event.nativeEvent.contentOffset.x / slideSpan);
+      const boundedIndex = Math.max(0, Math.min(previewSlides.length - 1, nextIndex));
+      setActiveSlide(boundedIndex);
+    },
+    [previewSlides.length, slideSpan],
+  );
+
+  return (
+    <ScrollView style={s.fullScreen} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+      <LinearGradient
+        colors={["#0A2D5C", "#0B3B78"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={s.guestHero}
+      >
+        <View style={s.navBrand}>
+          <HeaderBar tint="dark" rightSlot={<GuestAuthActions />} />
+        </View>
+        <View style={s.guestHeroBody}>
+          <Text style={s.guestHeroTitle}>Preview the lesson experience before you unlock it.</Text>
+        </View>
+      </LinearGradient>
+
+      <View style={s.guestBody}>
+        {isLoading && chapters.length === 0 && (
+          <View style={s.previewNotice}>
+            <ActivityIndicator size="small" color={C.accent} />
+            <Text style={s.previewNoticeText}>Loading published lesson previews...</Text>
+          </View>
+        )}
+        {!!loadError && (
+          <View style={s.previewNotice}>
+            <Ico name="mdi:information-outline" size={18} color="#93C5FD" />
+            <Text style={s.previewNoticeText}>
+              Live lesson data is unavailable right now, so this section is showing a public preview.
+            </Text>
+          </View>
+        )}
+
+        <View style={s.previewSectionHeader}>
+          <Text style={s.previewSectionEyebrow}>Lesson Preview</Text>
+          <Text style={s.previewSectionTitle}>Swipe through how lessons look inside StockLearn.</Text>
+          <Text style={s.previewSectionSubtitle}>
+            Each lesson is designed as short cards plus a quiz. You can preview the style here, but opening the full learning path requires an account.
+          </Text>
+          <View style={s.previewSummaryRow}>
+            <View style={s.previewSummaryPill}>
+              <Text style={s.previewSummaryValue}>{lessonCount}</Text>
+              <Text style={s.previewSummaryLabel}>Lessons</Text>
+            </View>
+            <View style={s.previewSummaryPill}>
+              <Text style={s.previewSummaryValue}>{moduleCount}</Text>
+              <Text style={s.previewSummaryLabel}>Modules</Text>
+            </View>
+            <View style={s.previewSummaryPill}>
+              <Text style={s.previewSummaryValue}>{quizCount}</Text>
+              <Text style={s.previewSummaryLabel}>Quiz prompts</Text>
+            </View>
+          </View>
+        </View>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          decelerationRate="fast"
+          snapToInterval={slideSpan}
+          snapToAlignment="start"
+          disableIntervalMomentum
+          contentContainerStyle={s.previewCarousel}
+          onMomentumScrollEnd={handleSlideSnap}
+        >
+          {previewSlides.map((slide) => (
+            slide.kind === "screen" ? (
+              <ScreenPreviewCard
+                key={slide.id}
+                slide={slide}
+                width={slideWidth}
+                marginRight={slideGap}
+              />
+            ) : (
+              <View key={slide.id} style={[s.previewSlide, { width: slideWidth, marginRight: slideGap }]}>
+                <LinearGradient
+                  colors={[slide.chapterColor, slide.chapterDarkColor]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={s.previewSlideTop}
+                >
+                  <View style={s.previewSlideTopRow}>
+                    <Text style={s.previewModuleText}>{slide.chapterTitle}</Text>
+                    <View style={s.previewChip}>
+                      <Ico name="mdi:lock-outline" size={12} color="#F8FAFC" />
+                      <Text style={s.previewChipText}>Preview only</Text>
+                    </View>
+                  </View>
+                  <View style={s.previewLessonRow}>
+                    <View style={s.previewLessonIconWrap}>
+                      <Ico name={slide.lessonIcon} size={22} color="#FFFFFF" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.previewLessonName}>{slide.lessonTitle}</Text>
+                      <Text style={s.previewLessonTagline}>{slide.chapterTagline}</Text>
+                    </View>
+                  </View>
+                </LinearGradient>
+
+                <View style={s.previewSlideBody}>
+                  <View style={s.previewCard}>
+                    <Text style={s.previewCardLabel}>Sample lesson card</Text>
+                    <Text style={s.previewCardText}>{slide.prompt}</Text>
+                  </View>
+                  <View style={[s.previewCard, s.previewCardSecondary]}>
+                    <Text style={s.previewCardLabel}>What unlocks after login</Text>
+                    <Text style={s.previewCardAnswer}>{slide.answer}</Text>
+                  </View>
+
+                  <View style={s.previewMetaRow}>
+                    <View style={s.previewMetaPill}>
+                      <Ico name="mdi:cards-outline" size={14} color="#60A5FA" />
+                      <Text style={s.previewMetaText}>{slide.flashcardCount || 1} cards</Text>
+                    </View>
+                    <View style={s.previewMetaPill}>
+                      <Ico name="mdi:help-circle-outline" size={14} color="#34D399" />
+                      <Text style={s.previewMetaText}>{slide.quizCount || 1} quiz items</Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+            )
+          ))}
+        </ScrollView>
+
+        <View style={s.previewDotsRow}>
+          {previewSlides.map((slide, index) => (
+            <View
+              key={slide.id}
+              style={[
+                s.previewDot,
+                index === activeSlide && s.previewDotActive,
+              ]}
+            />
+          ))}
+        </View>
+
+        <View style={s.previewBenefitsCard}>
+          <View style={s.previewBenefitRow}>
+            <Ico name="mdi:progress-check" size={18} color="#0B3B78" />
+            <Text style={s.previewBenefitText}>Save lesson progress and continue where you stopped.</Text>
+          </View>
+          <View style={s.previewBenefitRow}>
+            <Ico name="mdi:school-outline" size={18} color="#0B3B78" />
+            <Text style={s.previewBenefitText}>Take quizzes and get immediate explanations after each lesson.</Text>
+          </View>
+          <View style={s.previewBenefitRow}>
+            <Ico name="mdi:medal-outline" size={18} color="#0B3B78" />
+            <Text style={s.previewBenefitText}>Unlock streaks, XP, and badges as you complete modules.</Text>
+          </View>
+        </View>
+
+        <View style={s.previewCtaCard}>
+          <Text style={s.previewCtaTitle}>Create an account to open the full learning platform.</Text>
+          <Text style={s.previewCtaSubtitle}>
+            The public section only previews the format. Logging in unlocks the actual lessons and interactive learning path.
+          </Text>
+          <Pressable style={s.previewPrimaryButton} onPress={() => router.push("/signup")}>
+            <Text style={s.previewPrimaryButtonText}>Sign up to start learning today</Text>
+          </Pressable>
+          <Pressable style={s.previewSecondaryButton} onPress={() => router.push("/login")}>
+            <Text style={s.previewSecondaryButtonText}>Log in to start learning today</Text>
+          </Pressable>
+        </View>
+      </View>
     </ScrollView>
   );
 }
@@ -1021,7 +1497,7 @@ function VaultModal({ visible, chapter, quest, onExit, onComplete }: any) {
 
 /* -- Main Screen ------------------------------------------ */
 export default function LearnScreen() {
-  const { accessToken } = useAuth();
+  const { accessToken, isAuthenticated } = useAuth();
   const { applyGamificationSnapshot, queueBadges } = useGamification();
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1104,6 +1580,7 @@ export default function LearnScreen() {
   useEffect(() => {
     let active = true;
     setLoading(true);
+    setLoadError("");
     apiFetch("/learn/flow", {}, accessToken)
       .then((payload: any) => {
         if (!active) return;
@@ -1285,6 +1762,10 @@ export default function LearnScreen() {
     closeQuest();
   }
 
+  if (!isAuthenticated) {
+    return <GuestLearnPreview chapters={chapters} isLoading={loading} loadError={loadError} />;
+  }
+
   if (loading && chapters.length === 0) {
     return (
       <View style={[s.fullScreen, s.center, { backgroundColor: C.bg }]}> 
@@ -1373,6 +1854,521 @@ const s = StyleSheet.create({
     paddingTop: 64,
     paddingHorizontal: 20,
     paddingBottom: 16,
+  },
+  guestHero: {
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.15)",
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+  },
+  guestHeroBody: {
+    paddingHorizontal: 20,
+    paddingBottom: 6,
+  },
+  guestHeroTitle: {
+    fontSize: 22,
+    lineHeight: 30,
+    fontWeight: "900",
+    color: "#F8FAFC",
+  },
+  guestBody: {
+    paddingTop: 18,
+    paddingBottom: 12,
+  },
+  previewNotice: {
+    marginHorizontal: 20,
+    marginBottom: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(96,165,250,0.25)",
+    backgroundColor: "rgba(59,130,246,0.08)",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  previewNoticeText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 18,
+    color: "#BFDBFE",
+  },
+  previewSectionHeader: {
+    marginHorizontal: 20,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    marginBottom: 18,
+    gap: 8,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "rgba(147,197,253,0.2)",
+    backgroundColor: "#EAF4FF",
+  },
+  previewSectionEyebrow: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 2,
+    textTransform: "uppercase",
+    color: "#2563EB",
+  },
+  previewSectionTitle: {
+    fontSize: 24,
+    lineHeight: 30,
+    fontWeight: "900",
+    color: "#0B3B78",
+  },
+  previewSectionSubtitle: {
+    fontSize: 13,
+    lineHeight: 21,
+    color: "#31598D",
+  },
+  previewSummaryRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 6,
+  },
+  previewSummaryPill: {
+    flex: 1,
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "rgba(11,59,120,0.12)",
+    alignItems: "center",
+  },
+  previewSummaryValue: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: "#0B3B78",
+  },
+  previewSummaryLabel: {
+    marginTop: 3,
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#31598D",
+    textAlign: "center",
+  },
+  previewCarousel: {
+    paddingLeft: 20,
+    paddingRight: 4,
+  },
+  previewSlide: {
+    borderRadius: 26,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "#111827",
+  },
+  previewSlideTop: {
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 20,
+  },
+  previewSlideTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 18,
+  },
+  previewModuleText: {
+    flex: 1,
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1.8,
+    textTransform: "uppercase",
+    color: "#E0F2FE",
+  },
+  previewChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: "rgba(15,23,42,0.24)",
+  },
+  previewChipText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#F8FAFC",
+  },
+  previewLessonRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  previewLessonIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.18)",
+  },
+  previewLessonName: {
+    fontSize: 20,
+    lineHeight: 26,
+    fontWeight: "900",
+    color: "#FFFFFF",
+  },
+  previewLessonTagline: {
+    marginTop: 4,
+    fontSize: 12,
+    lineHeight: 18,
+    color: "#BFDBFE",
+  },
+  previewSlideBody: {
+    padding: 18,
+    gap: 14,
+  },
+  previewCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(148,163,184,0.2)",
+    backgroundColor: "#0F172A",
+    padding: 16,
+    gap: 10,
+  },
+  previewCardSecondary: {
+    backgroundColor: "#111827",
+  },
+  previewCardLabel: {
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 1.6,
+    textTransform: "uppercase",
+    color: "#60A5FA",
+  },
+  previewCardText: {
+    fontSize: 15,
+    lineHeight: 24,
+    fontWeight: "700",
+    color: "#F8FAFC",
+  },
+  previewCardAnswer: {
+    fontSize: 13,
+    lineHeight: 22,
+    color: "#CBD5E1",
+  },
+  previewMetaRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  previewMetaPill: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: "#0B1220",
+    borderWidth: 1,
+    borderColor: "rgba(148,163,184,0.14)",
+  },
+  previewMetaText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#E2E8F0",
+  },
+  screenSlideTitle: {
+    fontSize: 20,
+    lineHeight: 26,
+    fontWeight: "900",
+    color: "#F8FAFC",
+  },
+  screenSlideSubtitle: {
+    marginTop: 8,
+    fontSize: 12,
+    lineHeight: 18,
+    color: "#D6E4FF",
+  },
+  phoneMockupFrame: {
+    borderRadius: 28,
+    padding: 14,
+    backgroundColor: "#08111F",
+    borderWidth: 1,
+    borderColor: "rgba(148,163,184,0.12)",
+  },
+  phoneMockupHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  phoneMockupBrand: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  phoneMockupLogo: {
+    width: 28,
+    height: 28,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#19427F",
+  },
+  phoneMockupBrandText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#F8FAFC",
+  },
+  phoneMockupProfilePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: 999,
+    backgroundColor: "#E2E8F0",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  phoneMockupProfileText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#0B3B78",
+  },
+  phoneMockupStatsRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 14,
+  },
+  phoneMockupStatPill: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    borderRadius: 16,
+    paddingVertical: 10,
+    backgroundColor: "#132036",
+    borderWidth: 1,
+  },
+  phoneMockupStatText: {
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  phoneMockupProgress: {
+    marginTop: 14,
+  },
+  phoneMockupProgressRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  phoneMockupProgressLabel: {
+    fontSize: 10,
+    color: "#D6E4FF",
+    fontWeight: "600",
+  },
+  phoneMockupProgressCount: {
+    fontSize: 10,
+    color: "#F8FAFC",
+    fontWeight: "800",
+  },
+  phoneMockupProgressBar: {
+    marginTop: 7,
+    height: 7,
+    borderRadius: 999,
+    backgroundColor: "rgba(148,163,184,0.2)",
+    overflow: "hidden",
+  },
+  phoneMockupProgressFill: {
+    width: "42%",
+    height: "100%",
+    borderRadius: 999,
+    backgroundColor: "#93C5FD",
+  },
+  phoneMockupLessonCard: {
+    marginTop: 14,
+    borderRadius: 18,
+    padding: 12,
+    backgroundColor: "#12111A",
+    borderWidth: 1,
+    borderColor: "rgba(245,158,11,0.28)",
+  },
+  phoneMockupLessonCardTop: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  phoneMockupLessonTitle: {
+    fontSize: 15,
+    fontWeight: "900",
+    color: "#F8FAFC",
+  },
+  phoneMockupLessonSubtitle: {
+    marginTop: 4,
+    fontSize: 11,
+    color: "#8B88B5",
+  },
+  phoneMockupDoneBadge: {
+    minWidth: 44,
+    borderRadius: 14,
+    backgroundColor: "#3C2B12",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  phoneMockupDoneValue: {
+    fontSize: 12,
+    fontWeight: "900",
+    color: "#F59E0B",
+  },
+  phoneMockupLessonProgress: {
+    marginTop: 10,
+    height: 6,
+    borderRadius: 999,
+    backgroundColor: "rgba(245,158,11,0.14)",
+    overflow: "hidden",
+  },
+  phoneMockupLessonProgressFill: {
+    width: "38%",
+    height: "100%",
+    borderRadius: 999,
+    backgroundColor: "#F59E0B",
+  },
+  phoneMockupPathArea: {
+    alignItems: "center",
+    paddingVertical: 18,
+  },
+  phoneMockupNode: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F59E0B",
+    shadowColor: "#F59E0B",
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 7,
+  },
+  phoneMockupDots: {
+    alignItems: "center",
+    gap: 6,
+    marginVertical: 10,
+  },
+  phoneMockupDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "rgba(245,158,11,0.6)",
+  },
+  phoneMockupNodeSmall: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F59E0B",
+  },
+  phoneMockupBottomNav: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 8,
+    borderRadius: 18,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: "#F8FAFC",
+  },
+  phoneMockupNavItem: {
+    flex: 1,
+    alignItems: "center",
+  },
+  previewDotsRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 8,
+    paddingTop: 18,
+    paddingBottom: 8,
+  },
+  previewDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#334155",
+  },
+  previewDotActive: {
+    width: 22,
+    backgroundColor: "#60A5FA",
+  },
+  previewBenefitsCard: {
+    marginHorizontal: 20,
+    marginTop: 18,
+    borderRadius: 24,
+    padding: 18,
+    gap: 14,
+    backgroundColor: "#E0F2FE",
+  },
+  previewBenefitRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  previewBenefitText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 20,
+    color: "#0F172A",
+    fontWeight: "600",
+  },
+  previewCtaCard: {
+    marginHorizontal: 20,
+    marginTop: 18,
+    borderRadius: 24,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "rgba(96,165,250,0.22)",
+    backgroundColor: "#0F172A",
+  },
+  previewCtaTitle: {
+    fontSize: 20,
+    lineHeight: 28,
+    fontWeight: "900",
+    color: "#F8FAFC",
+  },
+  previewCtaSubtitle: {
+    marginTop: 8,
+    marginBottom: 18,
+    fontSize: 13,
+    lineHeight: 21,
+    color: "#94A3B8",
+  },
+  previewPrimaryButton: {
+    borderRadius: 18,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+  },
+  previewPrimaryButtonText: {
+    fontSize: 14,
+    fontWeight: "900",
+    color: "#0B3B78",
+  },
+  previewSecondaryButton: {
+    marginTop: 10,
+    borderRadius: 18,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.16)",
+    backgroundColor: "#162033",
+  },
+  previewSecondaryButtonText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#F8FAFC",
   },
   statsRow: { flexDirection: "row", gap: 10, paddingHorizontal: 20, paddingBottom: 14 },
   statPill: {

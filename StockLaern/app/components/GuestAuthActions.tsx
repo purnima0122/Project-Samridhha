@@ -7,10 +7,10 @@ export default function GuestAuthActions() {
   return (
     <View style={styles.row}>
       <TouchableOpacity style={[styles.button, styles.loginButton]} onPress={() => router.push("/login")}>
-        <Text style={[styles.buttonText, styles.loginText]}>Login</Text>
+        <Text style={[styles.buttonText, styles.loginText]}>Log in</Text>
       </TouchableOpacity>
       <TouchableOpacity style={[styles.button, styles.registerButton]} onPress={() => router.push("/signup")}>
-        <Text style={[styles.buttonText, styles.registerText]}>Register</Text>
+        <Text style={[styles.buttonText, styles.registerText]}>Sign up</Text>
       </TouchableOpacity>
     </View>
   );
