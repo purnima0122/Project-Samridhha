@@ -43,20 +43,17 @@ StockLearn is a beginner-friendly mobile app that helps Nepali investors, especi
 
 ```text
 Project-Samridhha/
-├── StockLaern/        # Mobile app (Expo / React Native / TypeScript)
+├── frontend-stocklearn/ # Mobile app (Expo / React Native / TypeScript)
 ├── backend-nest/      # Main backend API (NestJS + MongoDB)
 ├── Data-Server/       # Market simulation + WebSocket server (Flask + Python)
 ├── photos/            # App screenshots used in this README
 └── Data/              # CSV datasets — NEPSE company and price history
 ```
-
-> **Note:** The `StockLaern` folder name is intentionally kept as-is to match the current project setup.
-
 ---
 
 ## 🔧 Tech Stack
 
-### Frontend (`StockLaern/`)
+### Frontend (`frontend-stocklearn/`)
 
 - **React Native** with **Expo** for cross-platform mobile development
 - **TypeScript** for a type-safe and maintainable codebase
@@ -123,7 +120,7 @@ npm run start:dev
 ### 3. Mobile App (Expo)
 
 ```bash
-cd StockLaern
+cd frontend-stocklearn
 npm install
 npm start
 ```

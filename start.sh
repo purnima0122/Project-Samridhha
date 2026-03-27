@@ -43,7 +43,7 @@ echo "  ${GREEN}✓${NC} Backend PID: $PIDS[-1]"
 
 # ─── 2. Frontend (Expo — port 8081) ─────────────────────────
 echo "\n${GREEN}[3/3]${NC} Starting Frontend Expo..."
-cd "$PROJECT_ROOT/StockLaern"
+cd "$PROJECT_ROOT/frontend-stocklearn"
 npx expo start --web &
 PIDS+=($!)
 echo "  ${GREEN}✓${NC} Frontend PID: $PIDS[-1]"
