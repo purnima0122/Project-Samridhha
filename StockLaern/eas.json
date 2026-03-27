@@ -1,6 +1,10 @@
 {
   "build": {
     "preview": {
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://winston-uncastigated-addictedly.ngrok-free.dev",
+        "EXPO_PUBLIC_DATA_SERVER_URL": "https://micrometrical-vanetta-louring.ngrok-free.dev"
+      },
       "android": {
         "buildType": "apk"
       }

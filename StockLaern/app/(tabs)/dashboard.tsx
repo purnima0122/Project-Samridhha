@@ -68,10 +68,12 @@ export default function HomeScreen() {
   const {
     ticks,
     stocks,
+    marketStatus,
     thresholds,
     notifications,
     unreadNotificationCount,
     isConnected: isDataServerConnected,
+    loadingStocks,
     loadSubscriptions,
   } = useDataServer();
   const [loadingDashboard, setLoadingDashboard] = useState(false);
@@ -172,6 +174,61 @@ export default function HomeScreen() {
     [persistedWatchlistItems, stockLookup, ticks],
   );
   const activeAlertCount = dashboardData?.stockAlerts?.length ?? thresholds.length;
+
+  const marketSnapshot = useMemo(() => {
+    const liveStocks = stocks
+      .map((item) => {
+        const symbol = String(item?.symbol ?? "").toUpperCase();
+        if (!symbol) {
+          return null;
+        }
+
+        const tick = ticks[symbol] ?? {};
+        const price = Number(
+          tick.price ?? tick.current_price ?? item.price ?? item.current_price ?? item.ltp ?? NaN,
+        );
+        const change = Number(tick.change_pct ?? item.change_pct ?? item.change ?? 0);
+        const volume = Number(tick.volume ?? item.volume ?? 0);
+
+        return {
+          symbol,
+          price: Number.isFinite(price) ? price : 0,
+          change: Number.isFinite(change) ? change : 0,
+          volume: Number.isFinite(volume) ? volume : 0,
+        };
+      })
+      .filter(
+        (
+          item,
+        ): item is {
+          symbol: string;
+          price: number;
+          change: number;
+          volume: number;
+        } => Boolean(item),
+      );
+
+    const gainers = liveStocks.filter((item) => item.change > 0).length;
+    const losers = liveStocks.filter((item) => item.change < 0).length;
+    const topGainer =
+      liveStocks.reduce<typeof liveStocks[number] | null>(
+        (best, current) => (!best || current.change > best.change ? current : best),
+        null,
+      ) ?? null;
+    const topVolume =
+      liveStocks.reduce<typeof liveStocks[number] | null>(
+        (best, current) => (!best || current.volume > best.volume ? current : best),
+        null,
+      ) ?? null;
+
+    return {
+      tracked: liveStocks.length,
+      gainers,
+      losers,
+      topGainer,
+      topVolume,
+    };
+  }, [stocks, ticks]);
 
   const toggleWatchlistSelection = (symbol: string) => {
     setWatchlistSelection((prev) =>
@@ -414,7 +471,7 @@ export default function HomeScreen() {
               </View>
               <TouchableOpacity style={styles.continueLearnBtn} onPress={() => router.push("/learn")}>
                 <Text style={styles.continueLearnText}>
-                  Continue Learning {gamification?.nextLessonTitle ? `- ${gamification.nextLessonTitle}` : ""}
+                  Continue Learning
                 </Text>
               </TouchableOpacity>
             </View>
@@ -558,13 +615,71 @@ export default function HomeScreen() {
         )}
 
         <View style={styles.snapshotCard}>
-          <View>
-            <Text style={styles.snapshotLabel}>NEPSE Index</Text>
-            <Text style={styles.snapshotValue}>2,156.42</Text>
+          <View style={styles.snapshotHeader}>
+            <View style={styles.snapshotCopy}>
+              <Text style={styles.snapshotLabel}>Live Market Snapshot</Text>
+              <Text style={styles.snapshotValue}>
+                {loadingStocks && marketSnapshot.tracked === 0
+                  ? "Loading..."
+                  : marketSnapshot.tracked > 0
+                    ? `${marketSnapshot.tracked} Stocks`
+                    : "No Data Yet"}
+              </Text>
+              <Text style={styles.snapshotSubtext}>
+                {marketStatus
+                  ? `${marketStatus.is_open ? "Market Open" : "Market Closed"}${marketStatus.trading_hours ? ` • ${marketStatus.trading_hours}` : ""}`
+                  : isDataServerConnected
+                    ? "Feed connected. Waiting for market details."
+                    : "Feed disconnected."}
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.snapshotBadge,
+                isDataServerConnected ? styles.snapshotBadgeLive : styles.snapshotBadgeOffline,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.snapshotBadgeText,
+                  !isDataServerConnected ? styles.snapshotBadgeTextOffline : null,
+                ]}
+              >
+                {isDataServerConnected ? "LIVE" : "OFFLINE"}
+              </Text>
+            </View>
           </View>
-          <View style={styles.snapshotBadge}>
-            <Text style={styles.snapshotBadgeText}>+2.4%</Text>
+
+          <View style={styles.snapshotStatsRow}>
+            <View style={styles.snapshotStat}>
+              <Text style={styles.snapshotStatLabel}>Gainers</Text>
+              <Text style={[styles.snapshotStatValue, styles.snapshotGain]}>
+                {marketSnapshot.gainers}
+              </Text>
+            </View>
+            <View style={styles.snapshotStat}>
+              <Text style={styles.snapshotStatLabel}>Losers</Text>
+              <Text style={[styles.snapshotStatValue, styles.snapshotLoss]}>
+                {marketSnapshot.losers}
+              </Text>
+            </View>
+            <View style={styles.snapshotStat}>
+              <Text style={styles.snapshotStatLabel}>Top Gainer</Text>
+              <Text style={styles.snapshotStatValue}>
+                {marketSnapshot.topGainer?.symbol ?? "--"}
+              </Text>
+            </View>
           </View>
+
+          <Text style={styles.snapshotFootnote}>
+            {marketSnapshot.topGainer && marketSnapshot.topVolume
+              ? `Top gainer: ${marketSnapshot.topGainer.symbol} ${marketSnapshot.topGainer.change >= 0 ? "+" : ""}${marketSnapshot.topGainer.change.toFixed(2)}% • Most active: ${marketSnapshot.topVolume.symbol} (${marketSnapshot.topVolume.volume.toLocaleString()})`
+              : marketSnapshot.topGainer
+                ? `Top gainer: ${marketSnapshot.topGainer.symbol} ${marketSnapshot.topGainer.change >= 0 ? "+" : ""}${marketSnapshot.topGainer.change.toFixed(2)}%`
+                : marketSnapshot.topVolume
+                  ? `Most active: ${marketSnapshot.topVolume.symbol} (${marketSnapshot.topVolume.volume.toLocaleString()})`
+                  : "Open Market to explore the full live board."}
+          </Text>
         </View>
 
         <Text style={styles.sectionTitle}>What you can do</Text>
@@ -850,15 +965,51 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 20,
   },
+  snapshotHeader: {
+    width: "100%",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  snapshotCopy: { flex: 1 },
   snapshotLabel: { color: "#64748B", fontSize: 12, fontWeight: "600" },
   snapshotValue: { color: "#0F172A", fontSize: 24, fontWeight: "700" },
+  snapshotSubtext: { color: "#64748B", fontSize: 12, marginTop: 6 },
   snapshotBadge: {
-    backgroundColor: "#DCFCE7",
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
   },
+  snapshotBadgeLive: { backgroundColor: "#DCFCE7" },
+  snapshotBadgeOffline: { backgroundColor: "#E2E8F0" },
   snapshotBadgeText: { color: "#15803D", fontWeight: "700", fontSize: 12 },
+  snapshotBadgeTextOffline: { color: "#475569" },
+  snapshotStatsRow: {
+    width: "100%",
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 14,
+  },
+  snapshotStat: {
+    flex: 1,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 12,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  snapshotStatLabel: { color: "#64748B", fontSize: 11, fontWeight: "600" },
+  snapshotStatValue: { color: "#0F172A", fontSize: 16, fontWeight: "800", marginTop: 4 },
+  snapshotGain: { color: "#16A34A" },
+  snapshotLoss: { color: "#DC2626" },
+  snapshotFootnote: {
+    width: "100%",
+    marginTop: 12,
+    color: "#334155",
+    fontSize: 12,
+    fontWeight: "600",
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: "700",

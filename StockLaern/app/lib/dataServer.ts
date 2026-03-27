@@ -8,7 +8,7 @@ import { io, Socket } from "socket.io-client";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
-const DEFAULT_DATA_SERVER_URL = "http://localhost:4000";
+const DEFAULT_DATA_SERVER_URL = "https://micrometrical-vanetta-louring.ngrok-free.dev";
 
 export const DATA_SERVER_URL =
     process.env.EXPO_PUBLIC_DATA_SERVER_URL || DEFAULT_DATA_SERVER_URL;

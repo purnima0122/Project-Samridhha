@@ -107,6 +107,45 @@ export class ProgressService {
     private readonly userModel: Model<User>,
   ) {}
 
+  private isVersionConflictError(error: unknown): boolean {
+    return error instanceof Error && error.name === 'VersionError';
+  }
+
+  // Re-run idempotent user state syncs on the latest document if another request wins the save race.
+  private async mutateUserWithRetry<TResult>(
+    userObjectId: Types.ObjectId,
+    mutate: (user: User) => Promise<TResult> | TResult,
+    maxAttempts = 3,
+  ): Promise<{ user: User; result: TResult }> {
+    let lastError: unknown;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      const user = await this.userModel.findById(userObjectId).exec();
+
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+
+      const result = await mutate(user);
+
+      if (!user.isModified()) {
+        return { user, result };
+      }
+
+      try {
+        await user.save();
+        return { user, result };
+      } catch (error) {
+        if (!this.isVersionConflictError(error) || attempt === maxAttempts - 1) {
+          throw error;
+        }
+        lastError = error;
+      }
+    }
+
+    throw lastError instanceof Error ? lastError : new Error('Failed to update user state.');
+  }
+
   private getDayStart(date: Date): Date {
     const d = new Date(date);
     d.setHours(0, 0, 0, 0);
@@ -740,67 +779,48 @@ export class ProgressService {
 
   async checkAndUpdateStreak(userId: string) {
     const userObjectId = new Types.ObjectId(userId);
-    const user = await this.userModel.findById(userObjectId).exec();
+    const { user, result } = await this.mutateUserWithRetry(userObjectId, (currentUser) => {
+      this.ensureBadgeRecords(currentUser);
+      this.ensureInitialFreezeState(currentUser);
+      const streakMeta = this.reconcileDailyStreak(currentUser, new Date());
 
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
+      return {
+        status: streakMeta.status,
+      };
+    });
 
-    const badgeNormalization = this.ensureBadgeRecords(user);
-    const freezeNormalization = this.ensureInitialFreezeState(user);
-    const streakMeta = this.reconcileDailyStreak(user, new Date());
-
-    if (badgeNormalization.changed || freezeNormalization || streakMeta.changed) {
-      await user.save();
-    }
-
-    return this.buildStreakCheckResponse(user, streakMeta.status);
+    return this.buildStreakCheckResponse(user, result.status);
   }
 
   async checkBadges(userId: string) {
     const userObjectId = new Types.ObjectId(userId);
-    const user = await this.userModel.findById(userObjectId).exec();
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    const newBadges: BadgeSummary[] = [];
-    const badgeNormalization = this.ensureBadgeRecords(user);
-    const freezeNormalization = this.ensureInitialFreezeState(user);
-    const streakMeta = this.reconcileDailyStreak(user, new Date());
-    this.applyMilestoneBadges(user, newBadges);
-    this.applyFreezeRefillMilestones(user, newBadges);
-
-    if (badgeNormalization.changed || freezeNormalization || streakMeta.changed || newBadges.length > 0) {
-      await user.save();
-    }
+    const { user } = await this.mutateUserWithRetry(userObjectId, (currentUser) => {
+      const newBadges: BadgeSummary[] = [];
+      this.ensureBadgeRecords(currentUser);
+      this.ensureInitialFreezeState(currentUser);
+      this.reconcileDailyStreak(currentUser, new Date());
+      this.applyMilestoneBadges(currentUser, newBadges);
+      this.applyFreezeRefillMilestones(currentUser, newBadges);
+    });
 
     return this.getUnseenBadges(user);
   }
 
   async markBadgeSeen(userId: string, badgeId: string) {
     const userObjectId = new Types.ObjectId(userId);
-    const user = await this.userModel.findById(userObjectId).exec();
+    await this.mutateUserWithRetry(userObjectId, (user) => {
+      const { badges } = this.ensureBadgeRecords(user);
+      const badge = badges.find((entry) => entry.badgeId === badgeId);
 
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
+      if (!badge) {
+        throw new NotFoundException('Badge not found');
+      }
 
-    const { badges, changed } = this.ensureBadgeRecords(user);
-    const badge = badges.find((entry) => entry.badgeId === badgeId);
-
-    if (!badge) {
-      throw new NotFoundException('Badge not found');
-    }
-
-    if (!badge.seen) {
-      badge.seen = true;
-      user.badges = badges as BadgeProgress[];
-      await user.save();
-    } else if (changed) {
-      await user.save();
-    }
+      if (!badge.seen) {
+        badge.seen = true;
+        user.badges = badges as BadgeProgress[];
+      }
+    });
 
     return { success: true };
   }
@@ -1016,30 +1036,20 @@ export class ProgressService {
 
   async getGamificationSummary(userId: string) {
     const userObjectId = new Types.ObjectId(userId);
-    const user = await this.userModel.findById(userObjectId).exec();
+    const { user, result } = await this.mutateUserWithRetry(userObjectId, (currentUser) => {
+      const now = new Date();
+      this.ensureBadgeRecords(currentUser);
+      this.ensureInitialFreezeState(currentUser);
+      this.ensureHeartsFresh(currentUser, now);
+      const streakMeta = this.reconcileDailyStreak(currentUser, now);
+      const newBadges: BadgeSummary[] = [];
+      this.applyMilestoneBadges(currentUser, newBadges);
+      this.applyFreezeRefillMilestones(currentUser, newBadges);
 
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    const now = new Date();
-    const badgeNormalization = this.ensureBadgeRecords(user);
-    const freezeNormalization = this.ensureInitialFreezeState(user);
-    const heartsUpdated = this.ensureHeartsFresh(user, now);
-    const streakMeta = this.reconcileDailyStreak(user, now);
-    const newBadges: BadgeSummary[] = [];
-    this.applyMilestoneBadges(user, newBadges);
-    this.applyFreezeRefillMilestones(user, newBadges);
-
-    if (
-      badgeNormalization.changed ||
-      freezeNormalization ||
-      heartsUpdated ||
-      streakMeta.changed ||
-      newBadges.length > 0
-    ) {
-      await user.save();
-    }
+      return {
+        status: streakMeta.status,
+      };
+    });
 
     const lessons = await this.lessonModel
       .find({ isPublished: true })
@@ -1085,7 +1095,7 @@ export class ProgressService {
     const completedLessons = completedSet.size;
 
     return {
-      ...this.gamificationSnapshot(user, streakMeta.status),
+      ...this.gamificationSnapshot(user, result.status),
       nextLessonId,
       nextLessonTitle,
       totalLessons,

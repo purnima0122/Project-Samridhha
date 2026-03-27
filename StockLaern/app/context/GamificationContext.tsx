@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { AppState } from "react-native";
 import { apiFetch } from "../lib/api";
 import { useAuth } from "./AuthContext";
@@ -63,6 +63,7 @@ export function GamificationProvider({ children }: { children: React.ReactNode }
   const [gamification, setGamification] = useState<GamificationSnapshot | null>(null);
   const [streakCheck, setStreakCheck] = useState<StreakCheckResult | null>(null);
   const [pendingBadges, setPendingBadges] = useState<BadgeItem[]>([]);
+  const refreshPromiseRef = useRef<Promise<void> | null>(null);
 
   const currentBadge = pendingBadges[0] ?? null;
 
@@ -108,21 +109,32 @@ export function GamificationProvider({ children }: { children: React.ReactNode }
       return;
     }
 
-    try {
-      const streak = await apiFetch<StreakCheckResult>("/progress/check-streak", {}, accessToken);
-      setStreakCheck(streak);
-      applyGamificationSnapshot(streak.gamification ?? null);
-
-      const [badges, summary] = await Promise.all([
-        apiFetch<BadgeItem[]>("/progress/badges/check", {}, accessToken),
-        apiFetch<GamificationSnapshot>("/progress/gamification", {}, accessToken),
-      ]);
-
-      queueBadges(badges);
-      applyGamificationSnapshot(summary);
-    } catch (error) {
-      console.warn("Unable to refresh daily gamification state", error);
+    if (refreshPromiseRef.current) {
+      await refreshPromiseRef.current;
+      return;
     }
+
+    // These endpoints sync and save overlapping user state, so keep refreshes serialized.
+    const run = (async () => {
+      try {
+        const streak = await apiFetch<StreakCheckResult>("/progress/check-streak", {}, accessToken);
+        setStreakCheck(streak);
+        applyGamificationSnapshot(streak.gamification ?? null);
+
+        const badges = await apiFetch<BadgeItem[]>("/progress/badges/check", {}, accessToken);
+        queueBadges(badges);
+
+        const summary = await apiFetch<GamificationSnapshot>("/progress/gamification", {}, accessToken);
+        applyGamificationSnapshot(summary);
+      } catch (error) {
+        console.warn("Unable to refresh daily gamification state", error);
+      } finally {
+        refreshPromiseRef.current = null;
+      }
+    })();
+
+    refreshPromiseRef.current = run;
+    await run;
   }, [accessToken, applyGamificationSnapshot, queueBadges]);
 
   const markCurrentBadgeSeen = useCallback(async () => {
@@ -148,6 +160,7 @@ export function GamificationProvider({ children }: { children: React.ReactNode }
       setGamification(null);
       setStreakCheck(null);
       setPendingBadges([]);
+      refreshPromiseRef.current = null;
       return;
     }
 

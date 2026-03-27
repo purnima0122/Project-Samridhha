@@ -53,7 +53,9 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     const options: StrategyOptions = {
       clientID: configService.get<string>('googleOAuth.clientID') || 'placeholder-client-id',
       clientSecret: configService.get<string>('googleOAuth.clientSecret') || 'placeholder-client-secret',
-      callbackURL: configService.get<string>('googleOAuth.callbackURL') || 'http://localhost:3000/auth/google/callback',
+      callbackURL:
+        configService.get<string>('googleOAuth.callbackURL') ||
+        'https://winston-uncastigated-addictedly.ngrok-free.dev/auth/google/callback',
       scope: ['email', 'profile'],
     };
     super(options);
