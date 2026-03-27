@@ -1,4 +1,4 @@
-<div align="center"># 📈 StockLearn — Project Samriddha </div>
+# 📈 StockLearn — Project Samridhha
 
 <div align="center">
 
@@ -30,7 +30,7 @@ StockLearn is a beginner-friendly mobile app that helps Nepali investors, especi
 |---|---|
 | 📚 Microlearning Module | Short, structured lessons with quizzes and progress tracking |
 | 🏆 Gamification | XP, streaks, badges, hearts, and levels to keep learning engaging |
-| 📊 Dashboard | Personalized hub showing learning progress, watchlist, and alerts |
+| 📊 Market Dashboard | Personalized hub showing learning progress, watchlist, and alerts |
 | 🔍 Browse Market | Search NEPSE stocks, view gainers, losers, and sector allocation |
 | 🔔 Smart Alert System | Set price or volume thresholds and get notified on unusual market activity |
 | 📰 News & Research | Curated NEPSE updates and regulator bulletins |
@@ -49,6 +49,9 @@ Project-Samridhha/
 ├── photos/            # App screenshots used in this README
 └── Data/              # CSV datasets — NEPSE company and price history
 ```
+
+> **Note:** The frontend folder was renamed to `frontend-stocklearn` for clarity.
+
 ---
 
 ## 🔧 Tech Stack
@@ -179,6 +182,13 @@ node seed/run-lesson-seed.js --dry-run
 # Run the seed
 node seed/run-lesson-seed.js
 
+# Other useful options
+node seed/run-lesson-seed.js --help
+node seed/run-lesson-seed.js --mode replace-all
+node seed/run-lesson-seed.js --mode replace-module --module "Money 101"
+node seed/run-lesson-seed.js --file seed/lessons.nepal-finlit-curriculum.json
+```
+
 ---
 
 ## 🧠 How the Spike Detection Works
@@ -195,6 +205,8 @@ The simulation engine uses historical NEPSE data to produce realistic tick behav
 ---
 
 ## 📱 App Screenshots
+
+All screenshots below are loaded from the [`photos`](./photos) folder and displayed at a consistent size for a cleaner project gallery.
 
 ### Authentication & Entry
 
